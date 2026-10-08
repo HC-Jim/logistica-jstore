@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "front",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "LogisticaFront", "run", "dev"],
+      "port": 3000
+    },
+    {
+      "name": "api",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "LogisticaBack", "run", "dev"],
+      "port": 4000
+    }
+  ]
+}
