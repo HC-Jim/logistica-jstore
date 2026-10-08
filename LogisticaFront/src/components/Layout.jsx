@@ -39,12 +39,12 @@ export default function Layout({ children }) {
   }, [cargando, usuario, permitido, router]);
 
   if (!usuario) return <p className="centrado">Cargando…</p>;
-  if (usuario.rol === 'repartidor') {
+  if (['repartidor', 'auxiliar'].includes(usuario.rol)) {
     return (
       <div className="login">
         <div className="tarjeta">
           <h1 className="logo">Logística<span>JStore</span></h1>
-          <p>Hola {usuario.nombre}. Los repartidores usan la <strong>app móvil</strong> para ver sus rutas y registrar entregas.</p>
+          <p>Hola {usuario.nombre}. Conductores y auxiliares usan la <strong>app móvil</strong> para ver sus rutas y registrar entregas.</p>
           <button onClick={logout}>Cerrar sesión</button>
         </div>
       </div>

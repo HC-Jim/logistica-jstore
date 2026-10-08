@@ -15,7 +15,7 @@ const CAMPOS_USUARIO = {
 };
 
 // Perfiles que se pueden elegir al crear una cuenta (admin nunca)
-const PERFILES_REGISTRO = ['vendedor', 'planificador', 'almacen', 'repartidor'];
+const PERFILES_REGISTRO = ['vendedor', 'planificador', 'almacen', 'repartidor', 'auxiliar'];
 
 function firmarToken(usuario) {
   return jwt.sign(
@@ -75,7 +75,11 @@ export const AuthController = {
   },
 
   async listarUsuarios(req, res) {
-    res.json(await UsuarioModel.listar({ rol: req.query.rol, soloActivos: req.query.activos === 'true' }));
+    res.json(await UsuarioModel.listar({
+      rol: req.query.rol,
+      soloActivos: req.query.activos === 'true',
+      conClave: req.user.rol === 'admin', // el planificador solo necesita la lista de conductores
+    }));
   },
 
   async crearUsuario(req, res) {
@@ -85,6 +89,7 @@ export const AuthController = {
       ...d,
       email: d.email.toLowerCase(),
       passwordHash: await hashPassword(d.password),
+      claveVisible: d.password,
     });
     res.status(201).json(usuario);
   },
@@ -100,6 +105,7 @@ export const AuthController = {
       email: d.email?.toLowerCase(),
       activo: typeof req.body.activo === 'boolean' ? req.body.activo : undefined,
       passwordHash: d.password ? await hashPassword(d.password) : undefined,
+      claveVisible: d.password || undefined,
     });
     if (!usuario) throw new HttpError(404, 'Usuario no encontrado');
     res.json(usuario);

@@ -2,8 +2,9 @@
 
 Base: `https://<backend>.vercel.app/api` · JSON · autenticación con `Authorization: Bearer <token>`.
 
-Solo pueden usar estos endpoints los usuarios con rol **repartidor** (conductor o asistente).
-Se crean desde la web en *Usuarios*. Un asistente asignado a una ruta ve y atiende la misma ruta que el conductor.
+Solo pueden usar estos endpoints los usuarios con perfil **Conductor** (`rol: "repartidor"`) o
+**Auxiliar logístico** (`rol: "auxiliar"`). Se crean desde la web en *Usuarios*. El auxiliar asignado a una
+ruta ve y atiende la misma ruta que el conductor.
 
 ## 1. Login
 

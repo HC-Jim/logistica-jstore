@@ -43,7 +43,8 @@ export default function RutaEditor() {
   const [ruta, setRuta] = useState(null);
   const [lista, setLista] = useState([]);
   const [sinRuta, setSinRuta] = useState([]);
-  const [repartidores, setRepartidores] = useState([]);
+  const [repartidores, setRepartidores] = useState([]); // conductores
+  const [auxiliares, setAuxiliares] = useState([]);
   const [sucio, setSucio] = useState(false);
   const [libre, setLibre] = useState(null); // acción libre en preparación
   const [trabajando, setTrabajando] = useState('');
@@ -59,6 +60,7 @@ export default function RutaEditor() {
   useEffect(() => {
     rutasApi.obtener(id).then(aplicar).catch((e) => setError(mensajeError(e)));
     usuariosApi.listar({ rol: 'repartidor', activos: true }).then(setRepartidores).catch(() => {});
+    usuariosApi.listar({ rol: 'auxiliar,repartidor', activos: true }).then(setAuxiliares).catch(() => {});
   }, [id, aplicar]);
 
   // Avisar antes de salir con cambios sin guardar
@@ -135,17 +137,17 @@ export default function RutaEditor() {
       </div>
 
       <section className="tarjeta fila">
-        <label>Repartidor
+        <label>Conductor
           <select value={ruta.repartidor_id} disabled={finalizada}
             onChange={(e) => actualizarRuta({ repartidor_id: Number(e.target.value) })}>
             {repartidores.map((r) => <option key={r.id} value={r.id}>{r.nombre}</option>)}
           </select>
         </label>
-        <label>Asistente
+        <label>Auxiliar logístico
           <select value={ruta.asistente_id ?? ''} disabled={finalizada}
             onChange={(e) => actualizarRuta({ asistente_id: e.target.value ? Number(e.target.value) : null })}>
-            <option value="">Sin asistente</option>
-            {repartidores.filter((r) => r.id !== ruta.repartidor_id).map((r) => <option key={r.id} value={r.id}>{r.nombre}</option>)}
+            <option value="">Sin auxiliar</option>
+            {auxiliares.filter((r) => r.id !== ruta.repartidor_id).map((r) => <option key={r.id} value={r.id}>{r.nombre}</option>)}
           </select>
         </label>
         <div className="kpi-mini"><small>Distancia</small><strong>{km(ruta.distancia_metros)}</strong></div>

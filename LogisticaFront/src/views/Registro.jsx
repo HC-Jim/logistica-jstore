@@ -9,7 +9,8 @@ const PERFILES = [
   ['vendedor', 'Vendedor', 'Registro pedidos y gestiono mis ventas'],
   ['planificador', 'Planificador / Logística', 'Armo las rutas y gestiono los pedidos'],
   ['almacen', 'Almacén', 'Preparo los pedidos y registro observaciones'],
-  ['repartidor', 'Repartidor / Asistente', 'Entrego los pedidos con la app móvil'],
+  ['repartidor', 'Conductor', 'Manejo el vehículo y entrego los pedidos (app móvil)'],
+  ['auxiliar', 'Auxiliar logístico', 'Acompaño al conductor en la ruta (app móvil)'],
 ];
 
 export default function Registro() {

@@ -126,7 +126,7 @@ export default function Monitoreo() {
             <span><span className="punto" style={{ background: '#2f855a' }} /> Entregado</span>
             <span><span className="punto" style={{ background: '#c05621' }} /> Incidencia</span>
             <span><span className="punto" style={{ background: '#a0aec0' }} /> Sin rutear</span>
-            <span>🚚 Posición del repartidor</span>
+            <span>🚚 Posición del conductor</span>
             {!ruta && <label className="check"><input type="checkbox" checked={verSinRuta} onChange={(e) => setVerSinRuta(e.target.checked)} /> Mostrar sin rutear</label>}
             {ruta && <label className="check"><input type="checkbox" checked={verRecorrido} onChange={(e) => setVerRecorrido(e.target.checked)} /> Recorrido GPS real</label>}
           </div>
@@ -164,7 +164,7 @@ export default function Monitoreo() {
             <>
               <h3>Resumen del día</h3>
               <table>
-                <thead><tr><th>Repartidor</th><th>Avance</th><th>GPS</th><th>Estado</th></tr></thead>
+                <thead><tr><th>Conductor</th><th>Avance</th><th>GPS</th><th>Estado</th></tr></thead>
                 <tbody>
                   {rutas.map((r) => (
                     <tr key={r.id} className="clic" onClick={() => setSeleccion(r.id)}>

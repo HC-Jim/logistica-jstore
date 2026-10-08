@@ -45,14 +45,21 @@ async function bloquearRuta(client, id) {
   return ruta;
 }
 
-async function validarRepartidores(client, ids) {
-  const lista = ids.filter(Boolean);
+/** El conductor debe tener perfil Conductor; el auxiliar, Auxiliar logístico o Conductor. */
+async function validarRepartidores(client, [conductorId, auxiliarId]) {
   const { rows } = await client.query(
-    `SELECT id FROM usuarios WHERE id = ANY($1::int[]) AND rol = 'repartidor' AND activo`,
-    [lista]
+    'SELECT id, rol FROM usuarios WHERE id = ANY($1::int[]) AND activo',
+    [[conductorId, auxiliarId].filter(Boolean)]
   );
-  if (rows.length !== new Set(lista).size) {
-    throw new HttpError(400, 'El repartidor y el asistente deben ser usuarios activos con rol repartidor');
+  const rol = new Map(rows.map((u) => [u.id, u.rol]));
+  if (rol.get(conductorId) !== 'repartidor') {
+    throw new HttpError(400, 'El conductor debe ser un usuario activo con perfil Conductor');
+  }
+  if (auxiliarId) {
+    if (auxiliarId === conductorId) throw new HttpError(400, 'El conductor y el auxiliar deben ser personas distintas');
+    if (!['auxiliar', 'repartidor'].includes(rol.get(auxiliarId))) {
+      throw new HttpError(400, 'El auxiliar debe ser un usuario activo con perfil Auxiliar logístico o Conductor');
+    }
   }
 }
 

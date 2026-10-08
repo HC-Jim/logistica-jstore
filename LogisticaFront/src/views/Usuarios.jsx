@@ -12,7 +12,8 @@ const DESCRIPCION_ROL = {
   vendedor: 'Registra pedidos y solo ve y edita sus propias ventas.',
   planificador: 'Gestiona todos los pedidos, arma las rutas y ve el monitoreo.',
   almacen: 'Ve pedidos y monitoreo; escribe observaciones de almacén.',
-  repartidor: 'Conductor o asistente: usa la app móvil para su ruta.',
+  repartidor: 'Conductor de la ruta: ve sus paradas y marca entregas en la app móvil.',
+  auxiliar: 'Acompaña al conductor; ve la misma ruta en la app móvil.',
 };
 
 /** Contraseña legible (sin 0/O, 1/l/I) de 10 caracteres. */
@@ -67,7 +68,7 @@ export default function Usuarios() {
 
   async function copiar() {
     const c = credenciales;
-    const app = c.rol === 'repartidor' ? 'App móvil de repartidores' : window.location.origin;
+    const app = ['repartidor', 'auxiliar'].includes(c.rol) ? 'App móvil de Logística JStore' : window.location.origin;
     await navigator.clipboard.writeText(`Hola ${c.nombre}, tu acceso a Logística JStore:\n${app}\nCorreo: ${c.email}\nContraseña: ${c.password}`);
     setCopiado(true);
   }
@@ -122,7 +123,7 @@ export default function Usuarios() {
       {credenciales && (
         <section className="tarjeta credenciales">
           <h3>✔ Credenciales de {credenciales.nombre}</h3>
-          <p>Entrégaselas ahora: por seguridad la contraseña se guarda cifrada y <strong>no se podrá volver a ver</strong>. Si la pierde, genera una nueva aquí.</p>
+          <p>Envíaselas a la persona. También podrás verlas luego en la columna <strong>Contraseña</strong> de la lista.</p>
           <dl>
             <dt>Correo</dt><dd><code>{credenciales.email}</code></dd>
             <dt>Contraseña</dt><dd><code>{credenciales.password}</code></dd>
@@ -171,11 +172,13 @@ export default function Usuarios() {
           </select>
         </div>
         <table>
-          <thead><tr><th>Nombre</th><th>Correo</th><th>Perfil</th><th>Teléfono</th><th>Estado</th><th /></tr></thead>
+          <thead><tr><th>Nombre</th><th>Correo</th><th>Contraseña</th><th>Perfil</th><th>Teléfono</th><th>Estado</th><th /></tr></thead>
           <tbody>
             {visibles.map((u) => (
               <tr key={u.id} className={u.activo ? '' : 'inactivo'}>
-                <td>{u.nombre}</td><td>{u.email}</td><td>{ROLES[u.rol]}</td><td>{u.telefono}</td>
+                <td>{u.nombre}</td><td>{u.email}</td>
+                <td>{u.clave_visible ? <code className="clave">{u.clave_visible}</code> : <small title="La eligió el propio usuario o se creó antes de este cambio. Usa «Nueva contraseña» para asignar una visible.">no visible</small>}</td>
+                <td>{ROLES[u.rol]}</td><td>{u.telefono}</td>
                 <td>{u.activo ? 'Activo' : 'Inactivo'}</td>
                 <td className="acciones">
                   <button className="btn-sec" onClick={() => { setForm({ ...VACIO, ...u, telefono: u.telefono ?? '', password: '' }); setVerClave(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>Editar</button>

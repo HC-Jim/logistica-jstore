@@ -31,7 +31,8 @@ export const MEDIOS_PAGO = [
 // cualquiera salvo entregado → cancelado
 export const ESTADOS_PEDIDO = ['pendiente', 'ruteado', 'entregado', 'incidencia', 'cancelado'];
 
-export const ROLES = ['admin', 'vendedor', 'planificador', 'almacen', 'repartidor'];
+// 'repartidor' es el Conductor de la ruta; 'auxiliar' es el Auxiliar logístico que lo acompaña
+export const ROLES = ['admin', 'vendedor', 'planificador', 'almacen', 'repartidor', 'auxiliar'];
 
 export const ESTADOS_RUTA = ['planificada', 'en_curso', 'finalizada'];
 export const ESTADOS_PARADA = ['pendiente', 'completada', 'incidencia'];

@@ -13,7 +13,7 @@ export const PERMISOS = {
   gestionarProductos: ['admin', 'planificador'],
   estadisticas: ['admin', 'planificador'],
   usuarios: ['admin'],
-  appRepartidor: ['repartidor'],
+  appRepartidor: ['repartidor', 'auxiliar'], // conductor y auxiliar logístico
 };
 
 /** Campos que un vendedor puede modificar en sus propias ventas. */

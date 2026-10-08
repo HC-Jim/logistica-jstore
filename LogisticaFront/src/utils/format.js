@@ -34,7 +34,8 @@ export const ROLES = {
   vendedor: 'Vendedor',
   planificador: 'Planificador',
   almacen: 'Almacén',
-  repartidor: 'Repartidor',
+  repartidor: 'Conductor',
+  auxiliar: 'Auxiliar logístico',
 };
 
 export const km = (m) => (m == null ? '—' : `${(m / 1000).toFixed(1)} km`);

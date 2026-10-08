@@ -13,12 +13,14 @@ export default function Rutas() {
   const [fecha, setFecha] = useState(hoyISO());
   const [rutas, setRutas] = useState([]);
   const [sinRuta, setSinRuta] = useState([]);
-  const [repartidores, setRepartidores] = useState([]);
+  const [repartidores, setRepartidores] = useState([]); // conductores
+  const [auxiliares, setAuxiliares] = useState([]);
   const [nueva, setNueva] = useState({ nombre: '', repartidor_id: '', asistente_id: '' });
   const [error, setError] = useState('');
 
   useEffect(() => {
     usuariosApi.listar({ rol: 'repartidor', activos: true }).then(setRepartidores).catch(() => {});
+    usuariosApi.listar({ rol: 'auxiliar,repartidor', activos: true }).then(setAuxiliares).catch(() => {});
   }, []);
 
   const cargar = useCallback(() => {
@@ -65,7 +67,7 @@ export default function Rutas() {
       <section className="tarjeta">
         <h3>Rutas del {fecha}</h3>
         <table>
-          <thead><tr><th>Ruta</th><th>Repartidor</th><th>Asistente</th><th>Paradas</th><th>Distancia</th><th>Estado</th></tr></thead>
+          <thead><tr><th>Ruta</th><th>Conductor</th><th>Auxiliar</th><th>Paradas</th><th>Distancia</th><th>Estado</th></tr></thead>
           <tbody>
             {rutas.map((r) => (
               <tr key={r.id}>
@@ -85,16 +87,16 @@ export default function Rutas() {
           <strong>Nueva ruta:</strong>
           <input placeholder="Nombre (opcional, ej. Sur)" value={nueva.nombre} onChange={(e) => setNueva({ ...nueva, nombre: e.target.value })} />
           <select required value={nueva.repartidor_id} onChange={(e) => setNueva({ ...nueva, repartidor_id: e.target.value })}>
-            <option value="">Repartidor…</option>
+            <option value="">Conductor…</option>
             {repartidores.map((r) => <option key={r.id} value={r.id}>{r.nombre}</option>)}
           </select>
           <select value={nueva.asistente_id} onChange={(e) => setNueva({ ...nueva, asistente_id: e.target.value })}>
-            <option value="">Sin asistente</option>
-            {repartidores.filter((r) => String(r.id) !== nueva.repartidor_id).map((r) => <option key={r.id} value={r.id}>{r.nombre}</option>)}
+            <option value="">Sin auxiliar</option>
+            {auxiliares.filter((r) => String(r.id) !== nueva.repartidor_id).map((r) => <option key={r.id} value={r.id}>{r.nombre}</option>)}
           </select>
           <button>Crear y planificar</button>
         </form>
-        {!repartidores.length && <small>No hay usuarios con rol repartidor. Créalos en Usuarios.</small>}
+        {!repartidores.length && <small>No hay usuarios con perfil Conductor. Créalos en Usuarios.</small>}
       </section>
     </>
   );

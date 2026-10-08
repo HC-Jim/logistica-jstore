@@ -15,7 +15,7 @@ if (clave.length < 6) {
 
 const hash = await bcrypt.hash(clave, 10);
 const sqlTexto = (t) => `'${t.trim().toLowerCase().replace(/'/g, "''")}'`;
-const cambios = [`password_hash = '${hash}'`, 'activo = true'];
+const cambios = [`password_hash = '${hash}'`, `clave_visible = '${clave.replace(/'/g, "''")}'`, 'activo = true'];
 if (nuevoCorreo) cambios.push(`email = ${sqlTexto(nuevoCorreo)}`);
 
 console.log('\nCopia y ejecuta esto en Neon → SQL Editor (rama production):\n');

@@ -1,6 +1,7 @@
-// Genera una cuenta por cada perfil (vendedor, planificador, almacén, repartidor).
+// Genera el SQL con una cuenta por defecto para cada perfil (contraseña visible para el admin).
 // Uso:   node scripts/crear-cuentas-perfil.js <dominio>      p. ej.  jotastore.pe
-// Escribe el SQL (para Neon → SQL Editor) y un archivo local con las credenciales para entregarlas.
+// Crea usuarios-por-defecto.sql: pégalo en Neon → SQL Editor (rama production) y pulsa Run.
+// Si un correo ya existe, no se modifica (ON CONFLICT DO NOTHING).
 import { writeFileSync } from 'node:fs';
 import { randomInt } from 'node:crypto';
 import bcrypt from 'bcryptjs';
@@ -11,35 +12,39 @@ if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(dominio)) {
   process.exit(1);
 }
 
+// [nombre, usuario del correo, rol]  ('repartidor' = Conductor)
 const CUENTAS = [
-  ['Vendedor', 'vendedor', 'vendedor'],
-  ['Planificador', 'planificador', 'planificador'],
-  ['Almacén', 'almacen', 'almacen'],
-  ['Repartidor', 'repartidor', 'repartidor'],
+  ['Vendedor Prueba', 'vendedor', 'vendedor'],
+  ['Planificador Prueba', 'planificador', 'planificador'],
+  ['Almacén Prueba', 'almacen', 'almacen'],
+  ['Conductor Prueba', 'conductor', 'repartidor'],
+  ['Auxiliar Logístico Prueba', 'auxiliar', 'auxiliar'],
 ];
 
 const LETRAS = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const clave = () => Array.from({ length: 10 }, () => LETRAS[randomInt(LETRAS.length)]).join('');
 
 const filas = [];
-const credenciales = [];
+const resumen = [];
 for (const [nombre, usuario, rol] of CUENTAS) {
   const email = `${usuario}@${dominio}`;
   const password = clave();
-  filas.push(`  ('${nombre}', '${email}', '${await bcrypt.hash(password, 10)}', '${rol}')`);
-  credenciales.push(`${rol.padEnd(13)} ${email.padEnd(32)} ${password}`);
+  filas.push(`  ('${nombre}', '${email}', '${await bcrypt.hash(password, 10)}', '${password}', '${rol}')`);
+  resumen.push(`--   ${rol.padEnd(12)} ${email.padEnd(30)} ${password}`);
 }
 
-const sql = `INSERT INTO usuarios (nombre, email, password_hash, rol) VALUES
+const sql = `-- Usuarios por defecto (${new Date().toLocaleString('es-PE')})
+-- Ejecutar en Neon → rama production → SQL Editor → Run.
+-- Las contraseñas también se ven en la web: Usuarios → columna "Contraseña".
+--
+--   PERFIL       CORREO                         CONTRASEÑA
+${resumen.join('\n')}
+
+INSERT INTO usuarios (nombre, email, password_hash, clave_visible, rol) VALUES
 ${filas.join(',\n')}
 ON CONFLICT (email) DO NOTHING
-RETURNING id, email, rol;
+RETURNING id, nombre, email, rol, clave_visible;
 `;
-writeFileSync('credenciales-perfiles.txt', `Cuentas creadas (${new Date().toLocaleString('es-PE')})\n` +
-  'Entrega cada una a la persona correspondiente y luego BORRA este archivo.\n' +
-  'Puedes cambiar nombres y contraseñas en la web: Usuarios → Editar / Nueva contraseña.\n\n' +
-  `${'PERFIL'.padEnd(13)} ${'CORREO'.padEnd(32)} CONTRASEÑA\n${credenciales.join('\n')}\n`);
-
-console.log('\n1) Copia y ejecuta esto en Neon → SQL Editor (rama production):\n');
+writeFileSync('usuarios-por-defecto.sql', sql);
 console.log(sql);
-console.log('2) Las contraseñas quedaron en LogisticaBack/credenciales-perfiles.txt (no se sube a GitHub).\n');
+console.log('Guardado en LogisticaBack/usuarios-por-defecto.sql (no se sube a GitHub).');

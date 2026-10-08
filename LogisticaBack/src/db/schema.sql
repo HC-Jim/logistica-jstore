@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
   email         VARCHAR(160) NOT NULL UNIQUE,
   password_hash TEXT         NOT NULL,
   rol           VARCHAR(20)  NOT NULL
-                CHECK (rol IN ('admin', 'vendedor', 'planificador', 'almacen', 'repartidor')),
+                CHECK (rol IN ('admin', 'vendedor', 'planificador', 'almacen', 'repartidor', 'auxiliar')),
   telefono      VARCHAR(30),
   activo        BOOLEAN      NOT NULL DEFAULT true,
   creado_en     TIMESTAMPTZ  NOT NULL DEFAULT now()
@@ -15,6 +15,15 @@ CREATE TABLE IF NOT EXISTS usuarios (
 
 -- Cuentas creadas desde la página pública "Crear cuenta": esperan aprobación del admin
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS pendiente BOOLEAN NOT NULL DEFAULT false;
+
+-- Contraseña visible para el administrador (solo las que crea o restablece el admin;
+-- las elegidas por el propio usuario en "Crear cuenta" no se guardan en claro)
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS clave_visible TEXT;
+
+-- Perfil "auxiliar" (auxiliar logístico); 'repartidor' es el conductor
+ALTER TABLE usuarios DROP CONSTRAINT IF EXISTS usuarios_rol_check;
+ALTER TABLE usuarios ADD CONSTRAINT usuarios_rol_check
+  CHECK (rol IN ('admin', 'vendedor', 'planificador', 'almacen', 'repartidor', 'auxiliar'));
 
 -- Departamentos / provincias / distritos del Perú (se cargan desde db/ubigeo.json)
 CREATE TABLE IF NOT EXISTS ubigeos (
