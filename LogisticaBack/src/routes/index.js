@@ -11,6 +11,7 @@ const router = Router();
 
 // --- Autenticación (web y app del repartidor) ---
 router.post('/auth/login', AuthController.login);
+router.post('/auth/registro', AuthController.registro);
 
 router.use(requireAuth); // todo lo de abajo requiere sesión
 
@@ -26,6 +27,8 @@ router.post('/ubicacion/resolver', CatalogoController.resolverUbicacion);
 router.get('/usuarios', rol('admin', 'planificador'), AuthController.listarUsuarios);
 router.post('/usuarios', rol(...P.usuarios), AuthController.crearUsuario);
 router.put('/usuarios/:id', rol(...P.usuarios), AuthController.actualizarUsuario);
+router.post('/usuarios/:id/aprobar', rol(...P.usuarios), AuthController.aprobarUsuario);
+router.delete('/usuarios/:id', rol(...P.usuarios), AuthController.rechazarUsuario);
 
 // --- Productos ---
 router.get('/productos', rol(...P.verProductos), ProductoController.listar);

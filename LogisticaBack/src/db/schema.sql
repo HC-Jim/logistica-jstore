@@ -13,6 +13,9 @@ CREATE TABLE IF NOT EXISTS usuarios (
   creado_en     TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
+-- Cuentas creadas desde la página pública "Crear cuenta": esperan aprobación del admin
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS pendiente BOOLEAN NOT NULL DEFAULT false;
+
 -- Departamentos / provincias / distritos del Perú (se cargan desde db/ubigeo.json)
 CREATE TABLE IF NOT EXISTS ubigeos (
   codigo       CHAR(6)     PRIMARY KEY,

@@ -1,6 +1,6 @@
 import { query } from '../config/db.js';
 
-const PUBLICO = 'id, nombre, email, rol, telefono, activo, creado_en';
+const PUBLICO = 'id, nombre, email, rol, telefono, activo, pendiente, creado_en';
 
 export const UsuarioModel = {
   async buscarPorEmail(email) {
@@ -23,22 +23,40 @@ export const UsuarioModel = {
     return rows;
   },
 
-  async crear({ nombre, email, passwordHash, rol, telefono }) {
+  async crear({ nombre, email, passwordHash, rol, telefono, pendiente = false }) {
     const { rows } = await query(
-      `INSERT INTO usuarios (nombre, email, password_hash, rol, telefono)
-       VALUES ($1, $2, $3, $4, $5) RETURNING ${PUBLICO}`,
-      [nombre, email, passwordHash, rol, telefono ?? null]
+      `INSERT INTO usuarios (nombre, email, password_hash, rol, telefono, activo, pendiente)
+       VALUES ($1, $2, $3, $4, $5, $6, $6::boolean IS FALSE) RETURNING ${PUBLICO}`,
+      [nombre, email, passwordHash, rol, telefono ?? null, !pendiente]
     );
     return rows[0];
   },
 
+  /** Aprueba una cuenta pendiente (la activa). */
+  async aprobar(id) {
+    const { rows } = await query(
+      `UPDATE usuarios SET pendiente = false, activo = true WHERE id = $1 AND pendiente RETURNING ${PUBLICO}`,
+      [id]
+    );
+    return rows[0] ?? null;
+  },
+
+  /** Rechaza (elimina) una cuenta que aún está pendiente. */
+  async rechazar(id) {
+    const { rowCount } = await query('DELETE FROM usuarios WHERE id = $1 AND pendiente', [id]);
+    return rowCount > 0;
+  },
+
+  /** Solo cambia los campos enviados (`telefono: null` lo borra; omitirlo lo conserva). */
   async actualizar(id, { nombre, email, rol, telefono, activo, passwordHash }) {
     const { rows } = await query(
       `UPDATE usuarios
        SET nombre = COALESCE($1, nombre), email = COALESCE($2, email), rol = COALESCE($3, rol),
-           telefono = $4, activo = COALESCE($5, activo), password_hash = COALESCE($6, password_hash)
+           telefono = CASE WHEN $8 THEN $4 ELSE telefono END,
+           activo = COALESCE($5, activo), password_hash = COALESCE($6, password_hash),
+           pendiente = pendiente AND $5 IS NOT TRUE -- activar una cuenta pendiente la aprueba
        WHERE id = $7 RETURNING ${PUBLICO}`,
-      [nombre, email, rol, telefono ?? null, activo, passwordHash ?? null, id]
+      [nombre, email, rol, telefono ?? null, activo, passwordHash ?? null, id, telefono !== undefined]
     );
     return rows[0] ?? null;
   },

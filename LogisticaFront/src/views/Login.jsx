@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { mensajeError } from '../api/client';
@@ -45,6 +46,7 @@ export default function Login() {
         </label>
         {error && <p className="error">{error}</p>}
         <button disabled={enviando}>{enviando ? 'Ingresando…' : 'Ingresar'}</button>
+        <p className="centrado-texto">¿No tienes cuenta? <Link href="/registro">Crear cuenta</Link></p>
       </form>
     </div>
   );

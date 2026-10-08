@@ -5,6 +5,7 @@ const data = (p) => p.then((r) => r.data);
 export const authApi = {
   login: (email, password) => data(api.post('/auth/login', { email, password })),
   perfil: () => data(api.get('/auth/perfil')),
+  registro: (body) => data(api.post('/auth/registro', body)),
 };
 
 export const catalogosApi = {
@@ -17,6 +18,8 @@ export const usuariosApi = {
   listar: (params) => data(api.get('/usuarios', { params })),
   crear: (body) => data(api.post('/usuarios', body)),
   actualizar: (id, body) => data(api.put(`/usuarios/${id}`, body)),
+  aprobar: (id) => data(api.post(`/usuarios/${id}/aprobar`)),
+  rechazar: (id) => data(api.delete(`/usuarios/${id}`)),
 };
 
 export const productosApi = {

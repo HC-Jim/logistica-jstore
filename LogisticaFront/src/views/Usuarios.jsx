@@ -73,11 +73,51 @@ export default function Usuarios() {
   }
 
   const campo = (nombre, props = {}) => ({ value: form[nombre] ?? '', onChange: (e) => setForm({ ...form, [nombre]: e.target.value }), ...props });
-  const visibles = usuarios.filter((u) => !filtroRol || u.rol === filtroRol);
+  const pendientes = usuarios.filter((u) => u.pendiente);
+  const visibles = usuarios.filter((u) => !u.pendiente && (!filtroRol || u.rol === filtroRol));
+
+  async function decidir(u, aprobar) {
+    if (!aprobar && !confirm(`¿Rechazar y eliminar la solicitud de ${u.nombre}?`)) return;
+    try {
+      if (aprobar) await usuariosApi.aprobar(u.id);
+      else await usuariosApi.rechazar(u.id);
+      cargar();
+    } catch (err) {
+      alert(mensajeError(err));
+    }
+  }
 
   return (
     <>
       <h2>Usuarios</h2>
+
+      {pendientes.length > 0 && (
+        <section className="tarjeta pendientes">
+          <h3>🕓 Solicitudes de cuenta pendientes ({pendientes.length})</h3>
+          <p>Estas personas se registraron desde “Crear cuenta”. Revisa el perfil que pidieron antes de aprobar.</p>
+          <table>
+            <thead><tr><th>Nombre</th><th>Correo</th><th>Perfil solicitado</th><th>Teléfono</th><th>Fecha</th><th /></tr></thead>
+            <tbody>
+              {pendientes.map((u) => (
+                <tr key={u.id}>
+                  <td>{u.nombre}</td><td>{u.email}</td>
+                  <td>
+                    <select value={u.rol} onChange={async (e) => { await usuariosApi.actualizar(u.id, { rol: e.target.value }); cargar(); }}>
+                      {Object.entries(ROLES).filter(([k]) => k !== 'admin').map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                    </select>
+                  </td>
+                  <td>{u.telefono}</td>
+                  <td>{new Date(u.creado_en).toLocaleDateString('es-PE')}</td>
+                  <td className="acciones">
+                    <button onClick={() => decidir(u, true)}>Aprobar</button>
+                    <button className="btn-peligro" onClick={() => decidir(u, false)}>Rechazar</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
 
       {credenciales && (
         <section className="tarjeta credenciales">

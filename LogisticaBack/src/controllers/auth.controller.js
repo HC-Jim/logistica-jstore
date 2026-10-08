@@ -14,6 +14,9 @@ const CAMPOS_USUARIO = {
   telefono: { tipo: 'texto', max: 30 },
 };
 
+// Perfiles que se pueden elegir al crear una cuenta (admin nunca)
+const PERFILES_REGISTRO = ['vendedor', 'planificador', 'almacen', 'repartidor'];
+
 function firmarToken(usuario) {
   return jwt.sign(
     { id: usuario.id, nombre: usuario.nombre, email: usuario.email, rol: usuario.rol },
@@ -31,8 +34,10 @@ export const AuthController = {
   async login(req, res) {
     requerir(req.body, ['email', 'password']);
     const usuario = await UsuarioModel.buscarPorEmail(String(req.body.email).trim().toLowerCase());
-    const valido = usuario?.activo && (await bcrypt.compare(String(req.body.password), usuario.password_hash));
+    const valido = usuario && (await bcrypt.compare(String(req.body.password), usuario.password_hash));
     if (!valido) throw new HttpError(401, 'Credenciales incorrectas');
+    if (usuario.pendiente) throw new HttpError(403, 'Tu cuenta está pendiente de aprobación por un administrador');
+    if (!usuario.activo) throw new HttpError(403, 'Tu cuenta está desactivada. Contacta al administrador');
 
     const { password_hash: _omit, ...publico } = usuario;
     res.json({ token: firmarToken(publico), usuario: publico });
@@ -42,6 +47,31 @@ export const AuthController = {
     const usuario = await UsuarioModel.obtener(req.user.id);
     if (!usuario?.activo) throw new HttpError(401, 'Usuario inactivo');
     res.json(usuario);
+  },
+
+  /** Registro público: la cuenta queda pendiente hasta que un admin la aprueba. */
+  async registro(req, res) {
+    const d = leerCampos(req.body, CAMPOS_USUARIO, { requeridos: true });
+    if (!PERFILES_REGISTRO.includes(d.rol)) throw new HttpError(400, 'Perfil no permitido');
+    if (!d.password) throw new HttpError(400, 'La contraseña es requerida');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email)) throw new HttpError(400, 'Correo inválido');
+    const email = d.email.toLowerCase();
+    if (await UsuarioModel.buscarPorEmail(email)) throw new HttpError(409, 'Ya existe una cuenta con ese correo');
+    await UsuarioModel.crear({ ...d, email, passwordHash: await hashPassword(d.password), pendiente: true });
+    res.status(201).json({ mensaje: 'Cuenta creada. Un administrador debe aprobarla antes de que puedas ingresar.' });
+  },
+
+  async aprobarUsuario(req, res) {
+    const usuario = await UsuarioModel.aprobar(idParam(req.params.id));
+    if (!usuario) throw new HttpError(404, 'No hay una cuenta pendiente con ese id');
+    res.json(usuario);
+  },
+
+  async rechazarUsuario(req, res) {
+    if (!(await UsuarioModel.rechazar(idParam(req.params.id)))) {
+      throw new HttpError(404, 'No hay una cuenta pendiente con ese id');
+    }
+    res.status(204).end();
   },
 
   async listarUsuarios(req, res) {
