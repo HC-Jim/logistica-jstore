@@ -7,9 +7,28 @@ import { ROLES } from '../utils/format';
 
 const VACIO = { id: null, nombre: '', email: '', telefono: '', rol: 'vendedor', password: '' };
 
+const DESCRIPCION_ROL = {
+  admin: 'Acceso total, incluida la gestión de usuarios.',
+  vendedor: 'Registra pedidos y solo ve y edita sus propias ventas.',
+  planificador: 'Gestiona todos los pedidos, arma las rutas y ve el monitoreo.',
+  almacen: 'Ve pedidos y monitoreo; escribe observaciones de almacén.',
+  repartidor: 'Conductor o asistente: usa la app móvil para su ruta.',
+};
+
+/** Contraseña legible (sin 0/O, 1/l/I) de 10 caracteres. */
+function generarClave() {
+  const letras = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  const bytes = crypto.getRandomValues(new Uint32Array(10));
+  return [...bytes].map((n) => letras[n % letras.length]).join('');
+}
+
 export default function Usuarios() {
   const [usuarios, setUsuarios] = useState([]);
   const [form, setForm] = useState(VACIO);
+  const [verClave, setVerClave] = useState(false);
+  const [credenciales, setCredenciales] = useState(null); // se muestran una sola vez tras guardar
+  const [copiado, setCopiado] = useState(false);
+  const [filtroRol, setFiltroRol] = useState('');
   const [error, setError] = useState('');
 
   const cargar = () => usuariosApi.listar().then(setUsuarios).catch((e) => setError(mensajeError(e)));
@@ -21,9 +40,11 @@ export default function Usuarios() {
     try {
       const { id, ...body } = form;
       if (!body.password) delete body.password;
-      if (id) await usuariosApi.actualizar(id, body);
-      else await usuariosApi.crear(body);
+      const u = id ? await usuariosApi.actualizar(id, body) : await usuariosApi.crear(body);
+      if (body.password) setCredenciales({ nombre: u.nombre, email: u.email, rol: u.rol, password: body.password });
+      setCopiado(false);
       setForm(VACIO);
+      setVerClave(false);
       cargar();
     } catch (err) {
       setError(mensajeError(err));
@@ -39,40 +60,86 @@ export default function Usuarios() {
     }
   }
 
+  function nuevaClave() {
+    setForm({ ...form, password: generarClave() });
+    setVerClave(true);
+  }
+
+  async function copiar() {
+    const c = credenciales;
+    const app = c.rol === 'repartidor' ? 'App móvil de repartidores' : window.location.origin;
+    await navigator.clipboard.writeText(`Hola ${c.nombre}, tu acceso a Logística JStore:\n${app}\nCorreo: ${c.email}\nContraseña: ${c.password}`);
+    setCopiado(true);
+  }
+
   const campo = (nombre, props = {}) => ({ value: form[nombre] ?? '', onChange: (e) => setForm({ ...form, [nombre]: e.target.value }), ...props });
+  const visibles = usuarios.filter((u) => !filtroRol || u.rol === filtroRol);
 
   return (
     <>
       <h2>Usuarios</h2>
+
+      {credenciales && (
+        <section className="tarjeta credenciales">
+          <h3>✔ Credenciales de {credenciales.nombre}</h3>
+          <p>Entrégaselas ahora: por seguridad la contraseña se guarda cifrada y <strong>no se podrá volver a ver</strong>. Si la pierde, genera una nueva aquí.</p>
+          <dl>
+            <dt>Correo</dt><dd><code>{credenciales.email}</code></dd>
+            <dt>Contraseña</dt><dd><code>{credenciales.password}</code></dd>
+            <dt>Perfil</dt><dd>{ROLES[credenciales.rol]}</dd>
+          </dl>
+          <div className="fila">
+            <button onClick={copiar}>{copiado ? 'Copiado ✔' : 'Copiar mensaje para enviar'}</button>
+            <button className="btn-sec" onClick={() => setCredenciales(null)}>Cerrar</button>
+          </div>
+        </section>
+      )}
+
       <form className="tarjeta form-grid" onSubmit={guardar}>
-        <h3 className="ancho">{form.id ? `Editar ${form.nombre}` : 'Nuevo usuario'}</h3>
-        <label>Nombre *<input required {...campo('nombre')} /></label>
-        <label>Correo *<input type="email" required {...campo('email')} /></label>
-        <label>Teléfono<input {...campo('telefono')} /></label>
-        <label>Rol *
+        <h3 className="ancho">{form.id ? `Editar a ${form.nombre}` : 'Registrar usuario'}</h3>
+        <label>Nombre *<input required maxLength={120} {...campo('nombre')} /></label>
+        <label>Correo *<input type="email" required maxLength={160} {...campo('email')} /></label>
+        <label>Teléfono<input maxLength={30} {...campo('telefono')} /></label>
+        <label>Perfil *
           <select {...campo('rol')}>{Object.entries(ROLES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
+          <small>{DESCRIPCION_ROL[form.rol]}</small>
         </label>
-        <label>{form.id ? 'Nueva contraseña (opcional)' : 'Contraseña *'}
-          <input type="password" minLength={6} required={!form.id} autoComplete="new-password" {...campo('password')} />
+        <label>
+          {form.id ? 'Nueva contraseña (déjala vacía para no cambiarla)' : 'Contraseña *'}
+          <div className="fila sin-envolver">
+            <input className="crece" type={verClave ? 'text' : 'password'} minLength={6} required={!form.id}
+              autoComplete="new-password" {...campo('password')} />
+            <button type="button" className="btn-sec" title={verClave ? 'Ocultar' : 'Mostrar'} onClick={() => setVerClave(!verClave)}>
+              {verClave ? '🙈' : '👁'}
+            </button>
+            <button type="button" className="btn-sec" onClick={nuevaClave}>Generar</button>
+          </div>
         </label>
         {error && <p className="error ancho">{error}</p>}
         <div className="fila ancho">
-          <button>{form.id ? 'Actualizar' : 'Crear usuario'}</button>
-          {form.id && <button type="button" className="btn-sec" onClick={() => setForm(VACIO)}>Cancelar</button>}
+          <button>{form.id ? 'Guardar cambios' : 'Crear usuario'}</button>
+          {form.id && <button type="button" className="btn-sec" onClick={() => { setForm(VACIO); setVerClave(false); }}>Cancelar</button>}
         </div>
-        <small className="ancho">Los repartidores y asistentes usan este mismo correo y contraseña en la app móvil.</small>
       </form>
 
       <section className="tarjeta">
+        <div className="fila espacio">
+          <h3>{visibles.length} usuario(s)</h3>
+          <select value={filtroRol} onChange={(e) => setFiltroRol(e.target.value)}>
+            <option value="">Todos los perfiles</option>
+            {Object.entries(ROLES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+        </div>
         <table>
-          <thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Teléfono</th><th>Estado</th><th /></tr></thead>
+          <thead><tr><th>Nombre</th><th>Correo</th><th>Perfil</th><th>Teléfono</th><th>Estado</th><th /></tr></thead>
           <tbody>
-            {usuarios.map((u) => (
+            {visibles.map((u) => (
               <tr key={u.id} className={u.activo ? '' : 'inactivo'}>
                 <td>{u.nombre}</td><td>{u.email}</td><td>{ROLES[u.rol]}</td><td>{u.telefono}</td>
                 <td>{u.activo ? 'Activo' : 'Inactivo'}</td>
                 <td className="acciones">
-                  <button className="btn-sec" onClick={() => setForm({ ...VACIO, ...u, telefono: u.telefono ?? '', password: '' })}>Editar</button>
+                  <button className="btn-sec" onClick={() => { setForm({ ...VACIO, ...u, telefono: u.telefono ?? '', password: '' }); setVerClave(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>Editar</button>
+                  <button className="btn-sec" onClick={() => { setForm({ ...VACIO, ...u, telefono: u.telefono ?? '', password: generarClave() }); setVerClave(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>Nueva contraseña</button>
                   <button className={u.activo ? 'btn-peligro' : 'btn-sec'} onClick={() => alternar(u)}>{u.activo ? 'Desactivar' : 'Activar'}</button>
                 </td>
               </tr>
