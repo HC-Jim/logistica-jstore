@@ -194,6 +194,7 @@ class _ParadaScreenState extends State<ParadaScreen> {
                 padding: const EdgeInsets.all(12),
                 child: Row(children: [
                   Expanded(
+                    flex: 2,
                     child: OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(minimumSize: const Size(48, 52), foregroundColor: Colors.deepOrange),
                       onPressed: _enviando ? null : _incidencia,
@@ -203,7 +204,7 @@ class _ParadaScreenState extends State<ParadaScreen> {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    flex: 2,
+                    flex: 3,
                     child: FilledButton.icon(
                       style: FilledButton.styleFrom(backgroundColor: const Color(0xFF2F855A)),
                       onPressed: _enviando ? null : _completar,

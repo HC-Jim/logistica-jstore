@@ -49,7 +49,7 @@ class _RutaScreenState extends State<RutaScreen> {
         _error = ruta == null ? 'Esta ruta ya no está asignada a ti.' : null;
       });
       // La ruta en curso comparte la ubicación automáticamente; al finalizar se deja de compartir
-      if (ruta != null && ruta.estado == 'en_curso' && !gps.activo) _activarGps(ruta.id);
+      if (ruta != null && ruta.estado == 'en_curso' && !gps.activo) await _activarGps(ruta.id);
       if (ruta != null && ruta.finalizada && gps.rutaId == ruta.id) gps.detener();
     } on ApiException catch (e) {
       setState(() => _error = e.mensaje);
@@ -67,8 +67,7 @@ class _RutaScreenState extends State<RutaScreen> {
     setState(() => _iniciando = true);
     try {
       await RutasService.iniciar(widget.rutaId);
-      await _cargar();
-      await _activarGps(widget.rutaId);
+      await _cargar(); // al quedar "en curso" activa el GPS
     } on ApiException catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.mensaje)));
     } finally {
@@ -197,7 +196,7 @@ class _ListaParadas extends StatelessWidget {
     return ListView.separated(
       padding: const EdgeInsets.only(bottom: 24),
       itemCount: ruta.paradas.length,
-      separatorBuilder: (_, __) => const Divider(height: 1),
+      separatorBuilder: (_, _) => const Divider(height: 1),
       itemBuilder: (_, i) {
         final p = ruta.paradas[i];
         final color = coloresEstadoParada[p.estado] ?? Colors.grey;

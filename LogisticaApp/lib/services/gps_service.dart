@@ -23,9 +23,25 @@ class GpsService extends ChangeNotifier {
   bool get activo => _suscripcion != null;
   DateTime? get ultimoEnvio => _ultimoEnvio;
 
+  Future<String?>? _arrancando;
+
   /// Devuelve null si arrancó bien, o el motivo por el que no se pudo.
-  Future<String?> iniciar(int rutaId) async {
-    if (activo && this.rutaId == rutaId) return null;
+  /// Si se llama varias veces seguidas, todas esperan la misma solicitud de permiso
+  /// (Android solo permite una a la vez).
+  Future<String?> iniciar(int rutaId) {
+    if (activo && this.rutaId == rutaId) return Future.value(null);
+    return _arrancando ??= _arrancar(rutaId).whenComplete(() => _arrancando = null);
+  }
+
+  Future<String?> _arrancar(int rutaId) async {
+    try {
+      return await _arrancarSinControl(rutaId);
+    } catch (_) {
+      return 'No se pudo activar la ubicación. Revisa los permisos de la app.';
+    }
+  }
+
+  Future<String?> _arrancarSinControl(int rutaId) async {
     detener();
 
     if (!await Geolocator.isLocationServiceEnabled()) {
