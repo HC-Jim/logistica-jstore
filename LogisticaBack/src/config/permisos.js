@@ -9,7 +9,7 @@ export const PERMISOS = {
   observacionesAlmacen: ['admin', 'planificador', 'almacen'],
   gestionarRutas: ['admin', 'planificador'],
   despacho: ['admin', 'planificador', 'almacen'], // hoja de ruta y entrega de pedidos al conductor
-  monitoreo: ['admin', 'planificador', 'almacen'],
+  monitoreo: ['admin', 'planificador', 'almacen', 'vendedor'], // todos los usuarios de la web
   verProductos: ['admin', 'planificador', 'vendedor', 'almacen'],
   gestionarProductos: ['admin', 'planificador'],
   estadisticas: ['admin', 'planificador'],

@@ -39,7 +39,7 @@ const SELECT_RUTA = `
 /** Paradas de una o varias rutas, con los datos del pedido que necesitan el mapa y la app. */
 export async function paradasDe(rutaIds) {
   const { rows } = await query(
-    `SELECT rp.id, rp.ruta_id, rp.orden, rp.pedido_id, rp.estado, rp.nota, rp.completada_en, rp.foto_url,
+    `SELECT rp.id, rp.ruta_id, rp.orden, rp.pedido_id, rp.estado, rp.nota, rp.completada_en, rp.foto_url, p.vendedor_id,
             rp.descripcion,
             COALESCE(rp.descripcion, p.cliente_nombre) AS titulo,
             COALESCE(p.direccion, rp.direccion) AS direccion,

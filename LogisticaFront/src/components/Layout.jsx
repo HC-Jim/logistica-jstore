@@ -11,7 +11,7 @@ import { ROLES } from '../utils/format';
 // Menú y páginas permitidas por rol (el backend aplica los mismos permisos)
 const LINKS = [
   { href: '/', label: 'Dashboard', roles: ['admin', 'planificador'] },
-  { href: '/monitoreo', label: 'Monitoreo', roles: ['admin', 'planificador', 'almacen'] },
+  { href: '/monitoreo', label: 'Monitoreo', roles: ['admin', 'planificador', 'almacen', 'vendedor'] },
   { href: '/pedidos', label: 'Pedidos', roles: ['admin', 'planificador', 'almacen', 'vendedor'] },
   { href: '/rutas', label: 'Rutas', roles: ['admin', 'planificador'] },
   { href: '/despacho', label: 'Despacho', roles: ['admin', 'planificador', 'almacen'] },

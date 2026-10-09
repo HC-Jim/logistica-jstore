@@ -7,6 +7,7 @@ import { Fragment, useCallback, useEffect, useState } from 'react';
 import { mensajeError } from '../api/client';
 import { rutasApi } from '../api/services';
 import ChatRuta from '../components/ChatRuta';
+import { useAuth } from '../context/AuthContext';
 import EstadoBadge from '../components/EstadoBadge';
 import { AjustarVista, LineaPuntos, Mapa, MarcadorNumero, Polilinea, Seguir } from '../components/maps';
 import { duracion, ESTADOS_PARADA, ESTADOS_RUTA, fechaHora, hace, hora, hoyISO, km, soles, VEHICULOS } from '../utils/format';
@@ -86,6 +87,10 @@ export default function Monitoreo() {
   const [enVivo, setEnVivo] = useState(true);
   const [error, setError] = useState('');
   const [reordenando, setReordenando] = useState(false);
+  const { usuario } = useAuth();
+  const gestiona = ['admin', 'planificador'].includes(usuario.rol); // reoptimizar, abrir ruta
+  const despacha = gestiona || usuario.rol === 'almacen'; // hoja de ruta y chat con el conductor
+  const puedeVerPedido = (p) => usuario.rol !== 'vendedor' || p.vendedor_id === usuario.id;
   const [, setTick] = useState(0); // refresca los "hace N min"
 
   const cargar = useCallback(() => {
@@ -214,7 +219,7 @@ export default function Monitoreo() {
               </p>
               <Avance r={ruta} />
               <p><small>Planificado: {ruta.paradas.length} paradas · {km(ruta.distancia_metros)} · {duracion(ruta.duracion_segundos)}</small></p>
-              {ruta.estado !== 'finalizada' && contar(ruta, 'pendiente') > 1 && (
+              {gestiona && ruta.estado !== 'finalizada' && contar(ruta, 'pendiente') > 1 && (
                 <button className="btn-sec" onClick={reoptimizarRuta} disabled={reordenando}>
                   {reordenando ? 'Reordenando…' : '🔀 Reoptimizar pendientes desde el conductor'}
                 </button>
@@ -223,7 +228,7 @@ export default function Monitoreo() {
                 {ruta.paradas.map((p) => (
                   <li key={p.id} className={ruta.estado === 'en_curso' && ruta.restante_destino?.parada_id === p.id ? 'actual' : ''}>
                     <div className="fila espacio">
-                      {p.pedido_id ? <Link href={`/pedidos/${p.pedido_id}`}><strong>{p.titulo}</strong></Link> : <strong>⚑ {p.titulo}</strong>}
+                      {p.pedido_id ? (puedeVerPedido(p) ? <Link href={`/pedidos/${p.pedido_id}`}><strong>{p.titulo}</strong></Link> : <strong>{p.titulo}</strong>) : <strong>⚑ {p.titulo}</strong>}
                       <EstadoBadge estado={p.estado} mapa={ESTADOS_PARADA} />
                     </div>
                     <small>{[p.direccion, p.distrito].filter(Boolean).join(', ')}</small>
@@ -233,9 +238,16 @@ export default function Monitoreo() {
                   </li>
                 ))}
               </ol>
-              <div className="fila"><Link href={`/rutas/${ruta.id}`}>Abrir ruta</Link><Link href={`/despacho/${ruta.id}`}>Hoja de ruta</Link></div>
-              <h3 style={{ marginTop: 16 }}>💬 Chat</h3>
-              <ChatRuta rutaId={ruta.id} alto={240} />
+              <div className="fila">
+                {gestiona && <Link href={`/rutas/${ruta.id}`}>Abrir ruta</Link>}
+                {despacha && <Link href={`/despacho/${ruta.id}`}>Hoja de ruta</Link>}
+              </div>
+              {despacha && (
+                <>
+                  <h3 style={{ marginTop: 16 }}>💬 Chat</h3>
+                  <ChatRuta rutaId={ruta.id} alto={240} />
+                </>
+              )}
             </>
           ) : (
             <>
@@ -255,7 +267,7 @@ export default function Monitoreo() {
                       <td><EstadoBadge estado={r.estado} mapa={ESTADOS_RUTA} /></td>
                     </tr>
                   ))}
-                  {!rutas.length && <tr><td colSpan={8}>No hay rutas para esta fecha. <Link href="/rutas">Planificar</Link></td></tr>}
+                  {!rutas.length && <tr><td colSpan={8}>No hay rutas para esta fecha.{gestiona && <> <Link href="/rutas">Planificar</Link></>}</td></tr>}
                 </tbody>
               </table>
               <p>Pedidos sin rutear: <strong>{datos.sinRuta.length}</strong></p>
