@@ -6,7 +6,7 @@ const SELECT_RUTA = `
   SELECT r.*, rep.nombre AS repartidor_nombre, rep.telefono AS repartidor_telefono,
          asi.nombre AS asistente_nombre,
          v.nombre AS vehiculo_nombre, v.tipo AS vehiculo_tipo, v.placa AS vehiculo_placa,
-         c.total_paradas, c.paradas_atendidas, c.completadas, c.incidencias, c.pendientes, c.pedidos,
+         c.total_paradas, c.paradas_atendidas, c.completadas, c.incidencias, c.pendientes, c.pedidos, c.despachados,
          (SELECT COUNT(*) FROM ruta_mensajes m WHERE m.ruta_id = r.id) AS mensajes
   FROM rutas r
   LEFT JOIN usuarios rep  ON rep.id = r.repartidor_id
@@ -18,7 +18,8 @@ const SELECT_RUTA = `
            COUNT(*) FILTER (WHERE x.estado = 'completada') AS completadas,
            COUNT(*) FILTER (WHERE x.estado = 'incidencia') AS incidencias,
            COUNT(*) FILTER (WHERE x.estado = 'pendiente') AS pendientes,
-           COUNT(*) FILTER (WHERE x.pedido_id IS NOT NULL) AS pedidos
+           COUNT(*) FILTER (WHERE x.pedido_id IS NOT NULL) AS pedidos,
+           COUNT(*) FILTER (WHERE x.pedido_id IS NOT NULL AND x.despachado_en IS NOT NULL) AS despachados
     FROM ruta_paradas x WHERE x.ruta_id = r.id
   ) c`;
 
@@ -34,15 +35,21 @@ export async function paradasDe(rutaIds) {
             p.cliente_nombre, p.cliente_telefono, p.detalle_domicilio, p.referencia, p.link_ubicacion,
             p.tipo_pedido, p.agencia, p.precio_envio, p.total_pedido, p.cobrar, p.medio_pago,
             p.nota AS nota_pedido, p.estado AS estado_pedido, p.documento_bsale,
+            p.plataforma, p.numero_pedido, p.enviar_a, p.pago_agencia,
+            ven.nombre AS vendedor_nombre,
+            rp.despachado_en, des.nombre AS despachado_por_nombre,
             ub.distrito, ub.provincia, ub.departamento,
             COALESCE((
               SELECT json_agg(json_build_object('sku', i.sku, 'descripcion', i.descripcion,
-                                                'cantidad', i.cantidad, 'subtotal', i.subtotal) ORDER BY i.id)
+                                                'cantidad', i.cantidad, 'precio_unitario', i.precio_unitario,
+                                                'subtotal', i.subtotal) ORDER BY i.id)
               FROM pedido_items i WHERE i.pedido_id = p.id
             ), '[]') AS items
      FROM ruta_paradas rp
      LEFT JOIN pedidos p  ON p.id = rp.pedido_id
      LEFT JOIN ubigeos ub ON ub.codigo = p.ubigeo
+     LEFT JOIN usuarios ven ON ven.id = p.vendedor_id
+     LEFT JOIN usuarios des ON des.id = rp.despachado_por
      WHERE rp.ruta_id = ANY($1::int[])
      ORDER BY rp.ruta_id, rp.orden`,
     [rutaIds]
@@ -374,6 +381,22 @@ export const RutaModel = {
   },
 
   // --- Chat de la ruta ---
+
+  /** Almacén marca (o desmarca) pedidos de la ruta como entregados al conductor. */
+  async despachar(rutaId, { paradaIds, despachado, usuario }) {
+    return withTransaction(async (client) => {
+      const ruta = await bloquearRuta(client, rutaId);
+      if (ruta.estado === 'finalizada') throw new HttpError(409, 'La ruta ya está finalizada');
+      const { rowCount } = await client.query(
+        `UPDATE ruta_paradas
+         SET despachado_en = CASE WHEN $3 THEN COALESCE(despachado_en, now()) ELSE NULL END,
+             despachado_por = CASE WHEN $3 THEN COALESCE(despachado_por, $4) ELSE NULL END
+         WHERE ruta_id = $1 AND id = ANY($2::int[]) AND pedido_id IS NOT NULL AND estado = 'pendiente'`,
+        [rutaId, paradaIds, despachado, usuario.id]
+      );
+      return rowCount;
+    });
+  },
 
   async mensajes(rutaId, { despues = 0, limite = 200 } = {}) {
     const { rows } = await query(

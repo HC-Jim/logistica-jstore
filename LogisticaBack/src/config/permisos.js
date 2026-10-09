@@ -8,6 +8,7 @@ export const PERMISOS = {
   reprogramar: ['admin', 'planificador', 'vendedor'],
   observacionesAlmacen: ['admin', 'planificador', 'almacen'],
   gestionarRutas: ['admin', 'planificador'],
+  despacho: ['admin', 'planificador', 'almacen'], // hoja de ruta y entrega de pedidos al conductor
   monitoreo: ['admin', 'planificador', 'almacen'],
   verProductos: ['admin', 'planificador', 'vendedor', 'almacen'],
   gestionarProductos: ['admin', 'planificador'],

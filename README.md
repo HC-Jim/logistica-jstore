@@ -39,6 +39,9 @@ Todo cambio queda en el historial del pedido (quién, cuándo, qué cambió).
 - **Cierre del día**: una ruta solo se finaliza sin pedidos pendientes; el Dashboard alerta sobre pedidos de
   días anteriores que no quedaron entregados ni cancelados.
 - **Chat por ruta** entre logística y el conductor/auxiliar (misma API para la app móvil).
+- **Despacho / Hoja de ruta**: la tabla que antes se enviaba por WhatsApp se genera sola por ruta, con botones
+  para enviarla por WhatsApp (con link de Google Maps por parada), copiar, imprimir/PDF y descargar Excel.
+  Almacén marca con un check cada pedido entregado al conductor (queda quién y a qué hora).
 
 ## Roles
 

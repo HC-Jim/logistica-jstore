@@ -13,13 +13,14 @@ const LINKS = [
   { href: '/monitoreo', label: 'Monitoreo', roles: ['admin', 'planificador', 'almacen'] },
   { href: '/pedidos', label: 'Pedidos', roles: ['admin', 'planificador', 'almacen', 'vendedor'] },
   { href: '/rutas', label: 'Rutas', roles: ['admin', 'planificador'] },
+  { href: '/despacho', label: 'Despacho', roles: ['admin', 'planificador', 'almacen'] },
   { href: '/vehiculos', label: 'Vehículos', roles: ['admin', 'planificador'] },
   { href: '/productos', label: 'Productos', roles: ['admin', 'planificador', 'almacen', 'vendedor'] },
   { href: '/usuarios', label: 'Usuarios', roles: ['admin'] },
 ];
 
 /** Página de inicio de cada rol. */
-export const INICIO = { admin: '/', planificador: '/', almacen: '/monitoreo', vendedor: '/pedidos' };
+export const INICIO = { admin: '/', planificador: '/', almacen: '/despacho', vendedor: '/pedidos' };
 
 const activo = (pathname, href) => (href === '/' ? pathname === '/' : pathname.startsWith(href));
 

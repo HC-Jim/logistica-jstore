@@ -150,8 +150,7 @@ CREATE INDEX IF NOT EXISTS idx_items_pedido ON pedido_items(pedido_id);
 CREATE INDEX IF NOT EXISTS idx_historial_pedido ON pedido_historial(pedido_id);
 CREATE INDEX IF NOT EXISTS idx_rutas_fecha ON rutas(fecha);
 CREATE INDEX IF NOT EXISTS idx_paradas_ruta ON ruta_paradas(ruta_id, orden);
--- Un pedido solo puede estar en una ruta a la vez
-CREATE UNIQUE INDEX IF NOT EXISTS uq_paradas_pedido ON ruta_paradas(pedido_id) WHERE pedido_id IS NOT NULL;
+-- (la unicidad de la parada activa por pedido se define más abajo: uq_paradas_pedido_activa)
 CREATE INDEX IF NOT EXISTS idx_posiciones_usuario ON posiciones(usuario_id, registrado_en DESC);
 
 -- ============================================================
@@ -199,3 +198,7 @@ CREATE TABLE IF NOT EXISTS ruta_mensajes (
   creado_en  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_mensajes_ruta ON ruta_mensajes(ruta_id, id);
+
+-- Despacho: almacén marca qué pedidos de la ruta ya entregó al conductor
+ALTER TABLE ruta_paradas ADD COLUMN IF NOT EXISTS despachado_en TIMESTAMPTZ;
+ALTER TABLE ruta_paradas ADD COLUMN IF NOT EXISTS despachado_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL;

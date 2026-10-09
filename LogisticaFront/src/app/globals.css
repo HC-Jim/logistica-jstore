@@ -235,3 +235,36 @@ code.clave { background: #f7fafc; border: 1px solid var(--borde); border-radius:
 .chat-enviar { display: flex; gap: 8px; }
 .chat-enviar input { flex: 1; }
 h3 small { display: block; font-weight: 400; }
+
+/* ---- Hoja de ruta / despacho ---- */
+.resumen-hoja { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.resumen-hoja strong { display: block; }
+.resumen-hoja .falta strong { color: var(--peligro); }
+.resumen-hoja .completo strong { color: #2f855a; }
+.tabla-hoja { font-size: 0.85rem; }
+.tabla-hoja th { background: #f6ad55; color: #1a202c; font-size: 0.75rem; white-space: nowrap; }
+.tabla-hoja td { vertical-align: top; }
+.tabla-hoja .productos { white-space: pre-line; min-width: 220px; }
+.tabla-hoja .num { text-align: right; white-space: nowrap; }
+.tabla-hoja .cobrar { color: var(--peligro); font-weight: 600; }
+.tabla-hoja .col-check { text-align: center; width: 44px; }
+.tabla-hoja .col-check input { width: 18px; height: 18px; }
+.tabla-hoja tr.despachado { background: #f0fff4; }
+.tabla-hoja tr.fila-accion { background: #faf5ff; }
+.tabla-hoja tfoot td { border-top: 2px solid var(--texto); }
+.despacho-falta { border-top-color: var(--peligro); }
+.despacho-ok { border-top-color: #2f855a; }
+
+@media print {
+  @page { size: A4 landscape; margin: 8mm; }
+  body, :root { background: #fff; }
+  .sidebar, .no-imprimir, .col-check { display: none !important; }
+  .layout { display: block; }
+  .contenido { padding: 0; }
+  .tarjeta { border: 0; padding: 0; margin-bottom: 8px; }
+  .tabla-scroll { overflow: visible; }
+  .tabla-hoja { font-size: 9px; }
+  .tabla-hoja th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .badge { padding: 0; background: none !important; }
+  a { color: inherit; text-decoration: none; }
+}

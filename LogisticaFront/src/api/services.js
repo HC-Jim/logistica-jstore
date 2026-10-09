@@ -44,6 +44,7 @@ export const rutasApi = {
   listar: (fecha) => data(api.get('/rutas', { params: { fecha } })),
   historial: (params) => data(api.get('/rutas/historial', { params })),
   finalizar: (id) => data(api.post(`/rutas/${id}/finalizar`)),
+  despachar: (id, paradaIds, despachado) => data(api.patch(`/rutas/${id}/despacho`, { parada_ids: paradaIds, despachado })),
   mensajes: (id, despues = 0) => data(api.get(`/rutas/${id}/mensajes`, { params: { despues } })),
   enviarMensaje: (id, texto) => data(api.post(`/rutas/${id}/mensajes`, { texto })),
   obtener: (id) => data(api.get(`/rutas/${id}`)),

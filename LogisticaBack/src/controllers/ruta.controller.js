@@ -74,6 +74,16 @@ export const RutaController = {
     }));
   },
 
+  /** PATCH /rutas/:id/despacho  { parada_ids: [..], despachado: true|false } */
+  async despachar(req, res) {
+    const id = idParam(req.params.id);
+    const ids = req.body?.parada_ids;
+    if (!Array.isArray(ids) || !ids.length) throw new HttpError(400, 'Indica las paradas (parada_ids)');
+    if (typeof req.body.despachado !== 'boolean') throw new HttpError(400, 'despachado debe ser true o false');
+    await RutaModel.despachar(id, { paradaIds: ids.map(idParam), despachado: req.body.despachado, usuario: req.user });
+    res.json(await RutaModel.obtener(id));
+  },
+
   async finalizar(req, res) {
     const id = await RutaModel.finalizar(idParam(req.params.id));
     res.json(await RutaModel.obtener(id));

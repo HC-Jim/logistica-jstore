@@ -47,6 +47,8 @@ function TarjetaRuta({ ruta }) {
       </ol>
       <div className="fila">
         <Link className="btn" href={`/rutas/${ruta.id}`}>Abrir ruta</Link>
+        <Link className="btn btn-sec" href={`/despacho/${ruta.id}`}>Hoja de ruta</Link>
+        {ruta.pedidos > 0 && <small>📦 {ruta.despachados}/{ruta.pedidos} despachados</small>}
         {ruta.mensajes > 0 && <small>💬 {ruta.mensajes} mensaje(s)</small>}
       </div>
     </section>

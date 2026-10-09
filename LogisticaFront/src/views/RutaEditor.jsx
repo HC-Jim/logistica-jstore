@@ -147,6 +147,7 @@ export default function RutaEditor() {
               Finalizar ruta
             </button>
           )}
+          <Link className="btn btn-sec" href={`/despacho/${ruta.id}`}>Hoja de ruta</Link>
           <Link href={`/monitoreo?fecha=${ruta.fecha}&ruta=${ruta.id}`}>Ver en monitoreo</Link>
           <Link href={`/rutas/historial`}>Historial</Link>
           <Link href="/rutas">← Rutas</Link>

@@ -53,7 +53,7 @@ router.post('/vehiculos', rol(...P.gestionarRutas), VehiculoController.crear);
 router.put('/vehiculos/:id', rol(...P.gestionarRutas), VehiculoController.actualizar);
 
 // --- Rutas (planificación) ---
-router.get('/rutas', rol(...P.gestionarRutas), RutaController.listar);
+router.get('/rutas', rol(...P.despacho), RutaController.listar);
 router.get('/rutas/historial', rol(...P.gestionarRutas, ...P.monitoreo), RutaController.historial);
 router.get('/rutas/pedidos-sin-ruta', rol(...P.gestionarRutas), RutaController.pedidosSinRuta);
 router.post('/rutas', rol(...P.gestionarRutas), RutaController.crear);
@@ -63,6 +63,7 @@ router.delete('/rutas/:id', rol(...P.gestionarRutas), RutaController.eliminar);
 router.put('/rutas/:id/paradas', rol(...P.gestionarRutas), RutaController.guardarParadas);
 router.post('/rutas/:id/trazar', rol(...P.gestionarRutas), RutaController.trazar);
 router.post('/rutas/:id/finalizar', rol(...P.gestionarRutas), RutaController.finalizar);
+router.patch('/rutas/:id/despacho', rol(...P.despacho), RutaController.despachar);
 router.get('/rutas/:id/mensajes', rol(...P.chatRuta), RutaController.mensajes);
 router.post('/rutas/:id/mensajes', rol(...P.chatRuta), RutaController.enviarMensaje);
 router.get('/rutas/:id/recorrido', rol(...P.monitoreo), RutaController.recorrido);

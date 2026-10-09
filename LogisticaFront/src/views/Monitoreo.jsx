@@ -163,7 +163,7 @@ export default function Monitoreo() {
                   </li>
                 ))}
               </ol>
-              <Link href={`/rutas/${ruta.id}`}>Abrir ruta</Link>
+              <div className="fila"><Link href={`/rutas/${ruta.id}`}>Abrir ruta</Link><Link href={`/despacho/${ruta.id}`}>Hoja de ruta</Link></div>
               <h3 style={{ marginTop: 16 }}>💬 Chat</h3>
               <ChatRuta rutaId={ruta.id} alto={240} />
             </>
