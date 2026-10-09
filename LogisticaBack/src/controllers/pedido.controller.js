@@ -83,6 +83,12 @@ async function aplicarCategoria(categoria, body) {
       if (b.lat == null || b.lat === '') { b.lat = u.lat; b.lng = u.lng; }
     }
   }
+  // Envío por agencia: el conductor deja el paquete en una sede de la agencia (en Lima)
+  if (categoria !== 'encargo' && b.ubicacion_id) {
+    const u = await UbicacionModel.obtener(idParam(b.ubicacion_id));
+    if (!u || u.tipo !== 'agencia') throw new HttpError(400, 'Elige una sede de agencia registrada en Ubicaciones');
+    if (b.lat == null || b.lat === '') { b.lat = u.lat; b.lng = u.lng; }
+  }
   if (categoria === 'venta' && b.plataforma && !PLATAFORMAS_VENTA.includes(b.plataforma)) {
     throw new HttpError(400, 'Esa plataforma no corresponde a una venta');
   }

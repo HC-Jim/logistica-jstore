@@ -4,7 +4,10 @@ import { AdvancedMarker, useMap, useMapsLibrary } from '@vis.gl/react-google-map
 import { useEffect, useState } from 'react';
 import { mensajeError } from '../api/client';
 import { catalogosApi } from '../api/services';
-import { hayMapsKey, Mapa, SinMapsKey } from './maps';
+import { hayMapsKey, LIMA, Mapa, SinMapsKey } from './maps';
+
+// Lima Metropolitana y Callao: el mapa abre aquí y la búsqueda de direcciones da prioridad a esta zona
+const ZONA_LIMA = { south: -12.55, west: -77.25, north: -11.70, east: -76.70 };
 
 const redondear = ({ lat, lng }) => ({ lat: +Number(lat).toFixed(7), lng: +Number(lng).toFixed(7) });
 
@@ -14,7 +17,7 @@ const redondear = ({ lat, lng }) => ({ lat: +Number(lat).toFixed(7), lng: +Numbe
  * - buscar la dirección escrita,
  * - hacer clic en el mapa o arrastrar el marcador.
  */
-export default function MapaSelector({ valor, onChange, direccion, link, onLink, disabled }) {
+export default function MapaSelector({ valor, onChange, direccion, link, onLink, disabled, sinBuscar, ayuda }) {
   const punto = valor?.lat != null && valor?.lng != null ? { lat: valor.lat, lng: valor.lng } : null;
   const [estado, setEstado] = useState('');
 
@@ -36,7 +39,7 @@ export default function MapaSelector({ valor, onChange, direccion, link, onLink,
         <input className="crece" placeholder="Link de ubicación (Google Maps / WhatsApp)" value={link ?? ''}
           disabled={disabled} onChange={(e) => onLink(e.target.value)} />
         <button type="button" className="btn-sec" onClick={usarLink} disabled={disabled || !link}>Usar link</button>
-        {hayMapsKey && <BuscarDireccion direccion={direccion} disabled={disabled} onEncontrado={(p) => { onChange(p); setEstado('Ubicación tomada de la dirección; verifica el punto ✔'); }} onError={setEstado} />}
+        {hayMapsKey && !sinBuscar && <BuscarDireccion direccion={direccion} disabled={disabled} onEncontrado={(p) => { onChange(p); setEstado('Ubicación tomada de la dirección; verifica el punto ✔'); }} onError={setEstado} />}
         {punto && !disabled && (
           <button type="button" className="btn-link-oscuro" onClick={() => { onChange({ lat: null, lng: null }); setEstado(''); }}>
             Quitar punto
@@ -46,7 +49,7 @@ export default function MapaSelector({ valor, onChange, direccion, link, onLink,
       {estado && <small className="ayuda">{estado}</small>}
 
       {hayMapsKey ? (
-        <Mapa alto={340} defaultCenter={punto ?? undefined} defaultZoom={punto ? 16 : 11}
+        <Mapa alto={340} defaultCenter={punto ?? LIMA} defaultZoom={punto ? 16 : 11}
           onClick={(e) => !disabled && e.detail.latLng && onChange(redondear(e.detail.latLng))}>
           {punto && (
             <AdvancedMarker position={punto} draggable={!disabled}
@@ -57,6 +60,7 @@ export default function MapaSelector({ valor, onChange, direccion, link, onLink,
       ) : (
         <SinMapsKey />
       )}
+      {ayuda && <small className="ayuda">{ayuda}</small>}
       <small className="ayuda">
         {punto ? `Punto: ${punto.lat}, ${punto.lng}${disabled ? '' : ' — arrastra el marcador para ajustar'}` : 'Sin ubicación: el pedido no se podrá agregar a una ruta.'}
       </small>
@@ -82,7 +86,9 @@ function BuscarDireccion({ direccion, onEncontrado, onError, disabled }) {
   const geocoding = useMapsLibrary('geocoding');
   async function buscar() {
     try {
-      const { results } = await new geocoding.Geocoder().geocode({ address: direccion, region: 'pe' });
+      const { results } = await new geocoding.Geocoder().geocode({
+        address: direccion, region: 'pe', bounds: ZONA_LIMA, componentRestrictions: { country: 'PE' },
+      });
       const loc = results[0].geometry.location;
       onEncontrado(redondear({ lat: loc.lat(), lng: loc.lng() }));
     } catch {

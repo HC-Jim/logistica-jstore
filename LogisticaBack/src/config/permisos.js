@@ -25,6 +25,7 @@ export const CAMPOS_VENDEDOR = new Set([
   'direccion', 'detalle_domicilio', 'referencia', 'cod_postal',
   // la ubicación en el mapa acompaña a la dirección
   'link_ubicacion', 'lat', 'lng',
+  'ubicacion_id', // sede de la agencia cuando el envío es por agencia
   'precio_envio', 'total_pedido', 'cobrar', 'medio_pago', 'nota',
 ]);
 

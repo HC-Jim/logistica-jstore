@@ -15,7 +15,7 @@ import { CATEGORIAS, hoyISO, soles } from '../utils/format';
 // Debe coincidir con CAMPOS_VENDEDOR del backend (src/config/permisos.js)
 const CAMPOS_VENDEDOR = new Set([
   'cliente_nombre', 'cliente_telefono', 'agencia', 'enviar_a', 'pago_agencia', 'ubigeo',
-  'direccion', 'detalle_domicilio', 'referencia', 'cod_postal', 'link_ubicacion', 'lat', 'lng',
+  'direccion', 'detalle_domicilio', 'referencia', 'cod_postal', 'link_ubicacion', 'lat', 'lng', 'ubicacion_id',
   'precio_envio', 'total_pedido', 'cobrar', 'medio_pago', 'nota',
 ]);
 
@@ -31,8 +31,8 @@ const VACIO = {
 
 // Campos que no aplican a cada categoría (no se envían)
 const NO_APLICA = {
-  venta: ['motivo', 'pedido_relacionado', 'ubicacion_id', 'origen_ubicacion_id'],
-  inversa: ['plataforma', 'ubicacion_id', 'origen_ubicacion_id'],
+  venta: ['motivo', 'pedido_relacionado', 'origen_ubicacion_id'],
+  inversa: ['plataforma', 'origen_ubicacion_id'],
   encargo: ['plataforma', 'numero_pedido', 'documento_bsale', 'agencia', 'enviar_a', 'pago_agencia', 'cod_postal',
     'precio_envio', 'total_pedido', 'cobrar', 'medio_pago', 'motivo', 'pedido_relacionado', 'vendedor_id'],
 };
@@ -102,6 +102,21 @@ export default function PedidoForm({ categoria: categoriaNueva = 'venta' }) {
     const u = form.ubigeo && ubigeo.porCodigo.get(form.ubigeo);
     return [form.direccion, u?.distrito, u?.provincia, 'Perú'].filter(Boolean).join(', ');
   }, [form.direccion, form.ubigeo, ubigeo]);
+
+  /** Envío por agencia: la sede elegida es el punto donde el conductor deja el paquete. */
+  function usarSede(uid) {
+    const u = ubicaciones.find((x) => x.id === Number(uid));
+    setForm((f) => (u ? { ...f, ubicacion_id: u.id, lat: u.lat, lng: u.lng } : { ...f, ubicacion_id: null }));
+  }
+
+  /** Sedes de agencia, primero las de la agencia elegida. */
+  const sedes = useMemo(() => {
+    const agencia = (form.agencia || '').toLowerCase();
+    return ubicaciones
+      .filter((u) => u.tipo === 'agencia')
+      .sort((a, b) => Number(b.nombre.toLowerCase().includes(agencia)) - Number(a.nombre.toLowerCase().includes(agencia)) || a.nombre.localeCompare(b.nombre, 'es'));
+  }, [ubicaciones, form.agencia]);
+  const porAgencia = !esEncargo && !!form.agencia;
 
   /** Elegir una ubicación frecuente completa el destino del encargo. */
   function usarUbicacion(uid) {
@@ -238,7 +253,11 @@ export default function PedidoForm({ categoria: categoriaNueva = 'venta' }) {
           <label>N° Contacto<input type="tel" maxLength={30} {...input('cliente_telefono')} /></label>
           {!esEncargo && (
             <>
-              <label>Agencia<select {...input('agencia')}>{opciones(catalogos.agencias, '— Sin agencia —')}</select></label>
+              <label>Agencia
+                <select {...input('agencia')} onChange={(e) => setForm((f) => ({ ...f, agencia: e.target.value, ...(e.target.value ? {} : { ubicacion_id: null }) }))}>
+                  {opciones(catalogos.agencias, '— Sin agencia —')}
+                </select>
+              </label>
               <label>Enviar a…<select {...input('enviar_a')}>{opciones(catalogos.enviarA, '—')}</select></label>
               <label>Pago de agencia<select {...input('pago_agencia')}>{opciones(catalogos.pagoAgencia, '—')}</select></label>
             </>
@@ -248,9 +267,23 @@ export default function PedidoForm({ categoria: categoriaNueva = 'venta' }) {
           <label>Detalle del domicilio<input placeholder="Dpto, piso, interior…" maxLength={255} {...input('detalle_domicilio')} /></label>
           <label>Referencia<input maxLength={255} {...input('referencia')} /></label>
           {!esEncargo && <label>Cód. postal<input maxLength={10} {...input('cod_postal')} /></label>}
+          {porAgencia && (
+            <label className="ancho">Sede de la agencia (donde el conductor deja el paquete)
+              <select value={form.ubicacion_id ?? ''} disabled={bloqueado('ubicacion_id')} onChange={(e) => usarSede(e.target.value)}>
+                <option value="">— Elige la sede —</option>
+                {sedes.map((u) => <option key={u.id} value={u.id}>{u.nombre}{u.distrito ? ` · ${u.distrito}` : ''}{u.direccion ? ` · ${u.direccion}` : ''}</option>)}
+              </select>
+              <small>
+                {sedes.length ? 'La dirección de arriba es la del cliente (destino final); en el mapa va la sede de la agencia. ' : 'Aún no hay sedes de agencia registradas. '}
+                Las sedes se registran en <Link href="/ubicaciones">Ubicaciones</Link> con tipo "Agencia".
+              </small>
+            </label>
+          )}
           <div className="ancho">
-            <strong>Ubicación exacta {esEncargo ? 'del destino' : 'del cliente'}</strong>
+            <strong>{porAgencia ? 'Punto de entrega: sede de la agencia' : `Ubicación exacta ${esEncargo ? 'del destino' : 'del cliente'}`}</strong>
             <MapaSelector
+              sinBuscar={porAgencia}
+              ayuda={porAgencia ? 'Envío por agencia: marca aquí la sede de la agencia en Lima (o elígela arriba), no la dirección del cliente.' : null}
               key={form.ubicacion_id ?? 'manual'}
               valor={{ lat: form.lat, lng: form.lng }}
               onChange={({ lat, lng }) => setForm((f) => ({ ...f, lat, lng }))}
