@@ -58,6 +58,7 @@ class ApiClient {
   Future<dynamic> get(String ruta, {Map<String, String>? query}) => _enviar('GET', ruta, query: query);
   Future<dynamic> post(String ruta, [Object? cuerpo]) => _enviar('POST', ruta, cuerpo: cuerpo);
   Future<dynamic> patch(String ruta, [Object? cuerpo]) => _enviar('PATCH', ruta, cuerpo: cuerpo);
+  Future<dynamic> delete(String ruta, [Object? cuerpo]) => _enviar('DELETE', ruta, cuerpo: cuerpo);
 
   Future<dynamic> _enviar(String metodo, String ruta, {Map<String, String>? query, Object? cuerpo}) async {
     final uri = Uri.parse('$apiUrl$ruta').replace(queryParameters: query);
@@ -73,6 +74,7 @@ class ApiClient {
         'GET' => http.get(uri, headers: headers),
         'POST' => http.post(uri, headers: headers, body: body),
         'PATCH' => http.patch(uri, headers: headers, body: body),
+        'DELETE' => http.delete(uri, headers: headers, body: body),
         _ => throw ArgumentError(metodo),
       }.timeout(const Duration(seconds: 30));
     } on TimeoutException {

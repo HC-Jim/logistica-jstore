@@ -5,3 +5,4 @@ node_modules/
 credenciales*
 usuarios-por-defecto.sql
 firebase-service-account.json
+*-firebase-adminsdk-*.json

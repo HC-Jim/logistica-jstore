@@ -17,10 +17,6 @@ class Aviso {
   final Map<String, dynamic> datos;
   bool leida;
   final DateTime creadoEn;
-
-  int? get rutaId => (datos['ruta_id'] as num?)?.toInt();
-  String? get fecha => datos['fecha'] == null ? null : '${datos['fecha']}'.substring(0, 10);
-  bool get abrirChat => datos['abrir'] == 'chat';
 }
 
 /// Bandeja de avisos del usuario (los mismos que llegan como push).

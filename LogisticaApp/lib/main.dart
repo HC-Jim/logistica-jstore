@@ -3,8 +3,10 @@ import 'package:intl/date_symbol_data_local.dart';
 
 import 'api/api_client.dart';
 import 'screens/login_screen.dart';
+import 'screens/notificaciones_screen.dart';
 import 'screens/rutas_screen.dart';
 import 'services/gps_service.dart';
+import 'services/push_service.dart';
 
 final navegador = GlobalKey<NavigatorState>();
 
@@ -19,6 +21,11 @@ Future<void> main() async {
       MaterialPageRoute(builder: (_) => const LoginScreen(mensaje: 'Tu sesión venció. Ingresa de nuevo.')),
       (_) => false,
     );
+  };
+  await push.iniciar();
+  push.onAbrir = (datos) {
+    final ctx = navegador.currentContext;
+    if (ctx != null && api.tieneSesion) abrirRutaDeAviso(ctx, datos);
   };
   runApp(const LogisticaApp());
 }

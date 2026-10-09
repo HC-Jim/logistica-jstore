@@ -7,6 +7,7 @@ import '../services/gps_service.dart';
 import '../services/rutas_service.dart';
 import '../utils/formato.dart';
 import '../services/notificaciones_service.dart';
+import '../services/push_service.dart';
 import 'login_screen.dart';
 import 'notificaciones_screen.dart';
 import 'ruta_screen.dart';
@@ -30,6 +31,15 @@ class _RutasScreenState extends State<RutasScreen> {
   void initState() {
     super.initState();
     _cargar();
+    push.registrar();
+    push.llegadas.addListener(_contarAvisos);
+    final aviso = push.pendiente;
+    if (aviso != null) {
+      push.pendiente = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) abrirRutaDeAviso(context, aviso);
+      });
+    }
   }
 
   Future<void> _cargar() async {
@@ -46,6 +56,12 @@ class _RutasScreenState extends State<RutasScreen> {
     } finally {
       if (mounted) setState(() => _cargando = false);
     }
+  }
+
+  @override
+  void dispose() {
+    push.llegadas.removeListener(_contarAvisos);
+    super.dispose();
   }
 
   Future<void> _contarAvisos() async {
@@ -70,6 +86,7 @@ class _RutasScreenState extends State<RutasScreen> {
 
   Future<void> _salir() async {
     gps.detener();
+    await push.quitar();
     await api.cerrarSesion();
     if (!mounted) return;
     Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));

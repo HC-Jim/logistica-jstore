@@ -16,6 +16,28 @@ const _iconos = {
   'pedido_retirado': Icons.cancel_outlined,
 };
 
+/// Abre la ruta del aviso (o su chat). Sirve para la bandeja y para los avisos push,
+/// cuyos datos llegan como texto.
+Future<void> abrirRutaDeAviso(BuildContext context, Map<String, dynamic> datos) async {
+  final rutaId = int.tryParse('${datos['ruta_id'] ?? ''}');
+  final fecha = datos['fecha'] == null ? null : '${datos['fecha']}'.substring(0, 10);
+  if (rutaId == null || fecha == null || datos['tipo'] == 'ruta_retirada') return;
+  final mensajero = ScaffoldMessenger.of(context);
+  final navegador = Navigator.of(context);
+  try {
+    final dia = await RutasService.misRutas(fecha);
+    if (!dia.rutas.any((r) => r.id == rutaId)) {
+      mensajero.showSnackBar(const SnackBar(content: Text('Esa ruta ya no está asignada a ti.')));
+      return;
+    }
+    await navegador.push(MaterialPageRoute(
+      builder: (_) => RutaScreen(rutaId: rutaId, fecha: fecha, deposito: dia.deposito, pestana: datos['abrir'] == 'chat' ? 2 : 0),
+    ));
+  } on ApiException catch (e) {
+    mensajero.showSnackBar(SnackBar(content: Text(e.mensaje)));
+  }
+}
+
 /// Bandeja de avisos: rutas asignadas, cambios, pedidos retirados y mensajes.
 class NotificacionesScreen extends StatefulWidget {
   const NotificacionesScreen({super.key});
@@ -70,18 +92,7 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
         _noLeidas = (_noLeidas - 1).clamp(0, 9999);
       });
     }
-    final rutaId = a.rutaId, fecha = a.fecha;
-    if (rutaId == null || fecha == null || a.tipo == 'ruta_retirada') return;
-    try {
-      final dia = await RutasService.misRutas(fecha);
-      if (!dia.rutas.any((r) => r.id == rutaId)) return _mostrar('Esa ruta ya no está asignada a ti.');
-      if (!mounted) return;
-      await Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => RutaScreen(rutaId: rutaId, fecha: fecha, deposito: dia.deposito, pestana: a.abrirChat ? 2 : 0),
-      ));
-    } on ApiException catch (e) {
-      _mostrar(e.mensaje);
-    }
+    await abrirRutaDeAviso(context, {...a.datos, 'tipo': a.tipo});
   }
 
   void _mostrar(String texto) {
