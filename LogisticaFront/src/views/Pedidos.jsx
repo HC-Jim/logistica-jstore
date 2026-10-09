@@ -7,14 +7,15 @@ import { pedidosApi, usuariosApi } from '../api/services';
 import EstadoBadge from '../components/EstadoBadge';
 import { useAuth } from '../context/AuthContext';
 import { useCatalogos } from '../context/CatalogosContext';
-import { ESTADOS, fechaCorta, soles } from '../utils/format';
+import { CATEGORIAS, ESTADOS, fechaCorta, soles } from '../utils/format';
 
-const FILTROS = { desde: '', hasta: '', estado: '', plataforma: '', tipo_pedido: '', vendedor_id: '', buscar: '' };
+const FILTROS = { categoria: '', desde: '', hasta: '', estado: '', plataforma: '', tipo_pedido: '', vendedor_id: '', buscar: '' };
 
 export default function Pedidos() {
   const { usuario } = useAuth();
   const { catalogos } = useCatalogos();
   const puedeCrear = ['admin', 'planificador', 'vendedor'].includes(usuario.rol);
+  const puedeEncargo = ['admin', 'planificador', 'almacen'].includes(usuario.rol);
   const [pedidos, setPedidos] = useState([]);
   const [vendedores, setVendedores] = useState([]);
   const [filtros, setFiltros] = useState(FILTROS);
@@ -46,7 +47,19 @@ export default function Pedidos() {
     <>
       <div className="encabezado">
         <h2>{usuario.rol === 'vendedor' ? 'Mis ventas' : 'Pedidos'}</h2>
-        {puedeCrear && <Link className="btn" href="/pedidos/nuevo">+ Nuevo pedido</Link>}
+        <div className="fila">
+          {puedeCrear && <Link className="btn" href="/pedidos/nuevo">+ Nuevo pedido</Link>}
+          {puedeCrear && <Link className="btn btn-inversa" href="/pedidos/inversa/nuevo">+ Logística inversa</Link>}
+          {puedeEncargo && <Link className="btn btn-encargo" href="/pedidos/encargo/nuevo">+ Encargo</Link>}
+        </div>
+      </div>
+
+      <div className="pestanas">
+        <button className={!filtros.categoria ? 'activa' : ''} onClick={() => setFiltros({ ...filtros, categoria: '', tipo_pedido: '' })}>Todos</button>
+        {Object.entries(CATEGORIAS).filter(([k]) => k !== 'encargo' || usuario.rol !== 'vendedor').map(([k, c]) => (
+          <button key={k} className={filtros.categoria === k ? 'activa' : ''} style={{ borderBottomColor: c.color }}
+            onClick={() => setFiltros({ ...filtros, categoria: k, tipo_pedido: '' })}>{c.icono} {c.label}</button>
+        ))}
       </div>
 
       <section className="tarjeta">
@@ -64,7 +77,7 @@ export default function Pedidos() {
           </select>
           <select {...f('tipo_pedido')}>
             <option value="">Todos los tipos</option>
-            {catalogos?.tiposPedido.map((p) => <option key={p}>{p}</option>)}
+            {(filtros.categoria ? catalogos?.tiposPorCategoria[filtros.categoria] : catalogos?.tiposPedido)?.map((p) => <option key={p}>{p}</option>)}
           </select>
           {vendedores.length > 0 && (
             <select {...f('vendedor_id')}>
@@ -90,9 +103,9 @@ export default function Pedidos() {
             <tbody>
               {pedidos.map((p) => (
                 <tr key={p.id}>
-                  <td><Link href={`/pedidos/${p.id}`}><strong>{p.id}</strong></Link><small>{p.documento_bsale}</small></td>
+                  <td><Link href={`/pedidos/${p.id}`}><strong>{p.id}</strong></Link> <span title={CATEGORIAS[p.categoria]?.label}>{p.categoria !== 'venta' && CATEGORIAS[p.categoria]?.icono}</span><small>{p.documento_bsale}</small></td>
                   <td>{fechaCorta(p.fecha_entrega)}</td>
-                  <td>{p.plataforma}<small>{p.tipo_pedido}{p.agencia ? ` · ${p.agencia}` : ''}</small></td>
+                  <td>{p.categoria === 'encargo' ? 'Encargo' : p.plataforma}<small>{p.tipo_pedido}{p.agencia ? ` · ${p.agencia}` : ''}{p.motivo ? ` · ${p.motivo}` : ''}</small></td>
                   <td>{p.cliente_nombre}<small>{p.cliente_telefono}</small></td>
                   <td>{p.distrito}{p.lat == null && <small className="error">sin ubicación</small>}</td>
                   <td className="productos">{p.productos}</td>

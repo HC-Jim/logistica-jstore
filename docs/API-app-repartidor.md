@@ -113,6 +113,12 @@ El mismo chat que ve logística en la web (Rutas → Ruta N, y Monitoreo).
 
 ## Datos de la ruta
 
+Cada parada de pedido trae `categoria`: `venta`, `inversa` (logística inversa) o `encargo` (encargo logístico),
+además de `tipo_pedido`, `motivo` y `pedido_relacionado`. Con `tipo_pedido` igual a `Recojo S.T` o
+`Recojo de suministros` el conductor **recoge** en vez de entregar; la app debería mostrar "Recogido" en lugar
+de "Entregado" (el estado que se envía sigue siendo `completada`).
+
+
 Cada ruta trae `numero` (Ruta 1, 2, 3…), `vehiculo_nombre`, `vehiculo_tipo` (`auto`, `moto`, `bicicleta`,
 `furgoneta`, `otro`) y `vehiculo_placa`. Las paradas con estado `completada` o `incidencia` son historial:
 la app solo debe permitir marcar las que están `pendiente`.

@@ -2,8 +2,8 @@
 
 export const PERMISOS = {
   verPedidos: ['admin', 'planificador', 'almacen', 'vendedor'], // el vendedor solo ve los suyos
-  crearPedido: ['admin', 'planificador', 'vendedor'],
-  editarPedido: ['admin', 'planificador', 'vendedor'], // el vendedor solo algunos campos de sus ventas
+  crearPedido: ['admin', 'planificador', 'vendedor', 'almacen'], // almacén: solo encargos (se valida por categoría)
+  editarPedido: ['admin', 'planificador', 'vendedor', 'almacen'], // vendedor: algunos campos de sus ventas; almacén: encargos
   gestionarEstado: ['admin', 'planificador'],
   reprogramar: ['admin', 'planificador', 'vendedor'],
   observacionesAlmacen: ['admin', 'planificador', 'almacen'],

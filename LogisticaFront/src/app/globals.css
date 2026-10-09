@@ -268,3 +268,10 @@ h3 small { display: block; font-weight: 400; }
   .badge { padding: 0; background: none !important; }
   a { color: inherit; text-decoration: none; }
 }
+
+/* ---- Categorías ---- */
+.btn-inversa { background: #805ad5; }
+.btn-encargo { background: #dd6b20; }
+.etiqueta { font-weight: 600; margin-right: 6px; }
+.marca-tipo { font-weight: 700; }
+.accion-libre select { width: 100%; }

@@ -10,7 +10,7 @@ import Dialogo from '../components/Dialogo';
 import EstadoBadge from '../components/EstadoBadge';
 import { Mapa } from '../components/maps';
 import { useAuth } from '../context/AuthContext';
-import { fechaCorta, fechaHora, hoyISO, soles } from '../utils/format';
+import { CATEGORIAS, fechaCorta, fechaHora, hoyISO, soles } from '../utils/format';
 
 const EDITABLE = ['pendiente', 'ruteado', 'incidencia'];
 
@@ -90,7 +90,7 @@ export default function PedidoDetalle() {
   return (
     <>
       <div className="encabezado">
-        <h2>Pedido {pedido.id} <EstadoBadge estado={pedido.estado} /></h2>
+        <h2>{pedido.categoria === 'encargo' ? 'Encargo' : pedido.categoria === 'inversa' ? 'Log. inversa' : 'Pedido'} {pedido.id} <EstadoBadge estado={pedido.estado} /></h2>
         <div className="fila">
           {puedeEditar && <Link className="btn" href={`/pedidos/${id}/editar`}>Editar</Link>}
           {editable && (logistica || puedeEditar) && <button className="btn-sec" onClick={reprogramar}>Reprogramar</button>}
@@ -115,27 +115,44 @@ export default function PedidoDetalle() {
 
       <div className="grid-2">
         <section className="tarjeta datos">
-          <h3>Venta</h3>
+          <h3>{CATEGORIAS[pedido.categoria]?.icono} {pedido.categoria === 'venta' ? 'Venta' : CATEGORIAS[pedido.categoria]?.label}</h3>
           <dl>
             <dt>Marca temporal</dt><dd>{fechaHora(pedido.creado_en)}</dd>
-            <dt>Plataforma</dt><dd>{pedido.plataforma}</dd>
-            <dt># Pedido</dt><dd>{pedido.numero_pedido || '—'}</dd>
-            <dt>Doc. Bsale</dt><dd>{pedido.documento_bsale || '—'}</dd>
+            {pedido.categoria !== 'encargo' && <><dt>Plataforma</dt><dd>{pedido.plataforma}</dd></>}
+            {pedido.motivo && <><dt>Motivo</dt><dd>{pedido.motivo}</dd></>}
+            {pedido.pedido_relacionado && <><dt>Pedido original</dt><dd>{pedido.pedido_relacionado}</dd></>}
+            {pedido.ubicacion_nombre && <><dt>Ubicación frecuente</dt><dd>{pedido.ubicacion_nombre}</dd></>}
+            {pedido.origen_nombre && <><dt>Origen</dt><dd>{pedido.origen_nombre}</dd></>}
+            {pedido.categoria !== 'encargo' && (
+              <>
+                <dt># Pedido</dt><dd>{pedido.numero_pedido || '—'}</dd>
+                <dt>Doc. Bsale</dt><dd>{pedido.documento_bsale || '—'}</dd>
+              </>
+            )}
             <dt>Tipo</dt><dd>{pedido.tipo_pedido}</dd>
-            <dt>Vendedor</dt><dd>{pedido.vendedor_nombre}</dd>
+            <dt>{pedido.categoria === 'encargo' ? 'Registrado por' : 'Vendedor'}</dt><dd>{pedido.vendedor_nombre}</dd>
             <dt>Entrega</dt><dd><strong>{fechaCorta(pedido.fecha_entrega)}</strong></dd>
             <dt>Ruta</dt><dd>{pedido.ruta_id && pedido.estado !== 'pendiente' && pedido.estado !== 'cancelado'
               ? <Link href={`/rutas/${pedido.ruta_id}`}>Ruta {pedido.ruta_numero} del {fechaCorta(pedido.ruta_fecha)} · {pedido.repartidor_nombre ?? 'sin conductor'} · parada {pedido.ruta_orden}</Link>
               : 'Sin ruta'}</dd>
           </dl>
-          <h3>Cobro</h3>
-          <dl>
-            <dt>Envío</dt><dd>{soles(pedido.precio_envio)}</dd>
-            <dt>Total</dt><dd><strong>{soles(pedido.total_pedido)}</strong></dd>
-            <dt>Cobrar</dt><dd>{pedido.cobrar}</dd>
-            <dt>Medio de pago</dt><dd>{pedido.medio_pago || '—'}</dd>
-            <dt>Nota</dt><dd>{pedido.nota || '—'}</dd>
-          </dl>
+          {pedido.categoria === 'encargo' ? (
+            <>
+              <h3>Instrucciones</h3>
+              <p>{pedido.nota || '—'}</p>
+            </>
+          ) : (
+            <>
+              <h3>Cobro</h3>
+              <dl>
+                <dt>Envío</dt><dd>{soles(pedido.precio_envio)}</dd>
+                <dt>Total</dt><dd><strong>{soles(pedido.total_pedido)}</strong></dd>
+                <dt>Cobrar</dt><dd>{pedido.cobrar}</dd>
+                <dt>Medio de pago</dt><dd>{pedido.medio_pago || '—'}</dd>
+                <dt>Nota</dt><dd>{pedido.nota || '—'}</dd>
+              </dl>
+            </>
+          )}
         </section>
 
         <section className="tarjeta datos">

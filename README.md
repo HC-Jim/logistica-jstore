@@ -28,6 +28,23 @@ En cualquier momento antes de entregar: cancelado (con motivo) o reprogramado (s
 Todo cambio queda en el historial del pedido (quién, cuándo, qué cambió).
 ```
 
+## Tres formas de registrar
+
+| Registro | Quién | Tipos | Particularidades |
+|---|---|---|---|
+| 🛒 **Pedido (venta)** | vendedor, logística | Agencia, Delivery, Flex, Olva Juntoz, Ripley…, Shopstar Urbano, Claro… | Productos del catálogo; cobro |
+| ↩️ **Logística inversa** | vendedor, logística | Recojo S.T, Entrega S.T, Entrega Pza Faltante, Cambio | Plataforma fija "Log. Inversa"; **motivo** y **pedido original**; piezas fuera del catálogo |
+| 🏢 **Encargo logístico** | logística, almacén | Entrega a almacén externo (Falabella…), Recojo de suministros, Traslado entre almacenes, Otro | Destino desde **Ubicaciones frecuentes**; productos opcionales; sin cobro |
+
+Los tres se planifican en las rutas, se despachan y quedan en el historial igual que un pedido.
+Las listas de tipos y motivos están en `LogisticaBack/src/config/catalogos.js`.
+
+**Ubicaciones frecuentes** (menú *Ubicaciones*): puntos recurrentes con su lugar en el mapa (almacén de Falabella,
+otros almacenes, proveedores, agencias). Se eligen al registrar un encargo o al agregar una acción a una ruta.
+
+**Registro de cambios**: cada pedido y cada ruta guardan quién cambió qué y cuándo (edición, equipo, paradas,
+despacho, entregas, reprogramaciones, cierre).
+
 ## Rutas
 
 - Cada día se muestran **Ruta 1, 2 y 3** (`RUTAS_POR_DEFECTO` en `LogisticaBack/src/config/catalogos.js`);

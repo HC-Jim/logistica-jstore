@@ -4,12 +4,12 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { mensajeError } from '../api/client';
-import { rutasApi, usuariosApi, vehiculosApi } from '../api/services';
+import { rutasApi, ubicacionesApi, usuariosApi, vehiculosApi } from '../api/services';
 import ChatRuta from '../components/ChatRuta';
 import EstadoBadge from '../components/EstadoBadge';
 import { AjustarVista, Mapa, MarcadorNumero, Polilinea } from '../components/maps';
 import { useCatalogos } from '../context/CatalogosContext';
-import { duracion, ESTADOS_PARADA, ESTADOS_RUTA, fechaCorta, km, soles, VEHICULOS } from '../utils/format';
+import { CATEGORIAS, duracion, ESTADOS_PARADA, ESTADOS_RUTA, fechaCorta, fechaHora, km, soles, VEHICULOS } from '../utils/format';
 
 /** Convierte una parada guardada en un elemento editable de la lista. */
 const desdeParada = (p) => ({
@@ -23,6 +23,8 @@ const desdeParada = (p) => ({
   estado: p.estado,
   total: p.total_pedido,
   cobrar: p.cobrar,
+  categoria: p.categoria,
+  tipo: p.tipo_pedido,
 });
 
 const desdePedido = (p) => ({
@@ -35,7 +37,48 @@ const desdePedido = (p) => ({
   estado: 'pendiente',
   total: p.total_pedido,
   cobrar: p.cobrar,
+  categoria: p.categoria,
+  tipo: p.tipo_pedido,
 });
+
+const ACCIONES_RUTA = {
+  creada: 'Abrió la ruta',
+  editada: 'Cambió',
+  paradas: 'Modificó las paradas',
+  optimizada: 'Optimizó el orden',
+  trazada: 'Trazó la ruta',
+  despachado: 'Despachó al conductor',
+  despacho_anulado: 'Anuló el despacho de',
+  parada_atendida: 'Atendió una parada',
+  pedido_retirado: 'Retiró un pedido',
+  finalizada: 'Finalizó la ruta',
+};
+
+/** Texto legible del detalle de un cambio de la ruta. */
+function describirCambio(h) {
+  const d = h.detalle ?? {};
+  switch (h.accion) {
+    case 'creada':
+      return [d.vehiculo, d.conductor && `conductor ${d.conductor}`, d.auxiliar && `auxiliar ${d.auxiliar}`].filter(Boolean).join(' · ');
+    case 'editada':
+      return Object.entries(d).map(([k, [a, b]]) => `${k}: ${a ?? '—'} → ${b ?? '—'}`).join(' · ');
+    case 'paradas':
+      return [d.agregados?.length && `agregó ${d.agregados.join(', ')}`, d.quitados?.length && `quitó ${d.quitados.join(', ')}`,
+        d.reordenado && 'cambió el orden'].filter(Boolean).join(' · ');
+    case 'optimizada':
+    case 'trazada':
+      return `${d.km} km · ${d.minutos} min`;
+    case 'despachado':
+    case 'despacho_anulado':
+      return d.pedidos?.join(', ');
+    case 'parada_atendida':
+      return `${d.pedido_id ? `#${d.pedido_id}` : d.descripcion} → ${d.estado}${d.nota ? ` (${d.nota})` : ''}${d.origen ? ` · ${d.origen}` : ''}`;
+    case 'pedido_retirado':
+      return `#${d.pedido_id}${d.motivo ? ` (${d.motivo})` : ''}`;
+    default:
+      return '';
+  }
+}
 
 export default function RutaEditor() {
   const { id } = useParams();
@@ -49,6 +92,8 @@ export default function RutaEditor() {
   const [vehiculos, setVehiculos] = useState([]);
   const [sucio, setSucio] = useState(false);
   const [libre, setLibre] = useState(null); // acción libre en preparación
+  const [ubicaciones, setUbicaciones] = useState([]);
+  const [historial, setHistorial] = useState([]);
   const [trabajando, setTrabajando] = useState('');
   const [error, setError] = useState('');
 
@@ -64,7 +109,12 @@ export default function RutaEditor() {
     usuariosApi.listar({ rol: 'repartidor', activos: true }).then(setRepartidores).catch(() => {});
     usuariosApi.listar({ rol: 'auxiliar,repartidor', activos: true }).then(setAuxiliares).catch(() => {});
     vehiculosApi.listar({ activos: true }).then(setVehiculos).catch(() => {});
+    ubicacionesApi.listar({ activas: true }).then(setUbicaciones).catch(() => {});
   }, [id, aplicar]);
+
+  useEffect(() => {
+    if (ruta) rutasApi.historialCambios(id).then(setHistorial).catch(() => {});
+  }, [id, ruta]);
 
   // Avisar antes de salir con cambios sin guardar
   useEffect(() => {
@@ -232,7 +282,12 @@ export default function RutaEditor() {
                 <div className="fila espacio">
                   <span>
                     {p.pedido_id ? <Link href={`/pedidos/${p.pedido_id}`}><strong>{p.titulo}</strong></Link> : <strong>⚑ {p.titulo}</strong>}
-                    {p.pedido_id && <small>#{p.pedido_id} · {p.cobrar} {p.cobrar !== 'No Cobrar' && soles(p.total)}</small>}
+                    {p.pedido_id && (
+                      <small>
+                        {p.categoria && p.categoria !== 'venta' && <span className="etiqueta" style={{ color: CATEGORIAS[p.categoria].color }}>{CATEGORIAS[p.categoria].icono} {p.tipo}</span>}
+                        #{p.pedido_id} · {p.cobrar} {p.cobrar !== 'No Cobrar' && soles(p.total)}
+                      </small>
+                    )}
                   </span>
                   {p.estado !== 'pendiente' ? <EstadoBadge estado={p.estado} mapa={ESTADOS_PARADA} /> : !finalizada && (
                     <span className="botonera">
@@ -250,7 +305,15 @@ export default function RutaEditor() {
           {!finalizada && (
             <>
               <h3>Agregar acción</h3>
+              <small>Parada puntual sin registro propio. Si necesitas seguimiento (productos, estado, historial), registra un <Link href="/pedidos/encargo/nuevo">encargo</Link>.</small>
               <div className="accion-libre">
+                <select value="" onChange={(e) => {
+                  const u = ubicaciones.find((x) => x.id === Number(e.target.value));
+                  if (u) setLibre({ titulo: libre?.titulo || u.nombre, direccion: u.direccion ?? '', lat: u.lat, lng: u.lng });
+                }}>
+                  <option value="">📍 Usar una ubicación frecuente…</option>
+                  {ubicaciones.map((u) => <option key={u.id} value={u.id}>{u.nombre}</option>)}
+                </select>
                 <input placeholder="Ej. Recoger en Almacén Guardatodo / Despacho para Falabella" value={libre?.titulo ?? ''}
                   onChange={(e) => setLibre({ ...libre, titulo: e.target.value })} />
                 <input placeholder="Dirección (opcional)" value={libre?.direccion ?? ''}
@@ -284,6 +347,19 @@ export default function RutaEditor() {
           )}
         </section>
       </div>
+      <section className="tarjeta">
+        <h3>🕓 Registro de cambios de la ruta</h3>
+        <ul className="historial">
+          {historial.map((h) => (
+            <li key={h.id}>
+              <small>{fechaHora(h.creado_en)} · {h.usuario ?? 'Sistema'}</small>
+              <strong>{ACCIONES_RUTA[h.accion] ?? h.accion}</strong> {describirCambio(h)}
+            </li>
+          ))}
+          {!historial.length && <li><small>Sin cambios registrados.</small></li>}
+        </ul>
+      </section>
+
       <section className="tarjeta">
         <h3>💬 Chat de la Ruta {ruta.numero}</h3>
         <ChatRuta rutaId={ruta.id} />

@@ -1,6 +1,18 @@
 import { query, withTransaction } from '../config/db.js';
 import { HttpError } from '../utils/http.js';
+import { historialRuta, registrarRuta } from './historial.js';
 import { registrarHistorial } from './pedido.model.js';
+
+/** Nombres legibles de vehículo y personas para el historial de la ruta. */
+async function nombresEquipo(client, { vehiculoId, repartidorId, asistenteId }) {
+  const { rows: [n] } = await client.query(
+    `SELECT (SELECT nombre FROM vehiculos WHERE id = $1) AS vehiculo,
+            (SELECT nombre FROM usuarios WHERE id = $2) AS conductor,
+            (SELECT nombre FROM usuarios WHERE id = $3) AS auxiliar`,
+    [vehiculoId ?? null, repartidorId ?? null, asistenteId ?? null]
+  );
+  return n;
+}
 
 const SELECT_RUTA = `
   SELECT r.*, rep.nombre AS repartidor_nombre, rep.telefono AS repartidor_telefono,
@@ -36,6 +48,7 @@ export async function paradasDe(rutaIds) {
             p.tipo_pedido, p.agencia, p.precio_envio, p.total_pedido, p.cobrar, p.medio_pago,
             p.nota AS nota_pedido, p.estado AS estado_pedido, p.documento_bsale,
             p.plataforma, p.numero_pedido, p.enviar_a, p.pago_agencia,
+            p.categoria, p.motivo, p.pedido_relacionado,
             ven.nombre AS vendedor_nombre,
             rp.despachado_en, des.nombre AS despachado_por_nombre,
             ub.distrito, ub.provincia, ub.departamento,
@@ -140,12 +153,15 @@ export const RutaModel = {
          VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
         [fecha, numero, nombre ?? null, vehiculoId ?? null, repartidorId ?? null, asistenteId ?? null, usuario.id]
       );
+      await registrarRuta(client, r.id, usuario.id, 'creada', {
+        numero, ...(await nombresEquipo(client, { vehiculoId, repartidorId, asistenteId })),
+      });
       return r.id;
     });
   },
 
   /** Cambia nombre, vehículo, conductor o auxiliar (undefined = no cambiar, null = quitar). */
-  async actualizar(id, { nombre, vehiculoId, repartidorId, asistenteId, estado }) {
+  async actualizar(id, { nombre, vehiculoId, repartidorId, asistenteId, estado }, usuario) {
     return withTransaction(async (client) => {
       const ruta = await bloquearRuta(client, id);
       const valor = (nuevo, actual) => (nuevo === undefined ? actual : nuevo);
@@ -163,12 +179,19 @@ export const RutaModel = {
          WHERE id = $6`,
         [valor(nombre, ruta.nombre), repartidor, asistente, vehiculo, estado ?? ruta.estado, id]
       );
+      const antes = await nombresEquipo(client, { vehiculoId: ruta.vehiculo_id, repartidorId: ruta.repartidor_id, asistenteId: ruta.asistente_id });
+      const ahora = await nombresEquipo(client, { vehiculoId: vehiculo, repartidorId: repartidor, asistenteId: asistente });
+      const cambios = Object.fromEntries(
+        Object.keys(ahora).filter((k) => antes[k] !== ahora[k]).map((k) => [k, [antes[k], ahora[k]]])
+      );
+      if (estado && estado !== ruta.estado) cambios.estado = [ruta.estado, estado];
+      if (Object.keys(cambios).length) await registrarRuta(client, id, usuario?.id, 'editada', cambios);
       return id;
     });
   },
 
   /** Cierra la ruta del día. Exige que no queden pedidos pendientes en ella. */
-  async finalizar(id) {
+  async finalizar(id, usuario) {
     return withTransaction(async (client) => {
       const ruta = await bloquearRuta(client, id);
       if (ruta.estado === 'finalizada') return id;
@@ -180,6 +203,7 @@ export const RutaModel = {
         throw new HttpError(409, `Quedan ${pendientes} parada(s) pendientes: márcalas como entregadas, reprograma o cancela esos pedidos`);
       }
       await client.query(`UPDATE rutas SET estado = 'finalizada', actualizado_en = now() WHERE id = $1`, [id]);
+      await registrarRuta(client, id, usuario?.id, 'finalizada');
       return id;
     });
   },
@@ -230,8 +254,10 @@ export const RutaModel = {
         if (!porId.has(p.id)) throw new HttpError(400, `La parada ${p.id} no pertenece a esta ruta`);
       }
 
+      const registro = { agregados: [], quitados: [] };
       // Paradas quitadas
       for (const p of existentes.filter((x) => !conservadas.has(x.id))) {
+        registro.quitados.push(p.pedido_id ? `#${p.pedido_id}` : p.descripcion);
         if (p.estado !== 'pendiente') {
           throw new HttpError(409, `La parada "${p.descripcion ?? `pedido #${p.pedido_id}`}" ya fue atendida y no se puede quitar`);
         }
@@ -278,7 +304,8 @@ export const RutaModel = {
             [id, orden, p.pedido_id]
           );
           await client.query(`UPDATE pedidos SET estado = 'ruteado', actualizado_en = now() WHERE id = $1`, [p.pedido_id]);
-          await registrarHistorial(client, p.pedido_id, usuario.id, 'ruteado', { ruta_id: id });
+          await registrarHistorial(client, p.pedido_id, usuario.id, 'ruteado', { ruta_id: id, motivo: `Ruta ${ruta.numero} del ${ruta.fecha}` });
+          registro.agregados.push(`#${p.pedido_id}`);
         } else {
           if (!p.descripcion) throw new HttpError(400, 'Las acciones libres necesitan una descripción');
           if (p.lat == null || p.lng == null) throw new HttpError(400, `"${p.descripcion}" necesita ubicación`);
@@ -287,7 +314,14 @@ export const RutaModel = {
              VALUES ($1, $2, $3, $4, $5, $6)`,
             [id, orden, p.descripcion, p.direccion ?? null, p.lat, p.lng]
           );
+          registro.agregados.push(p.descripcion);
         }
+      }
+      const ordenAntes = existentes.filter((x) => conservadas.has(x.id)).sort((a, b) => a.orden - b.orden).map((x) => x.id);
+      const ordenAhora = lista.filter((x) => x.id).map((x) => x.id);
+      const reordenado = ordenAntes.join() !== ordenAhora.join();
+      if (registro.agregados.length || registro.quitados.length || reordenado) {
+        await registrarRuta(client, id, usuario.id, 'paradas', { ...registro, reordenado });
       }
 
       await client.query(
@@ -299,8 +333,11 @@ export const RutaModel = {
     });
   },
 
-  async guardarTrazado(id, { orden, distanciaMetros, duracionSegundos, polyline }) {
+  async guardarTrazado(id, { orden, distanciaMetros, duracionSegundos, polyline }, usuario) {
     return withTransaction(async (client) => {
+      await registrarRuta(client, id, usuario?.id, orden ? 'optimizada' : 'trazada', {
+        km: Math.round((distanciaMetros ?? 0) / 100) / 10, minutos: Math.round((duracionSegundos ?? 0) / 60),
+      });
       if (orden) {
         for (const [i, paradaId] of orden.entries()) {
           await client.query('UPDATE ruta_paradas SET orden = $1 WHERE id = $2 AND ruta_id = $3', [i + 1, paradaId, id]);
@@ -359,6 +396,9 @@ export const RutaModel = {
         'UPDATE ruta_paradas SET estado = $1, nota = $2, completada_en = now() WHERE id = $3',
         [estado, nota ?? null, paradaId]
       );
+      await registrarRuta(client, parada.ruta_id, usuario.id, 'parada_atendida', {
+        pedido_id: parada.pedido_id, descripcion: parada.descripcion, estado, nota, origen: 'app',
+      });
       if (parada.pedido_id) {
         const estadoPedido = estado === 'completada' ? 'entregado' : 'incidencia';
         await client.query('UPDATE pedidos SET estado = $1, actualizado_en = now() WHERE id = $2', [estadoPedido, parada.pedido_id]);
@@ -394,9 +434,17 @@ export const RutaModel = {
          WHERE ruta_id = $1 AND id = ANY($2::int[]) AND pedido_id IS NOT NULL AND estado = 'pendiente'`,
         [rutaId, paradaIds, despachado, usuario.id]
       );
+      if (rowCount) {
+        const { rows } = await client.query('SELECT pedido_id FROM ruta_paradas WHERE id = ANY($1::int[]) AND pedido_id IS NOT NULL', [paradaIds]);
+        await registrarRuta(client, rutaId, usuario.id, despachado ? 'despachado' : 'despacho_anulado', {
+          pedidos: rows.map((r) => `#${r.pedido_id}`),
+        });
+      }
       return rowCount;
     });
   },
+
+  historial: historialRuta,
 
   async mensajes(rutaId, { despues = 0, limite = 200 } = {}) {
     const { rows } = await query(

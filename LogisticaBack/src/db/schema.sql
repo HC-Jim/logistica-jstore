@@ -202,3 +202,46 @@ CREATE INDEX IF NOT EXISTS idx_mensajes_ruta ON ruta_mensajes(ruta_id, id);
 -- Despacho: almacén marca qué pedidos de la ruta ya entregó al conductor
 ALTER TABLE ruta_paradas ADD COLUMN IF NOT EXISTS despachado_en TIMESTAMPTZ;
 ALTER TABLE ruta_paradas ADD COLUMN IF NOT EXISTS despachado_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL;
+
+-- ============================================================
+-- Logística inversa, encargos, ubicaciones frecuentes e historial de rutas
+-- ============================================================
+
+-- Puntos recurrentes: almacén de Falabella, otros almacenes, proveedores, agencias…
+CREATE TABLE IF NOT EXISTS ubicaciones (
+  id         SERIAL PRIMARY KEY,
+  nombre     VARCHAR(120) NOT NULL,
+  tipo       VARCHAR(20)  NOT NULL DEFAULT 'otro'
+             CHECK (tipo IN ('almacen_propio', 'almacen_externo', 'proveedor', 'agencia', 'cliente', 'otro')),
+  direccion  VARCHAR(255),
+  ubigeo     CHAR(6) REFERENCES ubigeos(codigo),
+  referencia VARCHAR(255),
+  contacto   VARCHAR(120),
+  telefono   VARCHAR(30),
+  lat        NUMERIC(10, 7) NOT NULL CHECK (lat BETWEEN -90 AND 90),
+  lng        NUMERIC(10, 7) NOT NULL CHECK (lng BETWEEN -180 AND 180),
+  activo     BOOLEAN      NOT NULL DEFAULT true,
+  creado_en  TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+-- Categoría del registro: venta, logística inversa o encargo logístico
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS categoria VARCHAR(10) NOT NULL DEFAULT 'venta';
+ALTER TABLE pedidos DROP CONSTRAINT IF EXISTS pedidos_categoria_check;
+ALTER TABLE pedidos ADD CONSTRAINT pedidos_categoria_check CHECK (categoria IN ('venta', 'inversa', 'encargo'));
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS motivo VARCHAR(40);                 -- logística inversa
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS pedido_relacionado VARCHAR(60);     -- pedido original (código o # pedido)
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS ubicacion_id INTEGER REFERENCES ubicaciones(id) ON DELETE SET NULL;
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS origen_ubicacion_id INTEGER REFERENCES ubicaciones(id) ON DELETE SET NULL;
+UPDATE pedidos SET categoria = 'inversa' WHERE plataforma = 'Log. Inversa' AND categoria = 'venta';
+CREATE INDEX IF NOT EXISTS idx_pedidos_categoria ON pedidos(categoria, fecha_entrega);
+
+-- Auditoría de rutas: quién cambió qué (equipo, paradas, despacho, entregas, cierre)
+CREATE TABLE IF NOT EXISTS ruta_historial (
+  id         BIGSERIAL PRIMARY KEY,
+  ruta_id    INTEGER     NOT NULL REFERENCES rutas(id) ON DELETE CASCADE,
+  usuario_id INTEGER     REFERENCES usuarios(id) ON DELETE SET NULL,
+  accion     VARCHAR(40) NOT NULL,
+  detalle    JSONB,
+  creado_en  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_ruta_historial ON ruta_historial(ruta_id, id);

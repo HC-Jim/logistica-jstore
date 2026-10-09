@@ -1,7 +1,9 @@
 import {
-  AGENCIAS, COBRAR, ENVIAR_A, ESTADOS_PEDIDO, MEDIOS_PAGO, PAGO_AGENCIA, PLATAFORMAS, TIPOS_PEDIDO,
+  AGENCIAS, CATEGORIAS, COBRAR, ENVIAR_A, ESTADOS_PEDIDO, MEDIOS_PAGO, MOTIVOS_INVERSA, PAGO_AGENCIA,
+  PLATAFORMA_ENCARGO, PLATAFORMA_INVERSA, PLATAFORMAS, PLATAFORMAS_VENTA, TIPOS_PEDIDO, TIPOS_POR_CATEGORIA,
 } from '../config/catalogos.js';
 import { PedidoModel } from '../models/pedido.model.js';
+import { UbicacionModel } from '../models/ubicacion.model.js';
 import { leerCampos } from '../utils/campos.js';
 import { hoy } from '../utils/fecha.js';
 import { HttpError, idParam, requerir } from '../utils/http.js';
@@ -32,10 +34,17 @@ const CAMPOS = {
   cobrar: { tipo: 'enum', lista: COBRAR, requerido: true },
   medio_pago: { tipo: 'enum', lista: MEDIOS_PAGO },
   nota: { tipo: 'texto', max: 1000 },
+  // logística inversa
+  motivo: { tipo: 'enum', lista: MOTIVOS_INVERSA },
+  pedido_relacionado: { tipo: 'texto', max: 60 },
+  // encargos: punto frecuente de destino y, en traslados, de origen
+  ubicacion_id: { tipo: 'entero' },
+  origen_ubicacion_id: { tipo: 'entero' },
 };
 
 const CAMPOS_ITEM = {
-  producto_id: { tipo: 'entero', requerido: true },
+  producto_id: { tipo: 'entero' },               // del catálogo…
+  descripcion: { tipo: 'texto', max: 255 },      // …o pieza/producto libre (inversa y encargos)
   cantidad: { tipo: 'entero', requerido: true },
   precio_unitario: { tipo: 'monto' },
 };
@@ -44,6 +53,42 @@ function leerItems(items) {
   if (items === undefined) return undefined;
   if (!Array.isArray(items)) throw new HttpError(400, 'items debe ser una lista');
   return items.map((it) => leerCampos(it, CAMPOS_ITEM, { requeridos: true }));
+}
+
+// Quién puede registrar cada categoría
+const PUEDE_CREAR = {
+  venta: ['admin', 'planificador', 'vendedor'],
+  inversa: ['admin', 'planificador', 'vendedor'],
+  encargo: ['admin', 'planificador', 'almacen'],
+};
+
+/** Ajusta y valida los datos según la categoría (plataforma fija, tipos permitidos, motivo…). */
+async function aplicarCategoria(categoria, body) {
+  const b = { ...body };
+  if (categoria === 'inversa') b.plataforma = PLATAFORMA_INVERSA;
+  if (categoria === 'encargo') {
+    b.plataforma = PLATAFORMA_ENCARGO;
+    b.cobrar = 'No Cobrar';
+    // un punto frecuente completa destino, dirección y ubicación en el mapa
+    if (b.ubicacion_id) {
+      const u = await UbicacionModel.obtener(idParam(b.ubicacion_id));
+      if (!u) throw new HttpError(400, 'La ubicación frecuente no existe');
+      b.cliente_nombre ||= u.nombre;
+      b.cliente_telefono ||= u.telefono;
+      b.direccion ||= u.direccion;
+      b.referencia ||= u.referencia;
+      b.ubigeo ||= u.ubigeo;
+      if (b.lat == null || b.lat === '') { b.lat = u.lat; b.lng = u.lng; }
+    }
+  }
+  if (categoria === 'venta' && b.plataforma && !PLATAFORMAS_VENTA.includes(b.plataforma)) {
+    throw new HttpError(400, 'Esa plataforma no corresponde a una venta');
+  }
+  if (b.tipo_pedido && !TIPOS_POR_CATEGORIA[categoria].includes(b.tipo_pedido)) {
+    throw new HttpError(400, `Tipo inválido. Opciones: ${TIPOS_POR_CATEGORIA[categoria].join(', ')}`);
+  }
+  if (categoria === 'inversa' && !b.motivo) throw new HttpError(400, 'Indica el motivo de la logística inversa');
+  return b;
 }
 
 function validarUbicacion(datos) {
@@ -56,7 +101,8 @@ const FILTROS_FECHA = { fecha: { tipo: 'fecha' }, desde: { tipo: 'fecha' }, hast
 
 export const PedidoController = {
   async listar(req, res) {
-    const { fecha, desde, hasta, estado, vendedor_id, plataforma, tipo_pedido, buscar, sin_ruta } = req.query;
+    const { fecha, desde, hasta, estado, vendedor_id, plataforma, tipo_pedido, buscar, sin_ruta, categoria } = req.query;
+    if (categoria && categoria.split(',').some((c) => !CATEGORIAS.includes(c))) throw new HttpError(400, 'Categoría inválida');
     if (estado && estado.split(',').some((e) => !ESTADOS_PEDIDO.includes(e))) {
       throw new HttpError(400, 'Estado inválido');
     }
@@ -67,6 +113,7 @@ export const PedidoController = {
       tipoPedido: tipo_pedido,
       buscar,
       sinRuta: sin_ruta === 'true',
+      categoria,
       // el vendedor solo ve sus ventas
       vendedorId: req.user.rol === 'vendedor' ? req.user.id : vendedor_id && idParam(vendedor_id),
     }));
@@ -82,7 +129,14 @@ export const PedidoController = {
   },
 
   async crear(req, res) {
-    const datos = leerCampos({ fecha_entrega: hoy(), cobrar: 'No Cobrar', ...req.body }, CAMPOS, { requeridos: true });
+    const categoria = req.body.categoria || 'venta';
+    if (!CATEGORIAS.includes(categoria)) throw new HttpError(400, 'Categoría inválida');
+    if (!PUEDE_CREAR[categoria].includes(req.user.rol)) {
+      throw new HttpError(403, 'No puedes registrar este tipo de pedido');
+    }
+    const body = await aplicarCategoria(categoria, { fecha_entrega: hoy(), cobrar: 'No Cobrar', ...req.body });
+    const datos = leerCampos(body, CAMPOS, { requeridos: true });
+    datos.categoria = categoria;
     validarUbicacion(datos);
     // El vendedor registra a su nombre; logística puede indicar el vendedor
     if (req.user.rol === 'vendedor' || !datos.vendedor_id) datos.vendedor_id = req.user.id;

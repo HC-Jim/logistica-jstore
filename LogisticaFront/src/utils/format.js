@@ -38,6 +38,22 @@ export const ROLES = {
   auxiliar: 'Auxiliar logístico',
 };
 
+// Tres formas de registro
+export const CATEGORIAS = {
+  venta: { label: 'Ventas', singular: 'pedido', icono: '🛒', color: '#2b6cb0' },
+  inversa: { label: 'Logística inversa', singular: 'registro de logística inversa', icono: '↩️', color: '#805ad5' },
+  encargo: { label: 'Encargos', singular: 'encargo logístico', icono: '🏢', color: '#dd6b20' },
+};
+
+export const TIPOS_UBICACION = {
+  almacen_propio: 'Almacén propio',
+  almacen_externo: 'Almacén externo (Falabella, Ripley…)',
+  proveedor: 'Proveedor',
+  agencia: 'Agencia de envíos',
+  cliente: 'Cliente frecuente',
+  otro: 'Otro',
+};
+
 export const VEHICULOS = {
   auto: { label: 'Auto', icono: '🚗' },
   moto: { label: 'Moto', icono: '🏍️' },

@@ -7,9 +7,12 @@ import { mensajeError } from '../api/client';
 import { rutasApi } from '../api/services';
 import EstadoBadge from '../components/EstadoBadge';
 import { useAuth } from '../context/AuthContext';
-import { ESTADOS, ESTADOS_RUTA, fechaCorta, fechaHora, soles, VEHICULOS } from '../utils/format';
+import { CATEGORIAS, ESTADOS, ESTADOS_RUTA, fechaCorta, fechaHora, soles, VEHICULOS } from '../utils/format';
 
 const cobra = (p) => p.cobrar && p.cobrar !== 'No Cobrar';
+const RECOJOS = ['Recojo S.T', 'Recojo de suministros'];
+/** "↩️ RECOGER" / "🏢 ENCARGO" para que el conductor vea de un vistazo qué hacer. */
+const marca = (p) => (RECOJOS.includes(p.tipo_pedido) ? '⬆ RECOGER' : p.categoria === 'encargo' ? '🏢 ENCARGO' : p.categoria === 'inversa' ? '↩️ LOG. INVERSA' : '');
 const valorProductos = (p) => (p.items ?? []).reduce((s, i) => s + Number(i.subtotal), 0);
 const productosTexto = (p) => (p.items ?? []).map((i) => `${i.descripcion} / ${i.cantidad} und`).join('\n');
 const mapa = (p) => (p.lat != null ? `https://maps.google.com/?q=${p.lat},${p.lng}` : '');
@@ -37,7 +40,8 @@ function textoWhatsApp(ruta) {
       lineas.push('');
       return;
     }
-    lineas.push(`*${i + 1}) #${p.pedido_id} · ${p.tipo_pedido}*${p.estado !== 'pendiente' ? ` (${ESTADOS[estadoEnRuta(p)]?.label})` : ''}`);
+    lineas.push(`*${i + 1}) #${p.pedido_id} · ${p.tipo_pedido}*${marca(p) ? ` ${marca(p)}` : ''}${p.estado !== 'pendiente' ? ` (${ESTADOS[estadoEnRuta(p)]?.label})` : ''}`);
+    if (p.motivo) lineas.push(`❓ ${p.motivo}${p.pedido_relacionado ? ` · pedido original ${p.pedido_relacionado}` : ''}`);
     lineas.push(`👤 ${p.cliente_nombre}${p.cliente_telefono ? ` · 📞 ${p.cliente_telefono}` : ''}`);
     lineas.push(`📍 ${[direccionCompleta(p), p.distrito].filter(Boolean).join(', ')}`);
     if (p.referencia) lineas.push(`↪ Ref: ${p.referencia}`);
@@ -170,7 +174,8 @@ export default function HojaRuta() {
                 </td>
                 <td>{i + 1}</td>
                 <td><Link href={`/pedidos/${p.pedido_id}`}><strong>{p.pedido_id}</strong></Link></td>
-                <td>{p.tipo_pedido}{p.agencia && <small>{p.agencia}</small>}</td>
+                <td>{p.tipo_pedido}{marca(p) && <small className="marca-tipo" style={{ color: CATEGORIAS[p.categoria]?.color }}>{marca(p)}</small>}
+                  {p.motivo && <small>{p.motivo}</small>}{p.agencia && <small>{p.agencia}</small>}</td>
                 <td>{p.cliente_nombre}</td>
                 <td>{p.cliente_telefono}</td>
                 <td>{direccionCompleta(p)}{p.referencia && <small>Ref: {p.referencia}</small>}

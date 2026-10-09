@@ -1,6 +1,10 @@
 import { query, withTransaction } from '../config/db.js';
+import { PLATAFORMA_ENCARGO, PLATAFORMA_INVERSA, TIPOS_POR_CATEGORIA } from '../config/catalogos.js';
 import { CAMPOS_VENDEDOR, ESTADOS_EDITABLES } from '../config/permisos.js';
 import { HttpError } from '../utils/http.js';
+import { registrarRuta } from './historial.js';
+
+const PLATAFORMA_FIJA = { inversa: PLATAFORMA_INVERSA, encargo: PLATAFORMA_ENCARGO };
 
 const SELECT_PEDIDO = `
   SELECT p.*,
@@ -8,7 +12,8 @@ const SELECT_PEDIDO = `
          v.nombre AS vendedor_nombre,
          rp.ruta_id, rp.orden AS ruta_orden, rp.estado AS parada_estado,
          r.numero AS ruta_numero, r.fecha AS ruta_fecha,
-         rep.nombre AS repartidor_nombre
+         rep.nombre AS repartidor_nombre,
+         ubi.nombre AS ubicacion_nombre, ori.nombre AS origen_nombre
   FROM pedidos p
   JOIN usuarios v          ON v.id = p.vendedor_id
   LEFT JOIN ubigeos ub     ON ub.codigo = p.ubigeo
@@ -18,7 +23,9 @@ const SELECT_PEDIDO = `
     WHERE x.pedido_id = p.id ORDER BY (x.estado = 'pendiente') DESC, x.id DESC LIMIT 1
   ) rp ON true
   LEFT JOIN rutas r        ON r.id = rp.ruta_id
-  LEFT JOIN usuarios rep   ON rep.id = r.repartidor_id`;
+  LEFT JOIN usuarios rep   ON rep.id = r.repartidor_id
+  LEFT JOIN ubicaciones ubi ON ubi.id = p.ubicacion_id
+  LEFT JOIN ubicaciones ori ON ori.id = p.origen_ubicacion_id`;
 
 const iguales = (a, b) => (a ?? null) === (b ?? null) || (a != null && b != null && String(a) === String(b));
 
@@ -34,12 +41,13 @@ async function historial(client, pedidoId, usuarioId, accion, detalle = null) {
  * (incidencia o completada) se conservan como historial de la ruta.
  * Devuelve el id de la ruta o null.
  */
-async function quitarDeRuta(client, pedidoId) {
+async function quitarDeRuta(client, pedidoId, usuarioId, motivo) {
   const { rows: [parada] } = await client.query(
     `DELETE FROM ruta_paradas WHERE pedido_id = $1 AND estado = 'pendiente' RETURNING ruta_id`,
     [pedidoId]
   );
   if (!parada) return null;
+  await registrarRuta(client, parada.ruta_id, usuarioId, 'pedido_retirado', { pedido_id: pedidoId, motivo });
   await client.query(
     'UPDATE rutas SET polyline = NULL, distancia_metros = NULL, duracion_segundos = NULL WHERE id = $1',
     [parada.ruta_id]
@@ -57,18 +65,30 @@ async function bloquear(client, id, usuario) {
   return pedido;
 }
 
-/** Completa SKU, descripción y precio de cada línea a partir del catálogo. */
-async function prepararItems(client, items) {
-  if (!Array.isArray(items) || items.length === 0) {
+/**
+ * Completa SKU, descripción y precio de cada línea a partir del catálogo.
+ * En logística inversa y encargos se aceptan líneas libres (pieza o producto que no está en el catálogo),
+ * y los encargos pueden no tener productos.
+ */
+async function prepararItems(client, items, categoria = 'venta') {
+  if (!Array.isArray(items) || (items.length === 0 && categoria !== 'encargo')) {
     throw new HttpError(400, 'El pedido debe tener al menos un producto');
   }
-  const ids = [...new Set(items.map((i) => i.producto_id))];
+  const libres = items.filter((i) => !i.producto_id);
+  if (libres.length && categoria === 'venta') {
+    throw new HttpError(400, 'En una venta todos los productos deben ser del catálogo');
+  }
+  const ids = [...new Set(items.filter((i) => i.producto_id).map((i) => i.producto_id))];
   const { rows } = await client.query(
     'SELECT id, sku, descripcion, precio FROM productos WHERE id = ANY($1::int[])',
     [ids]
   );
   const porId = new Map(rows.map((p) => [p.id, p]));
   return items.map((it) => {
+    if (!it.producto_id) {
+      if (!it.descripcion) throw new HttpError(400, 'Describe la pieza o producto');
+      return { producto_id: null, sku: 'LIBRE', descripcion: it.descripcion, cantidad: it.cantidad, precio_unitario: it.precio_unitario ?? 0 };
+    }
     const producto = porId.get(it.producto_id);
     if (!producto) throw new HttpError(400, `Producto ${it.producto_id} no existe`);
     return {
@@ -94,7 +114,7 @@ async function insertarItems(client, pedidoId, items) {
 const sumaItems = (items) => items.reduce((s, it) => s + it.cantidad * it.precio_unitario, 0);
 
 export const PedidoModel = {
-  async listar({ fecha, desde, hasta, estado, vendedorId, plataforma, tipoPedido, buscar, sinRuta } = {}) {
+  async listar({ fecha, desde, hasta, estado, vendedorId, plataforma, tipoPedido, buscar, sinRuta, categoria } = {}) {
     const cond = [];
     const params = [];
     const agregar = (sql, valor) => {
@@ -108,6 +128,7 @@ export const PedidoModel = {
     if (vendedorId) agregar('p.vendedor_id = ?', vendedorId);
     if (plataforma) agregar('p.plataforma = ?', plataforma);
     if (tipoPedido) agregar('p.tipo_pedido = ?', tipoPedido);
+    if (categoria) agregar('p.categoria = ANY(?::text[])', categoria.split(','));
     if (sinRuta) cond.push(`NOT EXISTS (SELECT 1 FROM ruta_paradas a WHERE a.pedido_id = p.id AND a.estado = 'pendiente')`);
     if (buscar) {
       agregar(
@@ -152,7 +173,7 @@ export const PedidoModel = {
 
   async crear({ datos, items, usuario }) {
     return withTransaction(async (client) => {
-      const lineas = await prepararItems(client, items);
+      const lineas = await prepararItems(client, items, datos.categoria);
       const fila = {
         ...datos,
         total_pedido: datos.total_pedido ?? sumaItems(lineas) + (datos.precio_envio ?? 0),
@@ -180,6 +201,14 @@ export const PedidoModel = {
       if (!ESTADOS_EDITABLES.includes(actual.estado)) {
         throw new HttpError(409, `No se puede editar un pedido ${actual.estado}`);
       }
+      if (usuario.rol === 'almacen' && actual.categoria !== 'encargo') {
+        throw new HttpError(403, 'Almacén solo puede editar encargos logísticos');
+      }
+      // la categoría no cambia; su plataforma y sus tipos están fijados
+      if (PLATAFORMA_FIJA[actual.categoria]) datos.plataforma = PLATAFORMA_FIJA[actual.categoria];
+      if (datos.tipo_pedido && !TIPOS_POR_CATEGORIA[actual.categoria].includes(datos.tipo_pedido)) {
+        throw new HttpError(400, `Tipo "${datos.tipo_pedido}" no corresponde a este registro`);
+      }
 
       const cambios = Object.fromEntries(
         Object.entries(datos)
@@ -193,7 +222,7 @@ export const PedidoModel = {
       }
 
       if (items) {
-        const lineas = await prepararItems(client, items);
+        const lineas = await prepararItems(client, items, actual.categoria);
         await client.query('DELETE FROM pedido_items WHERE pedido_id = $1', [id]);
         await insertarItems(client, id, lineas);
         cambios.productos = ['(anteriores)', lineas.map((l) => `${l.sku} x${l.cantidad}`).join(', ')];
@@ -241,13 +270,18 @@ export const PedidoModel = {
       }
 
       if (estado === 'cancelado' || estado === 'pendiente') {
-        await quitarDeRuta(client, id);
+        await quitarDeRuta(client, id, usuario.id, estado === 'cancelado' ? `cancelado: ${motivo}` : 'vuelve a pendiente');
       } else {
-        await client.query(
+        const { rows: [parada] } = await client.query(
           `UPDATE ruta_paradas SET estado = $1, nota = COALESCE($2, nota), completada_en = now()
-           WHERE pedido_id = $3 AND estado = 'pendiente'`,
+           WHERE pedido_id = $3 AND estado = 'pendiente' RETURNING ruta_id`,
           [estado === 'entregado' ? 'completada' : 'incidencia', motivo ?? null, id]
         );
+        if (parada) {
+          await registrarRuta(client, parada.ruta_id, usuario.id, 'parada_atendida', {
+            pedido_id: id, estado: estado === 'entregado' ? 'completada' : 'incidencia', nota: motivo, origen: 'web',
+          });
+        }
       }
       await client.query('UPDATE pedidos SET estado = $1, actualizado_en = now() WHERE id = $2', [estado, id]);
       await historial(client, id, usuario.id, 'estado', { de: actual.estado, a: estado, motivo });
@@ -262,7 +296,7 @@ export const PedidoModel = {
       if (!ESTADOS_EDITABLES.includes(actual.estado)) {
         throw new HttpError(409, `No se puede reprogramar un pedido ${actual.estado}`);
       }
-      const rutaId = await quitarDeRuta(client, id);
+      const rutaId = await quitarDeRuta(client, id, usuario.id, `reprogramado al ${fecha}`);
       await client.query(
         `UPDATE pedidos SET fecha_entrega = $1, estado = 'pendiente', actualizado_en = now() WHERE id = $2`,
         [fecha, id]

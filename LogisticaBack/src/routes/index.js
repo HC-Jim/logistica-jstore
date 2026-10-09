@@ -5,6 +5,7 @@ import { CatalogoController } from '../controllers/catalogo.controller.js';
 import { PedidoController } from '../controllers/pedido.controller.js';
 import { ProductoController } from '../controllers/producto.controller.js';
 import { RutaController } from '../controllers/ruta.controller.js';
+import { UbicacionController } from '../controllers/ubicacion.controller.js';
 import { VehiculoController } from '../controllers/vehiculo.controller.js';
 import { requireAuth, requireRol as rol } from '../middlewares/auth.js';
 
@@ -52,6 +53,11 @@ router.get('/vehiculos', rol(...P.gestionarRutas, ...P.monitoreo), VehiculoContr
 router.post('/vehiculos', rol(...P.gestionarRutas), VehiculoController.crear);
 router.put('/vehiculos/:id', rol(...P.gestionarRutas), VehiculoController.actualizar);
 
+// --- Ubicaciones frecuentes (Falabella, almacenes, proveedores…) ---
+router.get('/ubicaciones', rol(...P.despacho, 'vendedor'), UbicacionController.listar);
+router.post('/ubicaciones', rol(...P.gestionarRutas), UbicacionController.crear);
+router.put('/ubicaciones/:id', rol(...P.gestionarRutas), UbicacionController.actualizar);
+
 // --- Rutas (planificación) ---
 router.get('/rutas', rol(...P.despacho), RutaController.listar);
 router.get('/rutas/historial', rol(...P.gestionarRutas, ...P.monitoreo), RutaController.historial);
@@ -64,6 +70,7 @@ router.put('/rutas/:id/paradas', rol(...P.gestionarRutas), RutaController.guarda
 router.post('/rutas/:id/trazar', rol(...P.gestionarRutas), RutaController.trazar);
 router.post('/rutas/:id/finalizar', rol(...P.gestionarRutas), RutaController.finalizar);
 router.patch('/rutas/:id/despacho', rol(...P.despacho), RutaController.despachar);
+router.get('/rutas/:id/historial', rol(...P.despacho), RutaController.historialCambios);
 router.get('/rutas/:id/mensajes', rol(...P.chatRuta), RutaController.mensajes);
 router.post('/rutas/:id/mensajes', rol(...P.chatRuta), RutaController.enviarMensaje);
 router.get('/rutas/:id/recorrido', rol(...P.monitoreo), RutaController.recorrido);

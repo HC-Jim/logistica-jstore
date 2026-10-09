@@ -85,8 +85,12 @@ export const RutaController = {
   },
 
   async finalizar(req, res) {
-    const id = await RutaModel.finalizar(idParam(req.params.id));
+    const id = await RutaModel.finalizar(idParam(req.params.id), req.user);
     res.json(await RutaModel.obtener(id));
+  },
+
+  async historialCambios(req, res) {
+    res.json(await RutaModel.historial(idParam(req.params.id)));
   },
 
   async mensajes(req, res) {
@@ -124,7 +128,7 @@ export const RutaController = {
     await RutaModel.actualizar(id, {
       nombre: d.nombre, vehiculoId: d.vehiculo_id, repartidorId: d.repartidor_id,
       asistenteId: d.asistente_id, estado: d.estado,
-    });
+    }, req.user);
     res.json(await RutaModel.obtener(id));
   },
 
@@ -156,7 +160,7 @@ export const RutaController = {
     const orden = optimizar
       ? [...atendidas.map((p) => p.id), ...t.orden.map((i) => pendientes[i].id)]
       : null;
-    await RutaModel.guardarTrazado(id, { ...t, orden });
+    await RutaModel.guardarTrazado(id, { ...t, orden }, req.user);
     res.json(await RutaModel.obtener(id));
   },
 
@@ -192,7 +196,7 @@ export const RutaController = {
     if (!ruta || ![ruta.repartidor_id, ruta.asistente_id].includes(req.user.id)) {
       throw new HttpError(404, 'Ruta no encontrada');
     }
-    if (ruta.estado === 'planificada') await RutaModel.actualizar(id, { estado: 'en_curso' });
+    if (ruta.estado === 'planificada') await RutaModel.actualizar(id, { estado: 'en_curso' }, req.user);
     res.json(await RutaModel.obtener(id));
   },
 
