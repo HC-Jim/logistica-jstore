@@ -72,6 +72,21 @@ export const EstadisticaModel = {
           r
         ),
       ]);
-    return { desde, hasta, resumen, hoy: hoyResumen, porEstado, porDia, porPlataforma, porVendedor, porTipo, topProductos, topDistritos };
+    // Al final del día todo debe estar entregado o cancelado: lo que quedó abierto de días anteriores es una alerta
+    const { rows: atrasados } = await query(
+      `SELECT p.id, p.fecha_entrega, p.estado, p.cliente_nombre, p.total_pedido, u.nombre AS vendedor_nombre
+       FROM pedidos p JOIN usuarios u ON u.id = p.vendedor_id
+       WHERE p.fecha_entrega < $1 AND p.estado IN ('pendiente', 'ruteado', 'incidencia')
+       ORDER BY p.fecha_entrega, p.id`,
+      [hoy]
+    );
+    const { rows: rutasAbiertas } = await query(
+      `SELECT id, fecha, numero FROM rutas WHERE fecha < $1 AND estado <> 'finalizada' ORDER BY fecha, numero`,
+      [hoy]
+    );
+    return {
+      desde, hasta, resumen, hoy: hoyResumen, porEstado, porDia, porPlataforma, porVendedor, porTipo, topProductos, topDistritos,
+      alertas: { atrasados, rutasAbiertas },
+    };
   },
 };

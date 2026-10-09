@@ -5,6 +5,7 @@ import { CatalogoController } from '../controllers/catalogo.controller.js';
 import { PedidoController } from '../controllers/pedido.controller.js';
 import { ProductoController } from '../controllers/producto.controller.js';
 import { RutaController } from '../controllers/ruta.controller.js';
+import { VehiculoController } from '../controllers/vehiculo.controller.js';
 import { requireAuth, requireRol as rol } from '../middlewares/auth.js';
 
 const router = Router();
@@ -46,8 +47,14 @@ router.patch('/pedidos/:id/estado', rol(...P.gestionarEstado), PedidoController.
 router.post('/pedidos/:id/reprogramar', rol(...P.reprogramar), PedidoController.reprogramar);
 router.patch('/pedidos/:id/observaciones', rol(...P.observacionesAlmacen), PedidoController.observacionesAlmacen);
 
+// --- Vehículos ---
+router.get('/vehiculos', rol(...P.gestionarRutas, ...P.monitoreo), VehiculoController.listar);
+router.post('/vehiculos', rol(...P.gestionarRutas), VehiculoController.crear);
+router.put('/vehiculos/:id', rol(...P.gestionarRutas), VehiculoController.actualizar);
+
 // --- Rutas (planificación) ---
 router.get('/rutas', rol(...P.gestionarRutas), RutaController.listar);
+router.get('/rutas/historial', rol(...P.gestionarRutas, ...P.monitoreo), RutaController.historial);
 router.get('/rutas/pedidos-sin-ruta', rol(...P.gestionarRutas), RutaController.pedidosSinRuta);
 router.post('/rutas', rol(...P.gestionarRutas), RutaController.crear);
 router.get('/rutas/:id', rol(...P.gestionarRutas, ...P.monitoreo), RutaController.obtener);
@@ -55,6 +62,9 @@ router.put('/rutas/:id', rol(...P.gestionarRutas), RutaController.actualizar);
 router.delete('/rutas/:id', rol(...P.gestionarRutas), RutaController.eliminar);
 router.put('/rutas/:id/paradas', rol(...P.gestionarRutas), RutaController.guardarParadas);
 router.post('/rutas/:id/trazar', rol(...P.gestionarRutas), RutaController.trazar);
+router.post('/rutas/:id/finalizar', rol(...P.gestionarRutas), RutaController.finalizar);
+router.get('/rutas/:id/mensajes', rol(...P.chatRuta), RutaController.mensajes);
+router.post('/rutas/:id/mensajes', rol(...P.chatRuta), RutaController.enviarMensaje);
 router.get('/rutas/:id/recorrido', rol(...P.monitoreo), RutaController.recorrido);
 
 // --- Monitoreo en vivo ---

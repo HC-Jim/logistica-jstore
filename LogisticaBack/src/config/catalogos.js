@@ -35,6 +35,11 @@ export const ESTADOS_PEDIDO = ['pendiente', 'ruteado', 'entregado', 'incidencia'
 export const ROLES = ['admin', 'vendedor', 'planificador', 'almacen', 'repartidor', 'auxiliar'];
 
 export const ESTADOS_RUTA = ['planificada', 'en_curso', 'finalizada'];
+
+// Rutas que se muestran cada día (Ruta 1, 2, 3). Se pueden abrir más según la demanda.
+export const RUTAS_POR_DEFECTO = 3;
+
+export const TIPOS_VEHICULO = ['auto', 'moto', 'bicicleta', 'furgoneta', 'otro'];
 export const ESTADOS_PARADA = ['pendiente', 'completada', 'incidencia'];
 
 export const catalogos = {
@@ -47,4 +52,6 @@ export const catalogos = {
   mediosPago: MEDIOS_PAGO,
   estadosPedido: ESTADOS_PEDIDO,
   roles: ROLES,
+  rutasPorDefecto: RUTAS_POR_DEFECTO,
+  tiposVehiculo: TIPOS_VEHICULO,
 };

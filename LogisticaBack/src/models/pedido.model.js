@@ -6,12 +6,17 @@ const SELECT_PEDIDO = `
   SELECT p.*,
          ub.departamento, ub.provincia, ub.distrito,
          v.nombre AS vendedor_nombre,
-         rp.ruta_id, rp.orden AS ruta_orden,
+         rp.ruta_id, rp.orden AS ruta_orden, rp.estado AS parada_estado,
+         r.numero AS ruta_numero, r.fecha AS ruta_fecha,
          rep.nombre AS repartidor_nombre
   FROM pedidos p
   JOIN usuarios v          ON v.id = p.vendedor_id
   LEFT JOIN ubigeos ub     ON ub.codigo = p.ubigeo
-  LEFT JOIN ruta_paradas rp ON rp.pedido_id = p.id
+  -- parada actual: la activa (pendiente) o, si no hay, la más reciente
+  LEFT JOIN LATERAL (
+    SELECT x.id, x.ruta_id, x.orden, x.estado FROM ruta_paradas x
+    WHERE x.pedido_id = p.id ORDER BY (x.estado = 'pendiente') DESC, x.id DESC LIMIT 1
+  ) rp ON true
   LEFT JOIN rutas r        ON r.id = rp.ruta_id
   LEFT JOIN usuarios rep   ON rep.id = r.repartidor_id`;
 
@@ -24,10 +29,14 @@ async function historial(client, pedidoId, usuarioId, accion, detalle = null) {
   );
 }
 
-/** Saca el pedido de su ruta (si está en una). Devuelve el id de la ruta o null. */
+/**
+ * Saca el pedido de su ruta actual (parada pendiente). Las paradas ya atendidas
+ * (incidencia o completada) se conservan como historial de la ruta.
+ * Devuelve el id de la ruta o null.
+ */
 async function quitarDeRuta(client, pedidoId) {
   const { rows: [parada] } = await client.query(
-    'DELETE FROM ruta_paradas WHERE pedido_id = $1 RETURNING ruta_id',
+    `DELETE FROM ruta_paradas WHERE pedido_id = $1 AND estado = 'pendiente' RETURNING ruta_id`,
     [pedidoId]
   );
   if (!parada) return null;
@@ -99,7 +108,7 @@ export const PedidoModel = {
     if (vendedorId) agregar('p.vendedor_id = ?', vendedorId);
     if (plataforma) agregar('p.plataforma = ?', plataforma);
     if (tipoPedido) agregar('p.tipo_pedido = ?', tipoPedido);
-    if (sinRuta) cond.push('rp.id IS NULL');
+    if (sinRuta) cond.push(`NOT EXISTS (SELECT 1 FROM ruta_paradas a WHERE a.pedido_id = p.id AND a.estado = 'pendiente')`);
     if (buscar) {
       agregar(
         `(p.cliente_nombre ILIKE ? OR p.numero_pedido ILIKE $${params.length + 1}
@@ -201,7 +210,8 @@ export const PedidoModel = {
       if (cambios.lat || cambios.lng) {
         // la ruta debe volver a trazarse con la nueva ubicación
         await client.query(
-          `UPDATE rutas SET polyline = NULL WHERE id = (SELECT ruta_id FROM ruta_paradas WHERE pedido_id = $1)`,
+          `UPDATE rutas SET polyline = NULL
+           WHERE id = (SELECT ruta_id FROM ruta_paradas WHERE pedido_id = $1 AND estado = 'pendiente')`,
           [id]
         );
       }
@@ -235,7 +245,7 @@ export const PedidoModel = {
       } else {
         await client.query(
           `UPDATE ruta_paradas SET estado = $1, nota = COALESCE($2, nota), completada_en = now()
-           WHERE pedido_id = $3`,
+           WHERE pedido_id = $3 AND estado = 'pendiente'`,
           [estado === 'entregado' ? 'completada' : 'incidencia', motivo ?? null, id]
         );
       }

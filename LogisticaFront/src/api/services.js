@@ -42,6 +42,10 @@ export const pedidosApi = {
 
 export const rutasApi = {
   listar: (fecha) => data(api.get('/rutas', { params: { fecha } })),
+  historial: (params) => data(api.get('/rutas/historial', { params })),
+  finalizar: (id) => data(api.post(`/rutas/${id}/finalizar`)),
+  mensajes: (id, despues = 0) => data(api.get(`/rutas/${id}/mensajes`, { params: { despues } })),
+  enviarMensaje: (id, texto) => data(api.post(`/rutas/${id}/mensajes`, { texto })),
   obtener: (id) => data(api.get(`/rutas/${id}`)),
   crear: (body) => data(api.post('/rutas', body)),
   actualizar: (id, body) => data(api.put(`/rutas/${id}`, body)),
@@ -51,6 +55,12 @@ export const rutasApi = {
   pedidosSinRuta: (fecha) => data(api.get('/rutas/pedidos-sin-ruta', { params: { fecha } })),
   recorrido: (id) => data(api.get(`/rutas/${id}/recorrido`)),
   monitoreo: (fecha) => data(api.get('/monitoreo', { params: { fecha } })),
+};
+
+export const vehiculosApi = {
+  listar: (params) => data(api.get('/vehiculos', { params })),
+  crear: (body) => data(api.post('/vehiculos', body)),
+  actualizar: (id, body) => data(api.put(`/vehiculos/${id}`, body)),
 };
 
 export const estadisticasApi = {

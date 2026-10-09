@@ -6,9 +6,10 @@ import { useSearchParams } from 'next/navigation';
 import { Fragment, useCallback, useEffect, useState } from 'react';
 import { mensajeError } from '../api/client';
 import { rutasApi } from '../api/services';
+import ChatRuta from '../components/ChatRuta';
 import EstadoBadge from '../components/EstadoBadge';
 import { AjustarVista, LineaPuntos, Mapa, MarcadorNumero, Polilinea } from '../components/maps';
-import { duracion, ESTADOS_PARADA, ESTADOS_RUTA, fechaHora, hace, hoyISO, km, soles } from '../utils/format';
+import { duracion, ESTADOS_PARADA, ESTADOS_RUTA, fechaHora, hace, hoyISO, km, soles, VEHICULOS } from '../utils/format';
 
 const COLORES = ['#2b6cb0', '#d53f8c', '#2f855a', '#dd6b20', '#6b46c1', '#00838f', '#b7791f', '#c53030'];
 const REFRESCO_SEG = 15;
@@ -17,12 +18,12 @@ const colorParada = (p, colorRuta) =>
   p.estado === 'pendiente' ? colorRuta : ESTADOS_PARADA[p.estado].color;
 
 /** Marcador del vehículo con el nombre del repartidor. */
-function Vehiculo({ posicion, nombre, color }) {
+function Vehiculo({ posicion, nombre, color, tipo }) {
   const reciente = Date.now() - new Date(posicion.registrado_en) < 10 * 60 * 1000;
   return (
     <AdvancedMarker position={{ lat: posicion.lat, lng: posicion.lng }} title={`${nombre} · ${hace(posicion.registrado_en)}`} zIndex={1000}>
       <div className={`vehiculo ${reciente ? '' : 'sin-senal'}`} style={{ borderColor: color }}>
-        <span>🚚</span> {nombre}
+        <span>{VEHICULOS[tipo]?.icono ?? '🚚'}</span> {nombre}
         <small>{hace(posicion.registrado_en)}</small>
       </div>
     </AdvancedMarker>
@@ -95,7 +96,7 @@ export default function Monitoreo() {
           <button key={r.id} className={seleccion === r.id ? 'activa' : ''} onClick={() => setSeleccion(r.id)}
             style={{ borderBottomColor: color(r.id) }}>
             <span className="punto" style={{ background: color(r.id) }} />
-            {r.repartidor_nombre}{r.nombre ? ` · ${r.nombre}` : ''} <small>{progreso(r)}</small>
+            Ruta {r.numero} · {r.repartidor_nombre ?? 'sin conductor'} <small>{progreso(r)}</small>
           </button>
         ))}
       </div>
@@ -113,7 +114,7 @@ export default function Monitoreo() {
                     color={colorParada(p, color(r.id))} title={`${p.orden}. ${p.titulo} (${ESTADOS_PARADA[p.estado].label})`}
                     onClick={() => setSeleccion(r.id)} />
                 ))}
-                {r.posicion && <Vehiculo posicion={r.posicion} nombre={r.repartidor_nombre} color={color(r.id)} />}
+                {r.posicion && <Vehiculo posicion={r.posicion} nombre={`R${r.numero} · ${r.repartidor_nombre ?? ''}`} color={color(r.id)} tipo={r.vehiculo_tipo} />}
               </Fragment>
             ))}
             {verRecorrido && <LineaPuntos puntos={recorrido} />}
@@ -136,7 +137,7 @@ export default function Monitoreo() {
           {ruta ? (
             <>
               <div className="fila espacio">
-                <h3>{ruta.repartidor_nombre}{ruta.asistente_nombre ? ` + ${ruta.asistente_nombre}` : ''}</h3>
+                <h3>Ruta {ruta.numero} · {VEHICULOS[ruta.vehiculo_tipo]?.icono} {ruta.vehiculo_nombre ?? ''}<small>{ruta.repartidor_nombre ?? 'Sin conductor'}{ruta.asistente_nombre ? ` + ${ruta.asistente_nombre}` : ''}</small></h3>
                 <EstadoBadge estado={ruta.estado} mapa={ESTADOS_RUTA} />
               </div>
               <p>
@@ -158,17 +159,19 @@ export default function Monitoreo() {
                   </li>
                 ))}
               </ol>
-              <Link href={`/rutas/${ruta.id}`}>Editar ruta</Link>
+              <Link href={`/rutas/${ruta.id}`}>Abrir ruta</Link>
+              <h3 style={{ marginTop: 16 }}>💬 Chat</h3>
+              <ChatRuta rutaId={ruta.id} alto={240} />
             </>
           ) : (
             <>
               <h3>Resumen del día</h3>
               <table>
-                <thead><tr><th>Conductor</th><th>Avance</th><th>GPS</th><th>Estado</th></tr></thead>
+                <thead><tr><th>Ruta</th><th>Avance</th><th>GPS</th><th>Estado</th></tr></thead>
                 <tbody>
                   {rutas.map((r) => (
                     <tr key={r.id} className="clic" onClick={() => setSeleccion(r.id)}>
-                      <td><span className="punto" style={{ background: color(r.id) }} /> {r.repartidor_nombre}</td>
+                      <td><span className="punto" style={{ background: color(r.id) }} /> Ruta {r.numero} · {r.repartidor_nombre ?? '—'}</td>
                       <td>{progreso(r)}</td>
                       <td>{r.posicion ? hace(r.posicion.registrado_en) : '—'}</td>
                       <td><EstadoBadge estado={r.estado} mapa={ESTADOS_RUTA} /></td>

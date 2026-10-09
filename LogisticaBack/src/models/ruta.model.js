@@ -5,11 +5,22 @@ import { registrarHistorial } from './pedido.model.js';
 const SELECT_RUTA = `
   SELECT r.*, rep.nombre AS repartidor_nombre, rep.telefono AS repartidor_telefono,
          asi.nombre AS asistente_nombre,
-         (SELECT COUNT(*) FROM ruta_paradas x WHERE x.ruta_id = r.id) AS total_paradas,
-         (SELECT COUNT(*) FROM ruta_paradas x WHERE x.ruta_id = r.id AND x.estado <> 'pendiente') AS paradas_atendidas
+         v.nombre AS vehiculo_nombre, v.tipo AS vehiculo_tipo, v.placa AS vehiculo_placa,
+         c.total_paradas, c.paradas_atendidas, c.completadas, c.incidencias, c.pendientes, c.pedidos,
+         (SELECT COUNT(*) FROM ruta_mensajes m WHERE m.ruta_id = r.id) AS mensajes
   FROM rutas r
-  JOIN usuarios rep      ON rep.id = r.repartidor_id
-  LEFT JOIN usuarios asi ON asi.id = r.asistente_id`;
+  LEFT JOIN usuarios rep  ON rep.id = r.repartidor_id
+  LEFT JOIN usuarios asi  ON asi.id = r.asistente_id
+  LEFT JOIN vehiculos v   ON v.id = r.vehiculo_id
+  CROSS JOIN LATERAL (
+    SELECT COUNT(*) AS total_paradas,
+           COUNT(*) FILTER (WHERE x.estado <> 'pendiente') AS paradas_atendidas,
+           COUNT(*) FILTER (WHERE x.estado = 'completada') AS completadas,
+           COUNT(*) FILTER (WHERE x.estado = 'incidencia') AS incidencias,
+           COUNT(*) FILTER (WHERE x.estado = 'pendiente') AS pendientes,
+           COUNT(*) FILTER (WHERE x.pedido_id IS NOT NULL) AS pedidos
+    FROM ruta_paradas x WHERE x.ruta_id = r.id
+  ) c`;
 
 /** Paradas de una o varias rutas, con los datos del pedido que necesitan el mapa y la app. */
 export async function paradasDe(rutaIds) {
@@ -45,14 +56,14 @@ async function bloquearRuta(client, id) {
   return ruta;
 }
 
-/** El conductor debe tener perfil Conductor; el auxiliar, Auxiliar logístico o Conductor. */
+/** El conductor (opcional al abrir la ruta) debe ser Conductor; el auxiliar, Auxiliar logístico o Conductor. */
 async function validarRepartidores(client, [conductorId, auxiliarId]) {
   const { rows } = await client.query(
     'SELECT id, rol FROM usuarios WHERE id = ANY($1::int[]) AND activo',
     [[conductorId, auxiliarId].filter(Boolean)]
   );
   const rol = new Map(rows.map((u) => [u.id, u.rol]));
-  if (rol.get(conductorId) !== 'repartidor') {
+  if (conductorId && rol.get(conductorId) !== 'repartidor') {
     throw new HttpError(400, 'El conductor debe ser un usuario activo con perfil Conductor');
   }
   if (auxiliarId) {
@@ -63,17 +74,37 @@ async function validarRepartidores(client, [conductorId, auxiliarId]) {
   }
 }
 
+/** Un vehículo no puede estar en dos rutas el mismo día. */
+async function validarVehiculo(client, { fecha, vehiculoId, rutaId = 0 }) {
+  if (!vehiculoId) return;
+  const { rows: [v] } = await client.query('SELECT nombre, activo FROM vehiculos WHERE id = $1', [vehiculoId]);
+  if (!v?.activo) throw new HttpError(400, 'El vehículo no existe o está inactivo');
+  const { rows: [otra] } = await client.query(
+    'SELECT numero FROM rutas WHERE fecha = $1 AND vehiculo_id = $2 AND id <> $3',
+    [fecha, vehiculoId, rutaId]
+  );
+  if (otra) throw new HttpError(409, `${v.nombre} ya está asignado a la Ruta ${otra.numero} ese día`);
+}
+
 export const RutaModel = {
-  async listar({ fecha, repartidorId } = {}) {
+  /** Lista rutas: las del día (fecha) o el historial (desde/hasta y filtros). */
+  async listar({ fecha, desde, hasta, numero, repartidorId, vehiculoId, estado, limite = 500 } = {}) {
     const cond = [];
     const params = [];
-    if (fecha) { params.push(fecha); cond.push(`r.fecha = $${params.length}`); }
-    if (repartidorId) {
-      params.push(repartidorId);
-      cond.push(`(r.repartidor_id = $${params.length} OR r.asistente_id = $${params.length})`);
-    }
+    const agregar = (sql, valor) => { params.push(valor); cond.push(sql.replaceAll('?', `$${params.length}`)); };
+    if (fecha) agregar('r.fecha = ?', fecha);
+    if (desde) agregar('r.fecha >= ?', desde);
+    if (hasta) agregar('r.fecha <= ?', hasta);
+    if (numero) agregar('r.numero = ?', numero);
+    if (repartidorId) agregar('(r.repartidor_id = ? OR r.asistente_id = ?)', repartidorId);
+    if (vehiculoId) agregar('r.vehiculo_id = ?', vehiculoId);
+    if (estado) agregar('r.estado = ?', estado);
+    params.push(limite);
     const where = cond.length ? `WHERE ${cond.join(' AND ')}` : '';
-    const { rows } = await query(`${SELECT_RUTA} ${where} ORDER BY r.fecha DESC, r.id`, params);
+    const { rows } = await query(
+      `${SELECT_RUTA} ${where} ORDER BY r.fecha DESC, r.numero LIMIT $${params.length}`,
+      params
+    );
     return rows;
   },
 
@@ -83,29 +114,65 @@ export const RutaModel = {
     return { ...ruta, paradas: await paradasDe([id]) };
   },
 
-  async crear({ fecha, nombre, repartidorId, asistenteId, usuario }) {
+  /** Abre la Ruta N del día (si no se indica el número, la siguiente libre). */
+  async crear({ fecha, numero, nombre, vehiculoId, repartidorId, asistenteId, usuario }) {
     return withTransaction(async (client) => {
+      // serializa la creación de rutas del mismo día para no repetir números
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`rutas:${fecha}`]);
+      if (!numero) {
+        const { rows: [m] } = await client.query('SELECT COALESCE(MAX(numero), 0) + 1 AS n FROM rutas WHERE fecha = $1', [fecha]);
+        numero = m.n;
+      } else {
+        const { rows: [ya] } = await client.query('SELECT 1 FROM rutas WHERE fecha = $1 AND numero = $2', [fecha, numero]);
+        if (ya) throw new HttpError(409, `La Ruta ${numero} de ese día ya existe`);
+      }
       await validarRepartidores(client, [repartidorId, asistenteId]);
+      await validarVehiculo(client, { fecha, vehiculoId });
       const { rows: [r] } = await client.query(
-        `INSERT INTO rutas (fecha, nombre, repartidor_id, asistente_id, creado_por)
-         VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-        [fecha, nombre ?? null, repartidorId, asistenteId ?? null, usuario.id]
+        `INSERT INTO rutas (fecha, numero, nombre, vehiculo_id, repartidor_id, asistente_id, creado_por)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+        [fecha, numero, nombre ?? null, vehiculoId ?? null, repartidorId ?? null, asistenteId ?? null, usuario.id]
       );
       return r.id;
     });
   },
 
-  async actualizar(id, { nombre, repartidorId, asistenteId, estado }) {
+  /** Cambia nombre, vehículo, conductor o auxiliar (undefined = no cambiar, null = quitar). */
+  async actualizar(id, { nombre, vehiculoId, repartidorId, asistenteId, estado }) {
     return withTransaction(async (client) => {
       const ruta = await bloquearRuta(client, id);
-      const repartidor = repartidorId ?? ruta.repartidor_id;
-      const asistente = asistenteId === undefined ? ruta.asistente_id : asistenteId;
+      const valor = (nuevo, actual) => (nuevo === undefined ? actual : nuevo);
+      const repartidor = valor(repartidorId, ruta.repartidor_id);
+      const asistente = valor(asistenteId, ruta.asistente_id);
+      const vehiculo = valor(vehiculoId, ruta.vehiculo_id);
       await validarRepartidores(client, [repartidor, asistente]);
+      if (vehiculo !== ruta.vehiculo_id) await validarVehiculo(client, { fecha: ruta.fecha, vehiculoId: vehiculo, rutaId: id });
+      if (estado && estado !== 'planificada' && !repartidor) {
+        throw new HttpError(400, 'Asigna un conductor antes de iniciar la ruta');
+      }
       await client.query(
-        `UPDATE rutas SET nombre = $1, repartidor_id = $2, asistente_id = $3, estado = $4, actualizado_en = now()
-         WHERE id = $5`,
-        [nombre === undefined ? ruta.nombre : nombre, repartidor, asistente, estado ?? ruta.estado, id]
+        `UPDATE rutas SET nombre = $1, repartidor_id = $2, asistente_id = $3, vehiculo_id = $4, estado = $5,
+                          actualizado_en = now()
+         WHERE id = $6`,
+        [valor(nombre, ruta.nombre), repartidor, asistente, vehiculo, estado ?? ruta.estado, id]
       );
+      return id;
+    });
+  },
+
+  /** Cierra la ruta del día. Exige que no queden pedidos pendientes en ella. */
+  async finalizar(id) {
+    return withTransaction(async (client) => {
+      const ruta = await bloquearRuta(client, id);
+      if (ruta.estado === 'finalizada') return id;
+      const { rows: [{ pendientes }] } = await client.query(
+        `SELECT COUNT(*)::int AS pendientes FROM ruta_paradas WHERE ruta_id = $1 AND estado = 'pendiente'`,
+        [id]
+      );
+      if (pendientes) {
+        throw new HttpError(409, `Quedan ${pendientes} parada(s) pendientes: márcalas como entregadas, reprograma o cancela esos pedidos`);
+      }
+      await client.query(`UPDATE rutas SET estado = 'finalizada', actualizado_en = now() WHERE id = $1`, [id]);
       return id;
     });
   },
@@ -144,7 +211,7 @@ export const RutaModel = {
         [id]
       );
       const porId = new Map(existentes.map((p) => [p.id, p]));
-      const porPedido = new Map(existentes.filter((p) => p.pedido_id).map((p) => [p.pedido_id, p]));
+      const porPedido = new Map(existentes.filter((p) => p.pedido_id && p.estado === 'pendiente').map((p) => [p.pedido_id, p]));
 
       // Normaliza: un pedido que ya está en esta ruta se trata como parada existente
       const lista = paradas.map((p) => (!p.id && p.pedido_id && porPedido.has(p.pedido_id)
@@ -172,8 +239,10 @@ export const RutaModel = {
       const nuevosPedidos = lista.filter((p) => !p.id && p.pedido_id).map((p) => p.pedido_id);
       if (nuevosPedidos.length) {
         const { rows } = await client.query(
-          `SELECT p.id, p.estado, p.fecha_entrega, p.lat, rp.ruta_id
-           FROM pedidos p LEFT JOIN ruta_paradas rp ON rp.pedido_id = p.id
+          `SELECT p.id, p.estado, p.fecha_entrega, p.lat, r.numero AS ruta_numero
+           FROM pedidos p
+           LEFT JOIN ruta_paradas rp ON rp.pedido_id = p.id AND rp.estado = 'pendiente'
+           LEFT JOIN rutas r ON r.id = rp.ruta_id
            WHERE p.id = ANY($1::int[]) FOR UPDATE OF p`,
           [nuevosPedidos]
         );
@@ -181,7 +250,7 @@ export const RutaModel = {
         for (const pid of nuevosPedidos) {
           const p = info.get(pid);
           if (!p) throw new HttpError(400, `El pedido #${pid} no existe`);
-          if (p.ruta_id) throw new HttpError(409, `El pedido #${pid} ya está en la ruta ${p.ruta_id}`);
+          if (p.ruta_numero) throw new HttpError(409, `El pedido #${pid} ya está en la Ruta ${p.ruta_numero}`);
           if (p.estado !== 'pendiente') throw new HttpError(409, `El pedido #${pid} está ${p.estado}`);
           if (p.fecha_entrega !== ruta.fecha) {
             throw new HttpError(409, `El pedido #${pid} es para el ${p.fecha_entrega}; reprográmalo primero`);
@@ -302,6 +371,27 @@ export const RutaModel = {
       );
       return parada.ruta_id;
     });
+  },
+
+  // --- Chat de la ruta ---
+
+  async mensajes(rutaId, { despues = 0, limite = 200 } = {}) {
+    const { rows } = await query(
+      `SELECT m.id, m.ruta_id, m.texto, m.creado_en, m.usuario_id, u.nombre AS usuario_nombre, u.rol AS usuario_rol
+       FROM ruta_mensajes m LEFT JOIN usuarios u ON u.id = m.usuario_id
+       WHERE m.ruta_id = $1 AND m.id > $2
+       ORDER BY m.id DESC LIMIT $3`,
+      [rutaId, despues, limite]
+    );
+    return rows.reverse(); // del más antiguo al más reciente
+  },
+
+  async enviarMensaje(rutaId, { texto, usuario }) {
+    const { rows: [m] } = await query(
+      'INSERT INTO ruta_mensajes (ruta_id, usuario_id, texto) VALUES ($1, $2, $3) RETURNING id',
+      [rutaId, usuario.id, texto]
+    );
+    return m.id;
   },
 
   async registrarPosicion({ usuario, lat, lng, precision, velocidad, rumbo, rutaId }) {

@@ -4,11 +4,12 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { mensajeError } from '../api/client';
-import { rutasApi, usuariosApi } from '../api/services';
+import { rutasApi, usuariosApi, vehiculosApi } from '../api/services';
+import ChatRuta from '../components/ChatRuta';
 import EstadoBadge from '../components/EstadoBadge';
 import { AjustarVista, Mapa, MarcadorNumero, Polilinea } from '../components/maps';
 import { useCatalogos } from '../context/CatalogosContext';
-import { duracion, ESTADOS_PARADA, ESTADOS_RUTA, km, soles } from '../utils/format';
+import { duracion, ESTADOS_PARADA, ESTADOS_RUTA, fechaCorta, km, soles, VEHICULOS } from '../utils/format';
 
 /** Convierte una parada guardada en un elemento editable de la lista. */
 const desdeParada = (p) => ({
@@ -45,6 +46,7 @@ export default function RutaEditor() {
   const [sinRuta, setSinRuta] = useState([]);
   const [repartidores, setRepartidores] = useState([]); // conductores
   const [auxiliares, setAuxiliares] = useState([]);
+  const [vehiculos, setVehiculos] = useState([]);
   const [sucio, setSucio] = useState(false);
   const [libre, setLibre] = useState(null); // acción libre en preparación
   const [trabajando, setTrabajando] = useState('');
@@ -61,6 +63,7 @@ export default function RutaEditor() {
     rutasApi.obtener(id).then(aplicar).catch((e) => setError(mensajeError(e)));
     usuariosApi.listar({ rol: 'repartidor', activos: true }).then(setRepartidores).catch(() => {});
     usuariosApi.listar({ rol: 'auxiliar,repartidor', activos: true }).then(setAuxiliares).catch(() => {});
+    vehiculosApi.listar({ activos: true }).then(setVehiculos).catch(() => {});
   }, [id, aplicar]);
 
   // Avisar antes de salir con cambios sin guardar
@@ -111,6 +114,13 @@ export default function RutaEditor() {
     const r = await rutasApi.obtener(id);
     setRuta(r);
   });
+  const finalizar = () => {
+    if (!confirm(`¿Finalizar la Ruta ${ruta.numero}? Ya no se podrá modificar.`)) return;
+    accion('finalizar', async () => {
+      await rutasApi.finalizar(id);
+      setRuta(await rutasApi.obtener(id));
+    });
+  };
   const eliminar = () => {
     if (!confirm('¿Eliminar la ruta? Sus pedidos volverán a "sin rutear".')) return;
     accion('eliminar', async () => {
@@ -129,17 +139,32 @@ export default function RutaEditor() {
   return (
     <>
       <div className="encabezado">
-        <h2>{ruta.nombre || `Ruta #${ruta.id}`} · {ruta.fecha} <EstadoBadge estado={ruta.estado} mapa={ESTADOS_RUTA} /></h2>
+        <h2>Ruta {ruta.numero} · {fechaCorta(ruta.fecha)} <EstadoBadge estado={ruta.estado} mapa={ESTADOS_RUTA} /></h2>
         <div className="fila">
+          {!finalizada && (
+            <button onClick={finalizar} disabled={!!trabajando || ruta.pendientes > 0}
+              title={ruta.pendientes ? 'Primero entrega, reprograma o cancela los pedidos pendientes' : 'Cerrar la ruta del día'}>
+              Finalizar ruta
+            </button>
+          )}
           <Link href={`/monitoreo?fecha=${ruta.fecha}&ruta=${ruta.id}`}>Ver en monitoreo</Link>
+          <Link href={`/rutas/historial`}>Historial</Link>
           <Link href="/rutas">← Rutas</Link>
         </div>
       </div>
 
       <section className="tarjeta fila">
+        <label>Vehículo
+          <select value={ruta.vehiculo_id ?? ''} disabled={finalizada}
+            onChange={(e) => actualizarRuta({ vehiculo_id: e.target.value ? Number(e.target.value) : null })}>
+            <option value="">Sin vehículo</option>
+            {vehiculos.map((v) => <option key={v.id} value={v.id}>{VEHICULOS[v.tipo]?.icono} {v.nombre}</option>)}
+          </select>
+        </label>
         <label>Conductor
-          <select value={ruta.repartidor_id} disabled={finalizada}
-            onChange={(e) => actualizarRuta({ repartidor_id: Number(e.target.value) })}>
+          <select value={ruta.repartidor_id ?? ''} disabled={finalizada}
+            onChange={(e) => actualizarRuta({ repartidor_id: e.target.value ? Number(e.target.value) : null })}>
+            <option value="">Sin conductor</option>
             {repartidores.map((r) => <option key={r.id} value={r.id}>{r.nombre}</option>)}
           </select>
         </label>
@@ -158,6 +183,9 @@ export default function RutaEditor() {
       </section>
 
       {error && <p className="error">{error}</p>}
+      {!finalizada && ruta.pendientes > 0 && ruta.fecha < new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima' }).format(new Date()) && (
+        <p className="alerta">⚠ Esta ruta es de un día anterior y tiene {ruta.pendientes} parada(s) pendientes. Ciérralas para finalizarla.</p>
+      )}
       {libre?.marcando && <p className="aviso">Haz clic en el mapa para ubicar “{libre.titulo || 'la acción'}”.</p>}
 
       <div className="grid-ruta">
@@ -255,6 +283,10 @@ export default function RutaEditor() {
           )}
         </section>
       </div>
+      <section className="tarjeta">
+        <h3>💬 Chat de la Ruta {ruta.numero}</h3>
+        <ChatRuta rutaId={ruta.id} />
+      </section>
     </>
   );
 }

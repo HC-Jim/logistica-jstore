@@ -100,7 +100,9 @@ export default function Pedidos() {
                   <td>{p.cobrar}<small>{p.medio_pago}</small></td>
                   <td>{p.vendedor_nombre}</td>
                   <td><EstadoBadge estado={p.estado} /></td>
-                  <td>{p.repartidor_nombre ? <>{p.repartidor_nombre}<small>parada {p.ruta_orden}</small></> : '—'}</td>
+                  <td>{p.ruta_id && ['ruteado', 'entregado', 'incidencia'].includes(p.estado)
+                    ? <Link href={`/rutas/${p.ruta_id}`}>Ruta {p.ruta_numero}<small>{p.repartidor_nombre ?? 'sin conductor'} · parada {p.ruta_orden}</small></Link>
+                    : '—'}</td>
                 </tr>
               ))}
               {!cargando && !pedidos.length && <tr><td colSpan={11}>No hay pedidos con estos filtros</td></tr>}

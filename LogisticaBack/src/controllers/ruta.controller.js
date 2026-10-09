@@ -9,11 +9,24 @@ import { env } from '../config/env.js';
 
 const CAMPOS_RUTA = {
   fecha: { tipo: 'fecha', requerido: true },
+  numero: { tipo: 'entero' },
   nombre: { tipo: 'texto', max: 80 },
-  repartidor_id: { tipo: 'entero', requerido: true },
+  vehiculo_id: { tipo: 'entero' },
+  repartidor_id: { tipo: 'entero' },
   asistente_id: { tipo: 'entero' },
   estado: { tipo: 'enum', lista: ESTADOS_RUTA },
 };
+
+/** El chat de una ruta lo ven logística y el conductor/auxiliar asignados. */
+async function rutaConAcceso(req) {
+  const ruta = await RutaModel.obtener(idParam(req.params.id));
+  if (!ruta) throw new HttpError(404, 'Ruta no encontrada');
+  const esEquipo = ['repartidor', 'auxiliar'].includes(req.user.rol);
+  if (esEquipo && ![ruta.repartidor_id, ruta.asistente_id].includes(req.user.id)) {
+    throw new HttpError(403, 'Esta ruta no es tuya');
+  }
+  return ruta;
+}
 
 const CAMPOS_PARADA = {
   id: { tipo: 'entero' },
@@ -45,6 +58,40 @@ export const RutaController = {
     res.json(await RutaModel.listar({ fecha: req.query.fecha && fechaQuery(req.query) }));
   },
 
+  /** Historial: rutas entre fechas, filtrables por número, conductor/auxiliar, vehículo y estado. */
+  async historial(req, res) {
+    const f = leerCampos(req.query, {
+      desde: { tipo: 'fecha' },
+      hasta: { tipo: 'fecha' },
+      numero: { tipo: 'entero' },
+      repartidor_id: { tipo: 'entero' },
+      vehiculo_id: { tipo: 'entero' },
+      estado: { tipo: 'enum', lista: ESTADOS_RUTA },
+    });
+    res.json(await RutaModel.listar({
+      desde: f.desde, hasta: f.hasta, numero: f.numero, repartidorId: f.repartidor_id,
+      vehiculoId: f.vehiculo_id, estado: f.estado, limite: 1000,
+    }));
+  },
+
+  async finalizar(req, res) {
+    const id = await RutaModel.finalizar(idParam(req.params.id));
+    res.json(await RutaModel.obtener(id));
+  },
+
+  async mensajes(req, res) {
+    const ruta = await rutaConAcceso(req);
+    const despues = Math.max(Number(req.query.despues) || 0, 0);
+    res.json(await RutaModel.mensajes(ruta.id, { despues }));
+  },
+
+  async enviarMensaje(req, res) {
+    const ruta = await rutaConAcceso(req);
+    const { texto } = leerCampos(req.body, { texto: { tipo: 'texto', max: 2000, requerido: true } }, { requeridos: true });
+    const id = await RutaModel.enviarMensaje(ruta.id, { texto, usuario: req.user });
+    res.status(201).json((await RutaModel.mensajes(ruta.id, { despues: id - 1 }))[0]);
+  },
+
   async obtener(req, res) {
     const ruta = await RutaModel.obtener(idParam(req.params.id));
     if (!ruta) throw new HttpError(404, 'Ruta no encontrada');
@@ -54,7 +101,8 @@ export const RutaController = {
   async crear(req, res) {
     const d = leerCampos(req.body, CAMPOS_RUTA, { requeridos: true });
     const id = await RutaModel.crear({
-      fecha: d.fecha, nombre: d.nombre, repartidorId: d.repartidor_id, asistenteId: d.asistente_id, usuario: req.user,
+      fecha: d.fecha, numero: d.numero, nombre: d.nombre, vehiculoId: d.vehiculo_id,
+      repartidorId: d.repartidor_id, asistenteId: d.asistente_id, usuario: req.user,
     });
     res.status(201).json(await RutaModel.obtener(id));
   },
@@ -62,8 +110,10 @@ export const RutaController = {
   async actualizar(req, res) {
     const d = leerCampos(req.body, CAMPOS_RUTA);
     const id = idParam(req.params.id);
+    if (d.estado === 'finalizada') throw new HttpError(400, 'Usa "Finalizar ruta" para cerrarla');
     await RutaModel.actualizar(id, {
-      nombre: d.nombre, repartidorId: d.repartidor_id, asistenteId: d.asistente_id, estado: d.estado,
+      nombre: d.nombre, vehiculoId: d.vehiculo_id, repartidorId: d.repartidor_id,
+      asistenteId: d.asistente_id, estado: d.estado,
     });
     res.json(await RutaModel.obtener(id));
   },

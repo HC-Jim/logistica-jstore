@@ -14,6 +14,8 @@ export const PERMISOS = {
   estadisticas: ['admin', 'planificador'],
   usuarios: ['admin'],
   appRepartidor: ['repartidor', 'auxiliar'], // conductor y auxiliar logístico
+  // el chat lo usan logística y el equipo de la ruta (se valida que la ruta sea suya)
+  chatRuta: ['admin', 'planificador', 'almacen', 'repartidor', 'auxiliar'],
 };
 
 /** Campos que un vendedor puede modificar en sus propias ventas. */

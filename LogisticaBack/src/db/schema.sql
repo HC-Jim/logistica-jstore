@@ -102,7 +102,7 @@ CREATE TABLE IF NOT EXISTS rutas (
   id                SERIAL PRIMARY KEY,
   fecha             DATE        NOT NULL,
   nombre            VARCHAR(80),
-  repartidor_id     INTEGER     NOT NULL REFERENCES usuarios(id),
+  repartidor_id     INTEGER     REFERENCES usuarios(id),  -- conductor (puede asignarse después)
   asistente_id      INTEGER     REFERENCES usuarios(id) ON DELETE SET NULL,
   estado            VARCHAR(20) NOT NULL DEFAULT 'planificada'
                     CHECK (estado IN ('planificada', 'en_curso', 'finalizada')),
@@ -153,3 +153,49 @@ CREATE INDEX IF NOT EXISTS idx_paradas_ruta ON ruta_paradas(ruta_id, orden);
 -- Un pedido solo puede estar en una ruta a la vez
 CREATE UNIQUE INDEX IF NOT EXISTS uq_paradas_pedido ON ruta_paradas(pedido_id) WHERE pedido_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_posiciones_usuario ON posiciones(usuario_id, registrado_en DESC);
+
+-- ============================================================
+-- Rutas numeradas, vehículos, historial y chat
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS vehiculos (
+  id        SERIAL PRIMARY KEY,
+  nombre    VARCHAR(60) NOT NULL,
+  tipo      VARCHAR(20) NOT NULL CHECK (tipo IN ('auto', 'moto', 'bicicleta', 'furgoneta', 'otro')),
+  placa     VARCHAR(15),
+  activo    BOOLEAN     NOT NULL DEFAULT true,
+  creado_en TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Flota inicial (solo si la tabla está vacía)
+INSERT INTO vehiculos (nombre, tipo)
+SELECT v.nombre, v.tipo FROM (VALUES ('Auto 1', 'auto'), ('Auto 2', 'auto'), ('Bicicleta 1', 'bicicleta')) AS v(nombre, tipo)
+WHERE NOT EXISTS (SELECT 1 FROM vehiculos);
+
+-- Cada ruta del día tiene un número (Ruta 1, Ruta 2…) y un vehículo; el conductor puede asignarse después
+ALTER TABLE rutas ADD COLUMN IF NOT EXISTS numero INTEGER;
+ALTER TABLE rutas ADD COLUMN IF NOT EXISTS vehiculo_id INTEGER REFERENCES vehiculos(id) ON DELETE SET NULL;
+ALTER TABLE rutas ALTER COLUMN repartidor_id DROP NOT NULL;
+UPDATE rutas r SET numero = x.n
+FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY fecha ORDER BY id) AS n FROM rutas) x
+WHERE r.id = x.id AND r.numero IS NULL;
+ALTER TABLE rutas ALTER COLUMN numero SET NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_rutas_fecha_numero ON rutas(fecha, numero);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_rutas_fecha_vehiculo ON rutas(fecha, vehiculo_id) WHERE vehiculo_id IS NOT NULL;
+
+-- Historial: un pedido puede tener varias paradas (p. ej. incidencia en la Ruta 1 y entrega al día
+-- siguiente en la Ruta 2). Solo puede tener UNA parada activa (pendiente) a la vez.
+DROP INDEX IF EXISTS uq_paradas_pedido;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_paradas_pedido_activa ON ruta_paradas(pedido_id)
+  WHERE pedido_id IS NOT NULL AND estado = 'pendiente';
+CREATE INDEX IF NOT EXISTS idx_paradas_pedido ON ruta_paradas(pedido_id);
+
+-- Chat de cada ruta (web y app del conductor)
+CREATE TABLE IF NOT EXISTS ruta_mensajes (
+  id         BIGSERIAL PRIMARY KEY,
+  ruta_id    INTEGER     NOT NULL REFERENCES rutas(id) ON DELETE CASCADE,
+  usuario_id INTEGER     REFERENCES usuarios(id) ON DELETE SET NULL,
+  texto      TEXT        NOT NULL CHECK (length(texto) BETWEEN 1 AND 2000),
+  creado_en  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_mensajes_ruta ON ruta_mensajes(ruta_id, id);

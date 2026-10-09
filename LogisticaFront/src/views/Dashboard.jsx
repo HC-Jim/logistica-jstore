@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import {
   Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart,
@@ -49,6 +50,38 @@ export default function Dashboard() {
           <option value={90}>Últimos 90 días</option>
         </select>
       </div>
+
+      {(d.alertas.atrasados.length > 0 || d.alertas.rutasAbiertas.length > 0) && (
+        <section className="tarjeta alerta-cierre">
+          <h3>⚠ Quedaron pendientes de días anteriores</h3>
+          <p>Al cerrar cada día todo debe estar <strong>entregado</strong> o <strong>cancelado</strong>. Reprograma, entrega o cancela estos pedidos.</p>
+          {d.alertas.atrasados.length > 0 && (
+            <table>
+              <thead><tr><th>Pedido</th><th>Entrega</th><th>Cliente</th><th>Vendedor</th><th>Estado</th></tr></thead>
+              <tbody>
+                {d.alertas.atrasados.slice(0, 15).map((p) => (
+                  <tr key={p.id}>
+                    <td><Link href={`/pedidos/${p.id}`}><strong>{p.id}</strong></Link></td>
+                    <td>{fechaCorta(p.fecha_entrega)}</td>
+                    <td>{p.cliente_nombre}</td>
+                    <td>{p.vendedor_nombre}</td>
+                    <td>{ESTADOS[p.estado]?.label ?? p.estado}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {d.alertas.atrasados.length > 15 && <small>…y {d.alertas.atrasados.length - 15} más</small>}
+          {d.alertas.rutasAbiertas.length > 0 && (
+            <p>
+              Rutas sin finalizar:{' '}
+              {d.alertas.rutasAbiertas.map((r, i) => (
+                <span key={r.id}>{i > 0 && ', '}<Link href={`/rutas/${r.id}`}>Ruta {r.numero} del {fechaCorta(r.fecha)}</Link></span>
+              ))}
+            </p>
+          )}
+        </section>
+      )}
 
       <h3>Hoy</h3>
       <div className="kpis">

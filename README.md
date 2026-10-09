@@ -28,6 +28,18 @@ En cualquier momento antes de entregar: cancelado (con motivo) o reprogramado (s
 Todo cambio queda en el historial del pedido (quién, cuándo, qué cambió).
 ```
 
+## Rutas
+
+- Cada día se muestran **Ruta 1, 2 y 3** (`RUTAS_POR_DEFECTO` en `LogisticaBack/src/config/catalogos.js`);
+  con **+ Agregar ruta** se abren más según la demanda.
+- Cada ruta tiene **vehículo** (catálogo en *Vehículos*: autos, bicicleta, eventuales), **conductor** y
+  **auxiliar logístico**. Un vehículo no puede estar en dos rutas el mismo día.
+- **Historial de rutas**: todas las rutas realizadas con sus pedidos, entregas e incidencias. Si un pedido
+  tuvo incidencia y se reprogramó, la parada queda registrada en la ruta original.
+- **Cierre del día**: una ruta solo se finaliza sin pedidos pendientes; el Dashboard alerta sobre pedidos de
+  días anteriores que no quedaron entregados ni cancelados.
+- **Chat por ruta** entre logística y el conductor/auxiliar (misma API para la app móvil).
+
 ## Roles
 
 | Rol | Puede |

@@ -35,7 +35,7 @@ function describir(h) {
       return `${fechaCorta(d.de)} → ${fechaCorta(d.a)}${d.motivo ? ` (${d.motivo})` : ''}${d.quitado_de_ruta ? ' · salió de su ruta' : ''}`;
     case 'ruteado':
     case 'quitado_de_ruta':
-      return `Ruta #${d.ruta_id}${d.motivo ? ` (${d.motivo})` : ''}`;
+      return `${d.motivo ?? ''}`;
     case 'observacion_almacen':
       return d.a ?? '(borrada)';
     default:
@@ -124,7 +124,9 @@ export default function PedidoDetalle() {
             <dt>Tipo</dt><dd>{pedido.tipo_pedido}</dd>
             <dt>Vendedor</dt><dd>{pedido.vendedor_nombre}</dd>
             <dt>Entrega</dt><dd><strong>{fechaCorta(pedido.fecha_entrega)}</strong></dd>
-            <dt>Ruta</dt><dd>{pedido.ruta_id ? <>{pedido.repartidor_nombre} · parada {pedido.ruta_orden}</> : 'Sin ruta'}</dd>
+            <dt>Ruta</dt><dd>{pedido.ruta_id && pedido.estado !== 'pendiente' && pedido.estado !== 'cancelado'
+              ? <Link href={`/rutas/${pedido.ruta_id}`}>Ruta {pedido.ruta_numero} del {fechaCorta(pedido.ruta_fecha)} · {pedido.repartidor_nombre ?? 'sin conductor'} · parada {pedido.ruta_orden}</Link>
+              : 'Sin ruta'}</dd>
           </dl>
           <h3>Cobro</h3>
           <dl>

@@ -38,6 +38,18 @@ export const ROLES = {
   auxiliar: 'Auxiliar logístico',
 };
 
+export const VEHICULOS = {
+  auto: { label: 'Auto', icono: '🚗' },
+  moto: { label: 'Moto', icono: '🏍️' },
+  bicicleta: { label: 'Bicicleta', icono: '🚲' },
+  furgoneta: { label: 'Furgoneta', icono: '🚐' },
+  otro: { label: 'Otro', icono: '🚚' },
+};
+
+/** "Ruta 2 · 🚗 Auto 1" */
+export const nombreRuta = (r) =>
+  `Ruta ${r.numero}${r.vehiculo_nombre ? ` · ${VEHICULOS[r.vehiculo_tipo]?.icono ?? ''} ${r.vehiculo_nombre}` : ''}`;
+
 export const km = (m) => (m == null ? '—' : `${(m / 1000).toFixed(1)} km`);
 
 export const duracion = (s) => {

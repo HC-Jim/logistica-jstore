@@ -91,6 +91,32 @@ Para navegar a una parada, abre Google Maps / Waze con `lat,lng`.
 - Recomendado: cada **20–30 s** mientras la ruta está en curso (y solo si cambió la posición).
   El panel de monitoreo se actualiza cada 15 s y marca "sin señal" después de 10 min.
 
+## 6. Chat de la ruta
+
+El mismo chat que ve logística en la web (Rutas → Ruta N, y Monitoreo).
+
+`GET /rutas/:rutaId/mensajes?despues=<ultimoId>` → mensajes nuevos (sin `despues`: los últimos 200)
+
+```json
+[{ "id": 42, "ruta_id": 3, "texto": "Recibido, salgo a las 9", "creado_en": "…",
+   "usuario_id": 6, "usuario_nombre": "Enrique", "usuario_rol": "repartidor" }]
+```
+
+`POST /rutas/:rutaId/mensajes` → `201` con el mensaje creado
+
+```json
+{ "texto": "Cliente pide que llame antes" }
+```
+
+- Solo el conductor y el auxiliar asignados a la ruta (y logística) pueden leer o escribir.
+- Recomendado: consultar cada 5–10 s con `despues=<id del último mensaje>` mientras el chat está abierto.
+
+## Datos de la ruta
+
+Cada ruta trae `numero` (Ruta 1, 2, 3…), `vehiculo_nombre`, `vehiculo_tipo` (`auto`, `moto`, `bicicleta`,
+`furgoneta`, `otro`) y `vehiculo_placa`. Las paradas con estado `completada` o `incidencia` son historial:
+la app solo debe permitir marcar las que están `pendiente`.
+
 ## Errores
 
 `{ "error": "mensaje" }` con `400` (datos inválidos), `401` (sin sesión), `403` (no es tu ruta),
