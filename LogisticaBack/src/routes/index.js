@@ -63,7 +63,7 @@ router.put('/vehiculos/:id', rol(...P.gestionarRutas), VehiculoController.actual
 
 // --- Ubicaciones frecuentes (Falabella, almacenes, proveedores…) ---
 router.get('/ubicaciones', rol(...P.despacho, 'vendedor'), UbicacionController.listar);
-router.post('/ubicaciones', rol(...P.gestionarRutas), UbicacionController.crear);
+router.post('/ubicaciones', rol(...P.despacho, 'vendedor'), UbicacionController.crear); // cualquiera que registre pedidos
 router.put('/ubicaciones/:id', rol(...P.gestionarRutas), UbicacionController.actualizar);
 
 // --- Rutas (planificación) ---

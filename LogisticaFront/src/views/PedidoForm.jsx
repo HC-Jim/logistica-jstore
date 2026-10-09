@@ -103,6 +103,16 @@ export default function PedidoForm({ categoria: categoriaNueva = 'venta' }) {
     return [form.direccion, u?.distrito, u?.provincia, 'Perú'].filter(Boolean).join(', ');
   }, [form.direccion, form.ubigeo, ubigeo]);
 
+  /** Venta / inversa: una ubicación frecuente marca el punto (y completa la dirección si está vacía). */
+  function usarFrecuente(uid) {
+    const u = ubicaciones.find((x) => x.id === Number(uid));
+    if (!u) return;
+    setForm((f) => ({
+      ...f, lat: u.lat, lng: u.lng, link_ubicacion: '',
+      direccion: f.direccion || u.direccion || '', referencia: f.referencia || u.referencia || '', ubigeo: f.ubigeo || u.ubigeo,
+    }));
+  }
+
   /** Envío por agencia: la sede elegida es el punto donde el conductor deja el paquete. */
   function usarSede(uid) {
     const u = ubicaciones.find((x) => x.id === Number(uid));
@@ -277,6 +287,15 @@ export default function PedidoForm({ categoria: categoriaNueva = 'venta' }) {
                 {sedes.length ? 'La dirección de arriba es la del cliente (destino final); en el mapa va la sede de la agencia. ' : 'Aún no hay sedes de agencia registradas. '}
                 Las sedes se registran en <Link href="/ubicaciones">Ubicaciones</Link> con tipo "Agencia".
               </small>
+            </label>
+          )}
+          {!esEncargo && !porAgencia && (
+            <label className="ancho">📍 Ubicación frecuente (opcional)
+              <select value="" disabled={bloqueado('lat')} onChange={(e) => usarFrecuente(e.target.value)}>
+                <option value="">— Elegir de la lista para marcar el punto en el mapa —</option>
+                {ubicaciones.map((u) => <option key={u.id} value={u.id}>{u.nombre}{u.distrito ? ` · ${u.distrito}` : ''}</option>)}
+              </select>
+              <small>Se registran en <Link href="/ubicaciones">Ubicaciones</Link> (agencias, almacenes, clientes frecuentes…).</small>
             </label>
           )}
           <div className="ancho">

@@ -160,7 +160,6 @@ input:disabled, select:disabled, textarea:disabled { background: #f1f3f6; color:
 .kpi-mini strong { display: block; }
 .botonera { display: flex; gap: 4px; }
 .lista-paradas li.atendida { opacity: .75; }
-.accion-libre { display: flex; flex-direction: column; gap: 6px; }
 .sin-rutear { list-style: none; padding: 0; max-height: 260px; overflow-y: auto; }
 .sin-rutear li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--borde); }
 .lista-paradas { max-height: 720px; overflow-y: auto; }
@@ -274,7 +273,6 @@ h3 small { display: block; font-weight: 400; }
 .btn-encargo { background: #dd6b20; }
 .etiqueta { font-weight: 600; margin-right: 6px; }
 .marca-tipo { font-weight: 700; }
-.accion-libre select { width: 100%; }
 
 /* ---- Campana de notificaciones ---- */
 .campana { position: relative; }

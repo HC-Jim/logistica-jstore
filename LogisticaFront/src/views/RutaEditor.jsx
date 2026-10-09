@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { mensajeError } from '../api/client';
-import { rutasApi, ubicacionesApi, usuariosApi, vehiculosApi } from '../api/services';
+import { rutasApi, usuariosApi, vehiculosApi } from '../api/services';
 import ChatRuta from '../components/ChatRuta';
 import EstadoBadge from '../components/EstadoBadge';
 import { AjustarVista, Mapa, MarcadorNumero, Polilinea } from '../components/maps';
@@ -96,8 +96,6 @@ export default function RutaEditor() {
   const [auxiliares, setAuxiliares] = useState([]);
   const [vehiculos, setVehiculos] = useState([]);
   const [sucio, setSucio] = useState(false);
-  const [libre, setLibre] = useState(null); // acción libre en preparación
-  const [ubicaciones, setUbicaciones] = useState([]);
   const [historial, setHistorial] = useState([]);
   const [trabajando, setTrabajando] = useState('');
   const [error, setError] = useState('');
@@ -114,7 +112,6 @@ export default function RutaEditor() {
     usuariosApi.listar({ rol: 'repartidor', activos: true }).then(setRepartidores).catch(() => {});
     usuariosApi.listar({ rol: 'auxiliar,repartidor', activos: true }).then(setAuxiliares).catch(() => {});
     vehiculosApi.listar({ activos: true }).then(setVehiculos).catch(() => {});
-    ubicacionesApi.listar({ activas: true }).then(setUbicaciones).catch(() => {});
   }, [id, aplicar]);
 
   useEffect(() => {
@@ -242,13 +239,10 @@ export default function RutaEditor() {
       {!finalizada && ruta.pendientes > 0 && ruta.fecha < new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima' }).format(new Date()) && (
         <p className="alerta">⚠ Esta ruta es de un día anterior y tiene {ruta.pendientes} parada(s) pendientes. Ciérralas para finalizarla.</p>
       )}
-      {libre?.marcando && <p className="aviso">Haz clic en el mapa para ubicar “{libre.titulo || 'la acción'}”.</p>}
 
       <div className="grid-ruta">
         <section className="tarjeta">
-          <Mapa alto={600} onClick={(e) => {
-            if (libre?.marcando && e.detail.latLng) setLibre({ ...libre, ...e.detail.latLng, marcando: false });
-          }}>
+          <Mapa alto={600}>
             <AjustarVista puntos={puntos} />
             <MarcadorNumero position={deposito} texto="A" color="#1a202c" title={deposito.nombre} />
             {lista.map((p, i) => p.lat != null && (
@@ -260,7 +254,6 @@ export default function RutaEditor() {
               <MarcadorNumero key={`d${p.id}`} position={{ lat: p.lat, lng: p.lng }} texto="+" color="#a0aec0"
                 title={`Agregar: ${p.cliente_nombre} (${p.distrito ?? ''})`} onClick={() => agregar(p)} />
             ))}
-            {libre?.lat != null && <MarcadorNumero position={{ lat: libre.lat, lng: libre.lng }} texto="★" color="#805ad5" />}
             {ruta.polyline && !sucio && <Polilinea codificada={ruta.polyline} />}
           </Mapa>
           <small className="ayuda">Azul: paradas de la ruta · Gris (+): pedidos sin rutear, clic para agregar · A: almacén</small>
@@ -309,31 +302,6 @@ export default function RutaEditor() {
 
           {!finalizada && (
             <>
-              <h3>Agregar acción</h3>
-              <small>Parada puntual sin registro propio. Si necesitas seguimiento (productos, estado, historial), registra un <Link href="/pedidos/encargo/nuevo">encargo</Link>.</small>
-              <div className="accion-libre">
-                <select value="" onChange={(e) => {
-                  const u = ubicaciones.find((x) => x.id === Number(e.target.value));
-                  if (u) setLibre({ titulo: libre?.titulo || u.nombre, direccion: u.direccion ?? '', lat: u.lat, lng: u.lng });
-                }}>
-                  <option value="">📍 Usar una ubicación frecuente…</option>
-                  {ubicaciones.map((u) => <option key={u.id} value={u.id}>{u.nombre}</option>)}
-                </select>
-                <input placeholder="Ej. Recoger en Almacén Guardatodo / Despacho para Falabella" value={libre?.titulo ?? ''}
-                  onChange={(e) => setLibre({ ...libre, titulo: e.target.value })} />
-                <input placeholder="Dirección (opcional)" value={libre?.direccion ?? ''}
-                  onChange={(e) => setLibre({ ...libre, direccion: e.target.value })} />
-                <div className="fila">
-                  <button type="button" className="btn-sec" onClick={() => setLibre({ ...libre, marcando: true })}>
-                    {libre?.lat != null ? 'Ubicación ✔ (cambiar)' : 'Marcar en el mapa'}
-                  </button>
-                  <button type="button" disabled={!libre?.titulo || libre?.lat == null}
-                    onClick={() => { cambiar([...lista, { ...libre, clave: `l${Date.now()}`, estado: 'pendiente', marcando: undefined }]); setLibre(null); }}>
-                    Agregar
-                  </button>
-                </div>
-              </div>
-
               <h3>Pedidos sin rutear del día ({disponibles.length})</h3>
               <ul className="sin-rutear">
                 {disponibles.map((p) => (

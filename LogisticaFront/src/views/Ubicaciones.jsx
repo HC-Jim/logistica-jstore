@@ -5,14 +5,17 @@ import { mensajeError } from '../api/client';
 import { ubicacionesApi } from '../api/services';
 import MapaSelector from '../components/MapaSelector';
 import UbigeoSelect from '../components/UbigeoSelect';
+import { useAuth } from '../context/AuthContext';
 import { useCatalogos } from '../context/CatalogosContext';
 import { TIPOS_UBICACION } from '../utils/format';
 
 const VACIO = { id: null, nombre: '', tipo: 'almacen_externo', direccion: '', ubigeo: null, referencia: '', contacto: '', telefono: '', lat: null, lng: null, link: '' };
 
-/** Puntos recurrentes (almacén de Falabella, otros almacenes, proveedores…) para encargos y rutas. */
+/** Puntos recurrentes (agencias, almacenes, proveedores, clientes frecuentes…) para marcar pedidos en el mapa. */
 export default function Ubicaciones() {
   const { ubigeo } = useCatalogos();
+  const { usuario } = useAuth();
+  const puedeEditar = ['admin', 'planificador'].includes(usuario.rol); // los demás solo agregan
   const [lista, setLista] = useState([]);
   const [form, setForm] = useState(VACIO);
   const [error, setError] = useState('');
@@ -96,8 +99,10 @@ export default function Ubicaciones() {
                 <td>{u.usos}</td>
                 <td>{u.activo ? 'Activa' : 'Inactiva'}</td>
                 <td className="acciones">
+                  {puedeEditar && <>
                   <button className="btn-sec" onClick={() => { setForm({ ...VACIO, ...Object.fromEntries(Object.entries(u).map(([k, v]) => [k, v ?? VACIO[k] ?? ''])), link: '' }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>Editar</button>
                   <button className={u.activo ? 'btn-peligro' : 'btn-sec'} onClick={() => alternar(u)}>{u.activo ? 'Desactivar' : 'Activar'}</button>
+                  </>}
                 </td>
               </tr>
             ))}
