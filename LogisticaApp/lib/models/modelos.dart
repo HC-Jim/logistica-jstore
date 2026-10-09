@@ -50,12 +50,14 @@ class Parada {
         lat = _decimal(j['lat']),
         lng = _decimal(j['lng']),
         despachado = j['despachado_en'] != null,
+        fotoUrl = _texto(j['foto_url']),
+        atendidaEn = j['completada_en'] == null ? null : DateTime.tryParse('${j['completada_en']}')?.toLocal(),
         items = ((j['items'] as List?) ?? []).map((i) => Item.desdeJson(i as Map<String, dynamic>)).toList();
 
   final int id;
   final int orden;
   final int? pedidoId;
-  final String estado; // pendiente | completada | incidencia
+  final String estado; // pendiente | completada | incidencia | cancelada (logística retiró el pedido)
   final String? nota;
   final String titulo;
   final String? descripcion;
@@ -78,6 +80,8 @@ class Parada {
   final double? lat;
   final double? lng;
   final bool despachado;
+  final String? fotoUrl; // foto de la entrega
+  final DateTime? atendidaEn;
   final List<Item> items;
 
   bool get esAccion => pedidoId == null;
@@ -158,7 +162,7 @@ class Mensaje {
   final DateTime creadoEn;
 }
 
-/// Tramo actual: de la posición del conductor a su próximo destino.
+/// Camino que le queda al conductor: tramo hasta su próximo destino y el resto hasta el almacén.
 class Tramo {
   Tramo.desdeJson(Map<String, dynamic> j)
       : haciaAlmacen = (j['destino'] as Map)['tipo'] == 'almacen',
@@ -167,7 +171,12 @@ class Tramo {
         destino = LatLng(_decimal((j['destino'] as Map)['lat']) ?? 0, _decimal((j['destino'] as Map)['lng']) ?? 0),
         distanciaMetros = _entero(j['distancia_metros']),
         duracionSegundos = _entero(j['duracion_segundos']),
-        puntos = j['polyline'] == null ? const [] : decodificarPolyline('${j['polyline']}');
+        puntos = j['polyline'] == null ? const [] : decodificarPolyline('${j['polyline']}'),
+        restanteMetros = _entero((j['restante'] as Map?)?['distancia_metros']),
+        restanteSegundos = _entero((j['restante'] as Map?)?['duracion_segundos']),
+        restantePuntos = (j['restante'] as Map?)?['polyline'] == null
+            ? const []
+            : decodificarPolyline('${(j['restante'] as Map)['polyline']}');
 
   final bool haciaAlmacen;
   final int? paradaId;
@@ -175,5 +184,8 @@ class Tramo {
   final LatLng destino;
   final int distanciaMetros;
   final int duracionSegundos;
-  final List<LatLng> puntos;
+  final List<LatLng> puntos; // hasta el próximo destino
+  final int restanteMetros;
+  final int restanteSegundos;
+  final List<LatLng> restantePuntos; // por todas las pendientes hasta el almacén
 }

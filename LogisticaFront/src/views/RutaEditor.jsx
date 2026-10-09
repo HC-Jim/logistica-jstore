@@ -52,6 +52,7 @@ const ACCIONES_RUTA = {
   parada_atendida: 'Atendió una parada',
   pedido_retirado: 'Retiró un pedido',
   finalizada: 'Finalizó la ruta',
+  paradas_reordenadas: 'Reordenó las paradas pendientes',
 };
 
 /** Texto legible del detalle de un cambio de la ruta. */
@@ -75,6 +76,10 @@ function describirCambio(h) {
       return `${d.pedido_id ? `#${d.pedido_id}` : d.descripcion} → ${d.estado}${d.nota ? ` (${d.nota})` : ''}${d.origen ? ` · ${d.origen}` : ''}`;
     case 'pedido_retirado':
       return `#${d.pedido_id}${d.motivo ? ` (${d.motivo})` : ''}`;
+    case 'paradas_reordenadas':
+      return `${(d.orden ?? []).join(' → ')}${d.origen ? ` · ${d.origen}` : ''}`;
+    case 'finalizada':
+      return d.origen ?? '';
     default:
       return '';
   }

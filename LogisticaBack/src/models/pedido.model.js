@@ -11,6 +11,7 @@ const SELECT_PEDIDO = `
          ub.departamento, ub.provincia, ub.distrito,
          v.nombre AS vendedor_nombre,
          rp.ruta_id, rp.orden AS ruta_orden, rp.estado AS parada_estado,
+         rp.foto_url AS entrega_foto_url, rp.completada_en AS parada_atendida_en, rp.nota AS parada_nota,
          r.numero AS ruta_numero, r.fecha AS ruta_fecha,
          rep.nombre AS repartidor_nombre,
          ubi.nombre AS ubicacion_nombre, ori.nombre AS origen_nombre
@@ -19,7 +20,7 @@ const SELECT_PEDIDO = `
   LEFT JOIN ubigeos ub     ON ub.codigo = p.ubigeo
   -- parada actual: la activa (pendiente) o, si no hay, la más reciente
   LEFT JOIN LATERAL (
-    SELECT x.id, x.ruta_id, x.orden, x.estado FROM ruta_paradas x
+    SELECT x.id, x.ruta_id, x.orden, x.estado, x.foto_url, x.completada_en, x.nota FROM ruta_paradas x
     WHERE x.pedido_id = p.id ORDER BY (x.estado = 'pendiente') DESC, x.id DESC LIMIT 1
   ) rp ON true
   LEFT JOIN rutas r        ON r.id = rp.ruta_id
@@ -42,17 +43,27 @@ async function historial(client, pedidoId, usuarioId, accion, detalle = null) {
  * Devuelve el id de la ruta o null.
  */
 async function quitarDeRuta(client, pedidoId, usuarioId, motivo) {
-  const { rows: [parada] } = await client.query(
-    `DELETE FROM ruta_paradas WHERE pedido_id = $1 AND estado = 'pendiente' RETURNING ruta_id`,
+  const { rows: [actual] } = await client.query(
+    `SELECT rp.id, rp.ruta_id, r.estado AS estado_ruta FROM ruta_paradas rp JOIN rutas r ON r.id = rp.ruta_id
+     WHERE rp.pedido_id = $1 AND rp.estado = 'pendiente'`,
     [pedidoId]
   );
-  if (!parada) return null;
-  await registrarRuta(client, parada.ruta_id, usuarioId, 'pedido_retirado', { pedido_id: pedidoId, motivo });
-  await client.query(
-    'UPDATE rutas SET polyline = NULL, distancia_metros = NULL, duracion_segundos = NULL WHERE id = $1',
-    [parada.ruta_id]
-  );
-  return parada.ruta_id;
+  if (!actual) return null;
+  if (actual.estado_ruta === 'en_curso') {
+    // La ruta ya salió: la parada queda a la vista como cancelada (con hora y motivo) y el conductor pasa a la siguiente
+    await client.query(
+      `UPDATE ruta_paradas SET estado = 'cancelada', nota = $1, completada_en = now() WHERE id = $2`,
+      [motivo, actual.id]
+    );
+  } else {
+    await client.query('DELETE FROM ruta_paradas WHERE id = $1', [actual.id]);
+    await client.query(
+      'UPDATE rutas SET polyline = NULL, distancia_metros = NULL, duracion_segundos = NULL WHERE id = $1',
+      [actual.ruta_id]
+    );
+  }
+  await registrarRuta(client, actual.ruta_id, usuarioId, 'pedido_retirado', { pedido_id: pedidoId, motivo });
+  return actual.ruta_id;
 }
 
 /** Bloquea el pedido y verifica que el usuario pueda tocarlo. */

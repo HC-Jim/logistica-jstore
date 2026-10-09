@@ -1,4 +1,7 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../api/api_client.dart';
@@ -45,12 +48,51 @@ class _ParadaScreenState extends State<ParadaScreen> {
         : Uri.parse('https://www.google.com/maps/dir/?api=1&destination=${destino.latitude},${destino.longitude}&travelmode=driving'));
   }
 
+  /// Toma la foto del cliente con el producto y la sube. Devuelve los bytes (para mostrarla) o null.
+  Future<Uint8List?> _tomarFoto() async {
+    final XFile? archivo;
+    try {
+      // tamaño moderado: se ve bien y sube rápido con datos móviles
+      archivo = await ImagePicker().pickImage(source: ImageSource.camera, maxWidth: 1280, maxHeight: 1280, imageQuality: 70);
+    } catch (_) {
+      _mensaje('No se pudo abrir la cámara. Revisa el permiso de cámara de la app.');
+      return null;
+    }
+    if (archivo == null) return null; // canceló
+    final bytes = await archivo.readAsBytes();
+    setState(() => _enviando = true);
+    try {
+      await RutasService.subirFoto(p.id, bytes);
+      return bytes;
+    } on ApiException catch (e) {
+      _mensaje('No se pudo subir la foto: ${e.mensaje}');
+      return null;
+    } finally {
+      if (mounted) setState(() => _enviando = false);
+    }
+  }
+
+  void _mensaje(String texto) {
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(texto)));
+  }
+
   Future<void> _completar() async {
+    // Los pedidos necesitan la foto del cliente con el producto; las acciones (Falabella, almacén...) no
+    Uint8List? foto;
+    if (!p.esAccion) {
+      foto = await _tomarFoto();
+      if (foto == null || !mounted) return;
+    }
     final confirmado = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('¿Marcar como ${p.verboCompletar.toLowerCase()}?'),
         content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          if (foto != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.memory(foto, height: 180, fit: BoxFit.cover)),
+            ),
           Text(p.titulo, style: const TextStyle(fontWeight: FontWeight.bold)),
           if (p.cobra) ...[
             const SizedBox(height: 12),
@@ -104,12 +146,25 @@ class _ParadaScreenState extends State<ParadaScreen> {
         children: [
           if (!p.pendiente)
             Card(
-              color: p.estado == 'completada' ? Colors.green.shade50 : Colors.orange.shade50,
-              child: ListTile(
-                leading: Icon(p.estado == 'completada' ? Icons.check_circle : Icons.report, color: coloresEstadoParada[p.estado]),
-                title: Text(p.estado == 'completada' ? p.verboCompletar : 'Incidencia'),
-                subtitle: p.nota != null ? Text(p.nota!) : null,
-              ),
+              color: switch (p.estado) { 'completada' => Colors.green.shade50, 'cancelada' => Colors.red.shade50, _ => Colors.orange.shade50 },
+              child: Column(children: [
+                ListTile(
+                  leading: Icon(
+                    switch (p.estado) { 'completada' => Icons.check_circle, 'cancelada' => Icons.cancel, _ => Icons.report },
+                    color: coloresEstadoParada[p.estado],
+                  ),
+                  title: Text(
+                    '${switch (p.estado) { 'completada' => p.verboCompletar, 'cancelada' => 'Cancelado por logística: no lo entregues', _ => 'Incidencia' }}'
+                    '${p.atendidaEn != null ? ' · ${hora(p.atendidaEn!)}' : ''}',
+                  ),
+                  subtitle: p.nota != null ? Text(p.nota!) : null,
+                ),
+                if (p.fotoUrl != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    child: ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network(urlArchivo(p.fotoUrl!), height: 200, fit: BoxFit.cover)),
+                  ),
+              ]),
             ),
           Text(p.titulo, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
           if (p.tipoPedido != null)
@@ -208,7 +263,7 @@ class _ParadaScreenState extends State<ParadaScreen> {
                     child: FilledButton.icon(
                       style: FilledButton.styleFrom(backgroundColor: const Color(0xFF2F855A)),
                       onPressed: _enviando ? null : _completar,
-                      icon: const Icon(Icons.check),
+                      icon: Icon(p.esAccion ? Icons.check : Icons.photo_camera),
                       label: Text(_enviando ? 'Enviando…' : p.verboCompletar),
                     ),
                   ),

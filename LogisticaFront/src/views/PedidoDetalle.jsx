@@ -135,6 +135,18 @@ export default function PedidoDetalle() {
             <dt>Ruta</dt><dd>{pedido.ruta_id && pedido.estado !== 'pendiente' && pedido.estado !== 'cancelado'
               ? <Link href={`/rutas/${pedido.ruta_id}`}>Ruta {pedido.ruta_numero} del {fechaCorta(pedido.ruta_fecha)} · {pedido.repartidor_nombre ?? 'sin conductor'} · parada {pedido.ruta_orden}</Link>
               : 'Sin ruta'}</dd>
+            {pedido.parada_atendida_en && pedido.parada_estado !== 'pendiente' && (
+              <>
+                <dt>{{ completada: 'Entregado', incidencia: 'Incidencia', cancelada: 'Retirado de la ruta' }[pedido.parada_estado] ?? 'Atendido'}</dt>
+                <dd>{fechaHora(pedido.parada_atendida_en)}{pedido.parada_nota ? ` — ${pedido.parada_nota}` : ''}</dd>
+              </>
+            )}
+            {pedido.entrega_foto_url && (
+              <>
+                <dt>Foto de entrega</dt>
+                <dd><a href={pedido.entrega_foto_url} target="_blank" rel="noreferrer"><img className="foto-entrega" src={pedido.entrega_foto_url} alt="Cliente con el producto entregado" /></a></dd>
+              </>
+            )}
           </dl>
           {pedido.categoria === 'encargo' ? (
             <>

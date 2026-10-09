@@ -272,3 +272,20 @@ CREATE TABLE IF NOT EXISTS dispositivos (
   usado_en   TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_dispositivos_usuario ON dispositivos(usuario_id);
+
+-- ============================================================
+-- Seguimiento en vivo: foto de entrega, paradas canceladas en ruta y camino restante
+-- ============================================================
+ALTER TABLE ruta_paradas ADD COLUMN IF NOT EXISTS foto_url TEXT;
+ALTER TABLE ruta_paradas DROP CONSTRAINT IF EXISTS ruta_paradas_estado_check;
+ALTER TABLE ruta_paradas ADD CONSTRAINT ruta_paradas_estado_check
+  CHECK (estado IN ('pendiente', 'completada', 'incidencia', 'cancelada'));
+
+ALTER TABLE rutas ADD COLUMN IF NOT EXISTS finalizada_en      TIMESTAMPTZ;
+ALTER TABLE rutas ADD COLUMN IF NOT EXISTS restante_polyline  TEXT;        -- conductor → pendientes → almacén
+ALTER TABLE rutas ADD COLUMN IF NOT EXISTS restante_tramo     TEXT;        -- conductor → próximo destino
+ALTER TABLE rutas ADD COLUMN IF NOT EXISTS restante_distancia INTEGER;
+ALTER TABLE rutas ADD COLUMN IF NOT EXISTS restante_duracion  INTEGER;
+ALTER TABLE rutas ADD COLUMN IF NOT EXISTS restante_destino   JSONB;
+ALTER TABLE rutas ADD COLUMN IF NOT EXISTS restante_clave     TEXT;        -- paradas pendientes usadas en el cálculo
+ALTER TABLE rutas ADD COLUMN IF NOT EXISTS restante_en        TIMESTAMPTZ;

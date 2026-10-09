@@ -27,6 +27,7 @@ export const ESTADOS_PARADA = {
   pendiente: { label: 'Pendiente', color: '#718096' },
   completada: { label: 'Completada', color: '#2f855a' },
   incidencia: { label: 'Incidencia', color: '#c05621' },
+  cancelada: { label: 'Cancelada', color: '#c53030' },
 };
 
 export const ROLES = {
@@ -76,6 +77,9 @@ export const duracion = (s) => {
 };
 
 /** "hace 3 min" */
+/** Hora y minuto en Lima, p. ej. "14:32". */
+export const hora = (iso) => (iso ? new Date(iso).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Lima' }) : '—');
+
 export const hace = (iso) => {
   if (!iso) return '';
   const seg = Math.max(0, Math.round((Date.now() - new Date(iso)) / 1000));

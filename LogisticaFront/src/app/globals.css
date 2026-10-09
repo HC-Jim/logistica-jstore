@@ -291,3 +291,15 @@ h3 small { display: block; font-weight: 400; }
 .campana-panel li.vacio { color: var(--suave); cursor: default; }
 .campana-panel .icono { font-size: 1.2rem; }
 @media (max-width: 900px) { .campana-panel { width: min(360px, 92vw); } }
+
+/* ---- Seguimiento de rutas ---- */
+.contadores { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 10px 0; }
+.contadores div { border: 1px solid var(--borde); border-radius: 8px; padding: 8px; text-align: center; }
+.contadores strong { display: block; font-size: 1.5rem; }
+.contadores small { color: var(--suave); }
+.contadores .ok strong { color: #2f855a; }
+.contadores .inc strong { color: #c05621; }
+.contadores .can strong { color: #c53030; }
+.ahora { background: #fffbea; border: 1px solid #f6e05e; border-radius: 8px; padding: 8px 10px; margin: 8px 0; }
+.lista-paradas li.actual { background: #fffbea; border-radius: 6px; }
+.foto-entrega { max-width: 220px; max-height: 220px; border-radius: 8px; border: 1px solid var(--borde); object-fit: cover; }

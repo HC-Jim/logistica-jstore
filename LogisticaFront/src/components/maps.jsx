@@ -67,7 +67,7 @@ export function Seguir({ punto }) {
 }
 
 /** Dibuja una polilínea codificada (formato de Google Routes API). */
-export function Polilinea({ codificada, color = '#2b6cb0' }) {
+export function Polilinea({ codificada, color = '#2b6cb0', opacidad = 0.85, grosor = 5, z = 1 }) {
   const map = useMap();
   const geometry = useMapsLibrary('geometry');
   useEffect(() => {
@@ -76,11 +76,12 @@ export function Polilinea({ codificada, color = '#2b6cb0' }) {
       path: geometry.encoding.decodePath(codificada),
       map,
       strokeColor: color,
-      strokeOpacity: 0.85,
-      strokeWeight: 5,
+      strokeOpacity: opacidad,
+      strokeWeight: grosor,
+      zIndex: z,
     });
     return () => linea.setMap(null);
-  }, [map, geometry, codificada, color]);
+  }, [map, geometry, codificada, color, opacidad, grosor, z]);
   return null;
 }
 

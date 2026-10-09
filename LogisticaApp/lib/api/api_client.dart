@@ -58,15 +58,17 @@ class ApiClient {
   Future<dynamic> get(String ruta, {Map<String, String>? query}) => _enviar('GET', ruta, query: query);
   Future<dynamic> post(String ruta, [Object? cuerpo]) => _enviar('POST', ruta, cuerpo: cuerpo);
   Future<dynamic> patch(String ruta, [Object? cuerpo]) => _enviar('PATCH', ruta, cuerpo: cuerpo);
+  /// Envía un archivo (p. ej. la foto de la entrega) como cuerpo de la petición.
+  Future<dynamic> subir(String ruta, List<int> bytes, String tipo) => _enviar('POST', ruta, bytes: bytes, tipo: tipo);
   Future<dynamic> delete(String ruta, [Object? cuerpo]) => _enviar('DELETE', ruta, cuerpo: cuerpo);
 
-  Future<dynamic> _enviar(String metodo, String ruta, {Map<String, String>? query, Object? cuerpo}) async {
+  Future<dynamic> _enviar(String metodo, String ruta, {Map<String, String>? query, Object? cuerpo, List<int>? bytes, String? tipo}) async {
     final uri = Uri.parse('$apiUrl$ruta').replace(queryParameters: query);
     final headers = {
-      'Content-Type': 'application/json',
+      'Content-Type': tipo ?? 'application/json',
       if (_token != null) 'Authorization': 'Bearer $_token',
     };
-    final body = cuerpo == null ? null : jsonEncode(cuerpo);
+    final Object? body = bytes ?? (cuerpo == null ? null : jsonEncode(cuerpo));
 
     http.Response res;
     try {
@@ -76,7 +78,7 @@ class ApiClient {
         'PATCH' => http.patch(uri, headers: headers, body: body),
         'DELETE' => http.delete(uri, headers: headers, body: body),
         _ => throw ArgumentError(metodo),
-      }.timeout(const Duration(seconds: 30));
+      }.timeout(Duration(seconds: bytes == null ? 30 : 90));
     } on TimeoutException {
       throw ApiException(0, 'El servidor tardó demasiado. Intenta de nuevo.');
     } catch (_) {

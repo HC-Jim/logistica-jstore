@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../api/api_client.dart';
 import '../models/modelos.dart';
 import '../services/gps_service.dart';
+import '../services/push_service.dart';
 import '../services/rutas_service.dart';
 import '../utils/formato.dart';
 import '../widgets/chat_view.dart';
@@ -30,12 +31,14 @@ class _RutaScreenState extends State<RutaScreen> {
   void initState() {
     super.initState();
     gps.addListener(_alCambiarGps);
+    push.llegadas.addListener(_cargar); // p. ej. logística canceló o agregó un pedido
     _cargar();
   }
 
   @override
   void dispose() {
     gps.removeListener(_alCambiarGps);
+    push.llegadas.removeListener(_cargar);
     super.dispose();
   }
 
@@ -45,6 +48,7 @@ class _RutaScreenState extends State<RutaScreen> {
     try {
       final d = await RutasService.misRutas(widget.fecha);
       final ruta = d.rutas.where((r) => r.id == widget.rutaId).firstOrNull;
+      if (!mounted) return;
       setState(() {
         _ruta = ruta;
         _error = ruta == null ? 'Esta ruta ya no está asignada a ti.' : null;
@@ -73,6 +77,27 @@ class _RutaScreenState extends State<RutaScreen> {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.mensaje)));
     } finally {
       if (mounted) setState(() => _iniciando = false);
+    }
+  }
+
+  Future<void> _finalizar() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('¿Llegaste al almacén?'),
+        content: const Text('La ruta se dará por terminada y dejarás de compartir tu ubicación.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Todavía no')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Sí, finalizar')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await RutasService.finalizar(widget.rutaId);
+      await _cargar(); // al quedar finalizada se apaga el GPS
+    } on ApiException catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.mensaje)));
     }
   }
 
@@ -108,13 +133,13 @@ class _RutaScreenState extends State<RutaScreen> {
             ? Center(child: _error != null ? Text(_error!, style: const TextStyle(color: Colors.red)) : const CircularProgressIndicator())
             : Column(
                 children: [
-                  _Encabezado(ruta: ruta, iniciando: _iniciando, onIniciar: _iniciar, onActivarGps: () => _activarGps(ruta.id)),
+                  _Encabezado(ruta: ruta, iniciando: _iniciando, onIniciar: _iniciar, onActivarGps: () => _activarGps(ruta.id), onFinalizar: _finalizar),
                   Expanded(
                     child: TabBarView(
                       physics: const NeverScrollableScrollPhysics(), // el mapa usa los gestos
                       children: [
                         RefreshIndicator(onRefresh: _cargar, child: _ListaParadas(ruta: ruta, onTap: _abrirParada)),
-                        MapaRuta(ruta: ruta, deposito: widget.deposito, onTapParada: _abrirParada),
+                        MapaRuta(ruta: ruta, deposito: widget.deposito, onTapParada: _abrirParada, onRecargar: _cargar),
                         ChatView(rutaId: ruta.id),
                       ],
                     ),
@@ -127,11 +152,12 @@ class _RutaScreenState extends State<RutaScreen> {
 }
 
 class _Encabezado extends StatelessWidget {
-  const _Encabezado({required this.ruta, required this.iniciando, required this.onIniciar, required this.onActivarGps});
+  const _Encabezado({required this.ruta, required this.iniciando, required this.onIniciar, required this.onActivarGps, required this.onFinalizar});
   final Ruta ruta;
   final bool iniciando;
   final VoidCallback onIniciar;
   final VoidCallback onActivarGps;
+  final VoidCallback onFinalizar;
 
   @override
   Widget build(BuildContext context) {
@@ -180,6 +206,15 @@ class _Encabezado extends StatelessWidget {
               ])
             else
               const Text('✔ Ruta finalizada', style: TextStyle(color: Colors.green, fontWeight: FontWeight.w600)),
+            if (ruta.estado == 'en_curso' && ruta.siguiente == null) ...[
+              const SizedBox(height: 6),
+              const Text('🏁 Todas las paradas atendidas: vuelve al almacén (la ruta se cierra sola al llegar).'),
+              const SizedBox(height: 6),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(onPressed: onFinalizar, icon: const Icon(Icons.warehouse), label: const Text('Llegué al almacén · Finalizar ruta')),
+              ),
+            ],
           ],
         ),
       ),
@@ -208,11 +243,12 @@ class _ListaParadas extends StatelessWidget {
           leading: CircleAvatar(
             backgroundColor: color,
             foregroundColor: Colors.white,
-            child: p.estado == 'completada'
-                ? const Icon(Icons.check)
-                : p.estado == 'incidencia'
-                    ? const Icon(Icons.priority_high)
-                    : Text('${i + 1}'),
+            child: switch (p.estado) {
+              'completada' => const Icon(Icons.check),
+              'incidencia' => const Icon(Icons.priority_high),
+              'cancelada' => const Icon(Icons.close),
+              _ => Text('${i + 1}'),
+            },
           ),
           title: Text(p.titulo, style: TextStyle(fontWeight: esSiguiente ? FontWeight.bold : FontWeight.w500)),
           subtitle: Column(
@@ -226,7 +262,13 @@ class _ListaParadas extends StatelessWidget {
               if (p.cobra && p.pendiente)
                 Text('💵 Cobrar ${soles(p.totalPedido)}${p.medioPago != null ? ' · ${p.medioPago}' : ''}',
                     style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w600)),
-              if (p.estado == 'incidencia' && p.nota != null) Text('Incidencia: ${p.nota}', style: const TextStyle(color: Colors.deepOrange)),
+              if (p.estado == 'completada' && p.atendidaEn != null)
+                Text('✔ ${p.verboCompletar} a las ${hora(p.atendidaEn!)}', style: const TextStyle(color: Color(0xFF2F855A))),
+              if (p.estado == 'incidencia')
+                Text('Incidencia${p.atendidaEn != null ? ' ${hora(p.atendidaEn!)}' : ''}: ${p.nota ?? ''}', style: const TextStyle(color: Colors.deepOrange)),
+              if (p.estado == 'cancelada')
+                Text('✖ No lo entregues — ${p.nota ?? 'retirado por logística'}',
+                    style: const TextStyle(color: Color(0xFFC53030), fontWeight: FontWeight.w600)),
             ],
           ),
           isThreeLine: true,

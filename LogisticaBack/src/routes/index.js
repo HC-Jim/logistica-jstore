@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import express, { Router } from 'express';
 import { PERMISOS as P } from '../config/permisos.js';
 import { AuthController } from '../controllers/auth.controller.js';
 import { CatalogoController } from '../controllers/catalogo.controller.js';
@@ -77,6 +77,7 @@ router.delete('/rutas/:id', rol(...P.gestionarRutas), RutaController.eliminar);
 router.put('/rutas/:id/paradas', rol(...P.gestionarRutas), RutaController.guardarParadas);
 router.post('/rutas/:id/trazar', rol(...P.gestionarRutas), RutaController.trazar);
 router.post('/rutas/:id/finalizar', rol(...P.gestionarRutas), RutaController.finalizar);
+router.post('/rutas/:id/reoptimizar', rol(...P.gestionarRutas), RutaController.reoptimizarWeb);
 router.patch('/rutas/:id/despacho', rol(...P.despacho), RutaController.despachar);
 router.get('/rutas/:id/historial', rol(...P.despacho), RutaController.historialCambios);
 router.get('/rutas/:id/mensajes', rol(...P.chatRuta), RutaController.mensajes);
@@ -94,6 +95,10 @@ router.get('/repartidor/rutas', rol(...P.appRepartidor), RutaController.misRutas
 router.post('/repartidor/rutas/:id/iniciar', rol(...P.appRepartidor), RutaController.iniciarRuta);
 router.patch('/repartidor/paradas/:id', rol(...P.appRepartidor), RutaController.atenderParada);
 router.post('/repartidor/rutas/:id/tramo', rol(...P.appRepartidor), RutaController.tramoActual);
+router.post('/repartidor/rutas/:id/reoptimizar', rol(...P.appRepartidor), RutaController.reoptimizarApp);
+router.post('/repartidor/rutas/:id/finalizar', rol(...P.appRepartidor), RutaController.finalizarApp);
+router.post('/repartidor/paradas/:id/foto', rol(...P.appRepartidor),
+  express.raw({ type: ['image/jpeg', 'image/png', 'image/webp'], limit: '4mb' }), RutaController.subirFoto);
 router.post('/repartidor/ubicacion', rol(...P.appRepartidor), RutaController.registrarPosicion);
 
 export default router;

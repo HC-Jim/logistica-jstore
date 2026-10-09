@@ -66,7 +66,7 @@ export const ESTADOS_RUTA = ['planificada', 'en_curso', 'finalizada'];
 export const RUTAS_POR_DEFECTO = 3;
 
 export const TIPOS_VEHICULO = ['auto', 'moto', 'bicicleta', 'furgoneta', 'otro'];
-export const ESTADOS_PARADA = ['pendiente', 'completada', 'incidencia'];
+export const ESTADOS_PARADA = ['pendiente', 'completada', 'incidencia', 'cancelada'];
 
 export const catalogos = {
   plataformas: PLATAFORMAS_VENTA,

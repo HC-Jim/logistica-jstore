@@ -18,7 +18,7 @@ const SELECT_RUTA = `
   SELECT r.*, rep.nombre AS repartidor_nombre, rep.telefono AS repartidor_telefono,
          asi.nombre AS asistente_nombre,
          v.nombre AS vehiculo_nombre, v.tipo AS vehiculo_tipo, v.placa AS vehiculo_placa,
-         c.total_paradas, c.paradas_atendidas, c.completadas, c.incidencias, c.pendientes, c.pedidos, c.despachados,
+         c.total_paradas, c.paradas_atendidas, c.completadas, c.incidencias, c.canceladas, c.pendientes, c.pedidos, c.despachados,
          (SELECT COUNT(*) FROM ruta_mensajes m WHERE m.ruta_id = r.id) AS mensajes
   FROM rutas r
   LEFT JOIN usuarios rep  ON rep.id = r.repartidor_id
@@ -29,6 +29,7 @@ const SELECT_RUTA = `
            COUNT(*) FILTER (WHERE x.estado <> 'pendiente') AS paradas_atendidas,
            COUNT(*) FILTER (WHERE x.estado = 'completada') AS completadas,
            COUNT(*) FILTER (WHERE x.estado = 'incidencia') AS incidencias,
+           COUNT(*) FILTER (WHERE x.estado = 'cancelada') AS canceladas,
            COUNT(*) FILTER (WHERE x.estado = 'pendiente') AS pendientes,
            COUNT(*) FILTER (WHERE x.pedido_id IS NOT NULL) AS pedidos,
            COUNT(*) FILTER (WHERE x.pedido_id IS NOT NULL AND x.despachado_en IS NOT NULL) AS despachados
@@ -38,7 +39,7 @@ const SELECT_RUTA = `
 /** Paradas de una o varias rutas, con los datos del pedido que necesitan el mapa y la app. */
 export async function paradasDe(rutaIds) {
   const { rows } = await query(
-    `SELECT rp.id, rp.ruta_id, rp.orden, rp.pedido_id, rp.estado, rp.nota, rp.completada_en,
+    `SELECT rp.id, rp.ruta_id, rp.orden, rp.pedido_id, rp.estado, rp.nota, rp.completada_en, rp.foto_url,
             rp.descripcion,
             COALESCE(rp.descripcion, p.cliente_nombre) AS titulo,
             COALESCE(p.direccion, rp.direccion) AS direccion,
@@ -202,7 +203,7 @@ export const RutaModel = {
       if (pendientes) {
         throw new HttpError(409, `Quedan ${pendientes} parada(s) pendientes: márcalas como entregadas, reprograma o cancela esos pedidos`);
       }
-      await client.query(`UPDATE rutas SET estado = 'finalizada', actualizado_en = now() WHERE id = $1`, [id]);
+      await client.query(`UPDATE rutas SET estado = 'finalizada', finalizada_en = now(), actualizado_en = now() WHERE id = $1`, [id]);
       await registrarRuta(client, id, usuario?.id, 'finalizada');
       return id;
     });
@@ -391,6 +392,9 @@ export const RutaModel = {
       }
       if (parada.estado_ruta === 'finalizada') throw new HttpError(409, 'La ruta ya está finalizada');
       if (estado === 'incidencia' && !nota) throw new HttpError(400, 'Describe la incidencia');
+      if (estado === 'completada' && parada.pedido_id && !parada.foto_url) {
+        throw new HttpError(400, 'Toma la foto del cliente con el producto antes de marcarlo');
+      }
 
       await client.query(
         'UPDATE ruta_paradas SET estado = $1, nota = $2, completada_en = now() WHERE id = $3',
@@ -407,15 +411,9 @@ export const RutaModel = {
         });
       }
 
-      // Inicia la ruta con la primera parada y la cierra con la última
-      const { rows: [{ pendientes }] } = await client.query(
-        `SELECT COUNT(*)::int AS pendientes FROM ruta_paradas WHERE ruta_id = $1 AND estado = 'pendiente'`,
-        [parada.ruta_id]
-      );
-      await client.query(
-        `UPDATE rutas SET estado = $1, actualizado_en = now() WHERE id = $2`,
-        [pendientes === 0 ? 'finalizada' : 'en_curso', parada.ruta_id]
-      );
+      // La primera parada atendida inicia la ruta. Termina al volver al almacén
+      // (lo detecta el GPS) o cuando el conductor o logística la finalizan.
+      await client.query(`UPDATE rutas SET estado = 'en_curso', actualizado_en = now() WHERE id = $1`, [parada.ruta_id]);
       return parada.ruta_id;
     });
   },
@@ -463,6 +461,23 @@ export const RutaModel = {
       [rutaId, usuario.id, texto]
     );
     return m.id;
+  },
+
+  /** Foto de la entrega (se puede volver a tomar mientras la parada esté pendiente). */
+  async guardarFotoParada(paradaId, usuario, guardar) {
+    const { rows: [parada] } = await query(
+      `SELECT rp.id, rp.ruta_id, rp.estado, r.repartidor_id, r.asistente_id, r.estado AS estado_ruta
+       FROM ruta_paradas rp JOIN rutas r ON r.id = rp.ruta_id WHERE rp.id = $1`,
+      [paradaId]
+    );
+    if (!parada) throw new HttpError(404, 'Parada no encontrada');
+    if (![parada.repartidor_id, parada.asistente_id].includes(usuario.id)) throw new HttpError(403, 'Esta parada no es de tu ruta');
+    if (parada.estado !== 'pendiente' || parada.estado_ruta === 'finalizada') {
+      throw new HttpError(409, 'La parada ya fue atendida');
+    }
+    const url = await guardar(`ruta${parada.ruta_id}-parada${paradaId}`);
+    await query('UPDATE ruta_paradas SET foto_url = $1 WHERE id = $2', [url, paradaId]);
+    return url;
   },
 
   async registrarPosicion({ usuario, lat, lng, precision, velocidad, rumbo, rutaId }) {

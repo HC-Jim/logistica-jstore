@@ -1,7 +1,9 @@
 import { ESTADOS_PARADA, ESTADOS_RUTA } from '../config/catalogos.js';
 import { PedidoModel } from '../models/pedido.model.js';
 import { paradasDe, RutaModel } from '../models/ruta.model.js';
-import { trazarRuta, trazarTramo } from '../services/rutas.service.js';
+import { trazarRuta } from '../services/rutas.service.js';
+import { guardarFoto } from '../services/fotos.service.js';
+import { actualizarRestante, reoptimizar, verificarLlegada } from '../services/seguimiento.service.js';
 import { leerCampos } from '../utils/campos.js';
 import { hoy } from '../utils/fecha.js';
 import { HttpError, idParam } from '../utils/http.js';
@@ -61,6 +63,19 @@ const CAMPOS_PARADA = {
   lat: { tipo: 'coord', max: 90 },
   lng: { tipo: 'coord', max: 180 },
 };
+
+const leerPosicion = (body) => leerCampos(
+  body,
+  { lat: { tipo: 'coord', max: 90, requerido: true }, lng: { tipo: 'coord', max: 180, requerido: true } },
+  { requeridos: true }
+);
+
+/** Ruta de la que el usuario es conductor o auxiliar. */
+async function rutaDelEquipo(idTexto, usuario) {
+  const ruta = await RutaModel.obtener(idParam(idTexto));
+  if (!ruta || ![ruta.repartidor_id, ruta.asistente_id].includes(usuario.id)) throw new HttpError(404, 'Ruta no encontrada');
+  return ruta;
+}
 
 const fechaQuery = (q) => leerCampos({ fecha: q.fecha || hoy() }, { fecha: { tipo: 'fecha' } }).fecha;
 
@@ -281,29 +296,55 @@ export const RutaController = {
   },
 
   /**
-   * Camino desde la posición actual del conductor hasta la próxima parada pendiente;
-   * si ya no quedan paradas pendientes, hasta el almacén.
+   * Camino que le queda al conductor desde su posición: tramo hasta la próxima parada pendiente
+   * (o el almacén) y el resto de la ruta. Se recalcula solo si hace falta.
    */
   async tramoActual(req, res) {
-    const { lat, lng } = leerCampos(
-      req.body,
-      { lat: { tipo: 'coord', max: 90, requerido: true }, lng: { tipo: 'coord', max: 180, requerido: true } },
-      { requeridos: true }
-    );
-    const ruta = await RutaModel.obtener(idParam(req.params.id));
-    if (!ruta || ![ruta.repartidor_id, ruta.asistente_id].includes(req.user.id)) {
-      throw new HttpError(404, 'Ruta no encontrada');
-    }
-    const pendientes = ruta.paradas.filter((p) => p.estado === 'pendiente');
-    const proxima = pendientes.find((p) => p.lat != null && p.lng != null);
-    if (pendientes.length && !proxima) {
-      throw new HttpError(422, 'Las paradas pendientes no tienen ubicación en el mapa');
-    }
-    const destino = proxima
-      ? { tipo: 'parada', parada_id: proxima.id, titulo: proxima.titulo, lat: Number(proxima.lat), lng: Number(proxima.lng) }
-      : { tipo: 'almacen', parada_id: null, titulo: env.deposito.nombre, lat: env.deposito.lat, lng: env.deposito.lng };
-    const t = await trazarTramo({ lat, lng }, destino);
-    res.json({ destino, distancia_metros: t.distanciaMetros, duracion_segundos: t.duracionSegundos, polyline: t.polyline });
+    const pos = leerPosicion(req.body);
+    const ruta = await rutaDelEquipo(req.params.id, req.user);
+    if (ruta.estado !== 'en_curso') throw new HttpError(409, 'La ruta no está en curso');
+    const r = await actualizarRestante(ruta.id, pos);
+    if (!r) throw new HttpError(409, 'La ruta no está en curso');
+    res.json(r);
+  },
+
+  /** El conductor reordena sus paradas pendientes por el camino más corto desde donde está. */
+  async reoptimizarApp(req, res) {
+    const pos = leerPosicion(req.body);
+    const ruta = await rutaDelEquipo(req.params.id, req.user);
+    res.json(await reoptimizar(ruta.id, pos, req.user));
+  },
+
+  /** Logística reordena las pendientes desde la última posición del conductor (o el almacén). */
+  async reoptimizarWeb(req, res) {
+    const id = idParam(req.params.id);
+    const ruta = await RutaModel.obtener(id);
+    if (!ruta) throw new HttpError(404, 'Ruta no encontrada');
+    const [ultima] = (await RutaModel.ultimasPosiciones([ruta.repartidor_id, ruta.asistente_id].filter(Boolean)))
+      .sort((x, y) => new Date(y.registrado_en) - new Date(x.registrado_en));
+    const pos = ultima ? { lat: Number(ultima.lat), lng: Number(ultima.lng) } : env.deposito;
+    const r = await reoptimizar(id, pos, req.user);
+    await notificar([ruta.repartidor_id, ruta.asistente_id], {
+      tipo: 'ruta_modificada',
+      titulo: `Ruta ${ruta.numero}: logística reordenó tus paradas`,
+      cuerpo: r?.destino?.titulo ? `Próxima: ${r.destino.titulo}` : null,
+      datos: datosRuta(ruta),
+    }, { excepto: req.user.id });
+    res.json(r);
+  },
+
+  /** Foto del cliente con el producto (obligatoria para marcar la entrega). Cuerpo: la imagen. */
+  async subirFoto(req, res) {
+    const tipo = (req.headers['content-type'] ?? '').split(';')[0].trim();
+    const url = await RutaModel.guardarFotoParada(idParam(req.params.id), req.user, (nombre) => guardarFoto(req.body, tipo, nombre));
+    res.json({ foto_url: url });
+  },
+
+  /** El conductor da por terminada la ruta (volvió al almacén). */
+  async finalizarApp(req, res) {
+    const ruta = await rutaDelEquipo(req.params.id, req.user);
+    await RutaModel.finalizar(ruta.id, req.user);
+    res.json(await RutaModel.obtener(ruta.id));
   },
 
   async registrarPosicion(req, res) {
@@ -326,6 +367,15 @@ export const RutaController = {
       rutaId = (rutas.find((r) => r.estado === 'en_curso') ?? rutas.find((r) => r.estado === 'planificada'))?.id;
     }
     await RutaModel.registrarPosicion({ usuario: req.user, ...d, rutaId });
+    if (rutaId) {
+      // seguimiento: llegada al almacén y camino restante (si falla, la posición igual quedó guardada)
+      try {
+        const pos = { lat: d.lat, lng: d.lng };
+        if (!(await verificarLlegada(rutaId, pos, req.user))) await actualizarRestante(rutaId, pos);
+      } catch (err) {
+        console.error('Seguimiento de ruta:', err.message);
+      }
+    }
     res.status(204).end();
   },
 };

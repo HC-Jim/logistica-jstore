@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -11,20 +9,21 @@ import '../services/gps_service.dart';
 import '../services/rutas_service.dart';
 import '../utils/formato.dart';
 
-/// Si el conductor se aleja más que esto del camino sugerido, se vuelve a calcular.
-const _desvioMetros = 250.0;
-
-/// Mínimo entre recálculos por desvío (cada cálculo es una consulta a Google).
-const _esperaRecalculo = Duration(seconds: 60);
+/// Cada cuánto se pide el camino restante mientras se avanza. El servidor solo consulta a Google
+/// si cambió el destino o el conductor se desvió; si no, devuelve el último cálculo.
+const _refresco = Duration(seconds: 20);
 
 /// Mapa de la ruta con OpenStreetMap (no requiere clave de Google).
 /// Con la ruta en curso y el GPS activo muestra el camino desde el conductor hasta su
-/// próxima parada; cuando ya no quedan paradas pendientes, el regreso al almacén.
+/// próxima parada (resaltado), lo que le falta hasta el almacén y, sin pendientes, el regreso.
 class MapaRuta extends StatefulWidget {
-  const MapaRuta({super.key, required this.ruta, required this.deposito, required this.onTapParada});
+  const MapaRuta({super.key, required this.ruta, required this.deposito, required this.onTapParada, required this.onRecargar});
   final Ruta ruta;
   final Deposito deposito;
   final void Function(Parada) onTapParada;
+
+  /// Vuelve a cargar la ruta (p. ej. logística canceló un pedido o la ruta terminó).
+  final Future<void> Function() onRecargar;
 
   @override
   State<MapaRuta> createState() => _MapaRutaState();
@@ -79,11 +78,9 @@ class _MapaRutaState extends State<MapaRuta> {
     setState(() {}); // mover el marcador del conductor
     if (_pidiendo) return;
     final clave = _claveDestino;
-    final esperaCumplida = _pedidoEn == null || DateTime.now().difference(_pedidoEn!) > _esperaRecalculo;
-    final cambioDestino = clave != _claveTramo;
-    final desviado = _tramo != null && _distanciaAlCamino(_yo!, _tramo!.puntos) > _desvioMetros;
-    // tras un error se espera antes de reintentar, para no insistir sin parar
-    if ((cambioDestino && (_error == null || esperaCumplida)) || (desviado && esperaCumplida)) _pedirTramo(clave);
+    final toca = _pedidoEn == null || DateTime.now().difference(_pedidoEn!) > _refresco;
+    // tras un error se espera el refresco antes de reintentar
+    if ((clave != _claveTramo && _error == null) || toca) _pedirTramo(clave);
   }
 
   Future<void> _pedirTramo(String clave) async {
@@ -93,17 +90,52 @@ class _MapaRutaState extends State<MapaRuta> {
     try {
       final t = await RutasService.tramo(ruta.id, yo.latitude, yo.longitude);
       if (!mounted) return;
-      final primero = _tramo == null || clave != _claveTramo;
+      final nuevoDestino = _tramo == null || t.paradaId != _tramo!.paradaId || t.haciaAlmacen != _tramo!.haciaAlmacen;
       setState(() {
         _tramo = t;
         _claveTramo = clave;
         _error = null;
       });
-      if (primero) _encuadrar([yo, t.destino, ...t.puntos]);
+      if (nuevoDestino) _encuadrar([yo, t.destino, ...t.puntos]);
+      // el servidor ya no considera la parada que la app cree siguiente (p. ej. logística la canceló)
+      final local = clave == 'almacen' ? null : int.tryParse(clave.substring(7));
+      if (t.paradaId != local) widget.onRecargar();
     } on ApiException catch (e) {
-      if (mounted) setState(() => _error = e.mensaje);
+      if (!mounted) return;
+      setState(() => _error = e.mensaje);
+      if (e.status == 409) widget.onRecargar(); // la ruta terminó
     } finally {
       _pidiendo = false;
+    }
+  }
+
+  Future<void> _reordenar() async {
+    final yo = _yo;
+    if (yo == null) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('¿Reordenar paradas pendientes?'),
+        content: const Text('Se ordenan por el camino más corto desde donde estás. Logística verá el nuevo orden.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Reordenar')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      final t = await RutasService.reoptimizar(ruta.id, yo.latitude, yo.longitude);
+      if (!mounted) return;
+      setState(() {
+        _tramo = t;
+        _claveTramo = null; // se actualiza con la ruta recargada
+        _pedidoEn = DateTime.now();
+      });
+      _encuadrar([yo, t.destino, ...t.puntos]);
+      await widget.onRecargar();
+    } on ApiException catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.mensaje)));
     }
   }
 
@@ -151,8 +183,11 @@ class _MapaRutaState extends State<MapaRuta> {
               Polyline(
                 points: trazado,
                 strokeWidth: tramo == null ? 5 : 3,
-                color: tramo == null ? const Color(0xCC2B6CB0) : const Color(0x662B6CB0),
+                color: tramo == null ? const Color(0xCC2B6CB0) : const Color(0x332B6CB0),
               ),
+            // lo que falta después del próximo destino
+            if (tramo != null && tramo.restantePuntos.isNotEmpty)
+              Polyline(points: tramo.restantePuntos, strokeWidth: 4, color: const Color(0x992B6CB0)),
             if (tramo != null && tramo.puntos.isNotEmpty)
               Polyline(points: tramo.puntos, strokeWidth: 7, color: const Color(0xFF2B6CB0), borderStrokeWidth: 2, borderColor: Colors.white),
           ]),
@@ -207,6 +242,15 @@ class _MapaRutaState extends State<MapaRuta> {
           right: 12,
           bottom: 36,
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: [
+            if (ruta.paradas.where((p) => p.pendiente && p.punto != null).length > 1) ...[
+              FloatingActionButton.small(
+                heroTag: 'reordenar',
+                tooltip: 'Reordenar paradas pendientes',
+                onPressed: _reordenar,
+                child: const Icon(Icons.alt_route),
+              ),
+              const SizedBox(height: 8),
+            ],
             FloatingActionButton.small(
               heroTag: 'centrar',
               tooltip: 'Ver mi tramo',
@@ -238,7 +282,9 @@ class _MapaRutaState extends State<MapaRuta> {
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(fontWeight: FontWeight.w600),
           ),
-          subtitle: Text('${km(tramo.distanciaMetros)} · ${duracion(tramo.duracionSegundos)} aprox.'),
+          subtitle: Text('${km(tramo.distanciaMetros)} · ${duracion(tramo.duracionSegundos)} aprox.'
+              '${tramo.haciaAlmacen ? '' : '\nTe falta: ${km(tramo.restanteMetros)} · ${duracion(tramo.restanteSegundos)} hasta volver al almacén'}'),
+          isThreeLine: !tramo.haciaAlmacen,
         ),
       );
     }
@@ -258,24 +304,4 @@ class _MapaRutaState extends State<MapaRuta> {
       ),
     );
   }
-}
-
-/// Distancia (m) del punto al camino; aproximación plana, suficiente para pocos km.
-double _distanciaAlCamino(LatLng p, List<LatLng> camino) {
-  if (camino.isEmpty) return double.infinity;
-  if (camino.length == 1) return const Distance().as(LengthUnit.Meter, p, camino.first);
-  final cosLat = math.cos(p.latitude * math.pi / 180);
-  const mPorGrado = 111320.0;
-  double x(LatLng q) => (q.longitude - p.longitude) * mPorGrado * cosLat;
-  double y(LatLng q) => (q.latitude - p.latitude) * mPorGrado;
-  var minimo = double.infinity;
-  for (var i = 0; i < camino.length - 1; i++) {
-    final ax = x(camino[i]), ay = y(camino[i]), bx = x(camino[i + 1]), by = y(camino[i + 1]);
-    final dx = bx - ax, dy = by - ay;
-    final largo2 = dx * dx + dy * dy;
-    final t = largo2 == 0 ? 0.0 : (-(ax * dx + ay * dy) / largo2).clamp(0.0, 1.0);
-    final cx = ax + t * dx, cy = ay + t * dy;
-    minimo = math.min(minimo, math.sqrt(cx * cx + cy * cy));
-  }
-  return minimo;
 }

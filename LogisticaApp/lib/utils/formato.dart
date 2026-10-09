@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../config.dart';
+
 final _soles = NumberFormat.currency(locale: 'es_PE', symbol: 'S/ ', decimalDigits: 2);
 String soles(num v) => _soles.format(v);
 
@@ -36,6 +38,7 @@ const coloresEstadoParada = {
   'pendiente': Color(0xFF2B6CB0),
   'completada': Color(0xFF2F855A),
   'incidencia': Color(0xFFC05621),
+  'cancelada': Color(0xFFC53030),
 };
 
 const etiquetasEstadoRuta = {
@@ -74,3 +77,6 @@ List<LatLng> decodificarPolyline(String codificada) {
   }
   return puntos;
 }
+
+/// URL completa de un archivo de la API (las fotos en desarrollo vienen como "/api/uploads/...").
+String urlArchivo(String url) => url.startsWith('http') ? url : Uri.parse(apiUrl).resolve(url).toString();

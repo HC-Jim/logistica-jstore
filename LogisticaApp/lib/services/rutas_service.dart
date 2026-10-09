@@ -21,6 +21,17 @@ class RutasService {
   static Future<Tramo> tramo(int rutaId, double lat, double lng) async =>
       Tramo.desdeJson(await api.post('/repartidor/rutas/$rutaId/tramo', {'lat': lat, 'lng': lng}) as Map<String, dynamic>);
 
+  /// Reordena las paradas pendientes por el camino más corto desde donde está el conductor.
+  static Future<Tramo> reoptimizar(int rutaId, double lat, double lng) async =>
+      Tramo.desdeJson(await api.post('/repartidor/rutas/$rutaId/reoptimizar', {'lat': lat, 'lng': lng}) as Map<String, dynamic>);
+
+  /// Termina la ruta (el conductor volvió al almacén).
+  static Future<void> finalizar(int rutaId) => api.post('/repartidor/rutas/$rutaId/finalizar');
+
+  /// Sube la foto de la entrega (JPG). Devuelve su URL.
+  static Future<String> subirFoto(int paradaId, List<int> jpg) async =>
+      '${((await api.subir('/repartidor/paradas/$paradaId/foto', jpg, 'image/jpeg')) as Map)['foto_url']}';
+
   static Future<void> iniciar(int rutaId) => api.post('/repartidor/rutas/$rutaId/iniciar');
 
   /// estado: 'completada' | 'incidencia'
