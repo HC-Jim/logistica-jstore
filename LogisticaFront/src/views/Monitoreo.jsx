@@ -8,7 +8,7 @@ import { mensajeError } from '../api/client';
 import { rutasApi } from '../api/services';
 import ChatRuta from '../components/ChatRuta';
 import EstadoBadge from '../components/EstadoBadge';
-import { AjustarVista, LineaPuntos, Mapa, MarcadorNumero, Polilinea } from '../components/maps';
+import { AjustarVista, LineaPuntos, Mapa, MarcadorNumero, Polilinea, Seguir } from '../components/maps';
 import { duracion, ESTADOS_PARADA, ESTADOS_RUTA, fechaHora, hace, hoyISO, km, soles, VEHICULOS } from '../utils/format';
 
 const COLORES = ['#2b6cb0', '#d53f8c', '#2f855a', '#dd6b20', '#6b46c1', '#00838f', '#b7791f', '#c53030'];
@@ -37,6 +37,7 @@ export default function Monitoreo() {
   const [datos, setDatos] = useState(null);
   const [recorrido, setRecorrido] = useState([]);
   const [verRecorrido, setVerRecorrido] = useState(false);
+  const [seguir, setSeguir] = useState(false);
   const [verSinRuta, setVerSinRuta] = useState(true);
   const [enVivo, setEnVivo] = useState(true);
   const [error, setError] = useState('');
@@ -104,7 +105,9 @@ export default function Monitoreo() {
       <div className="grid-ruta">
         <section className="tarjeta">
           <Mapa alto={620}>
-            <AjustarVista puntos={puntos} />
+            {/* encuadra al abrir o cambiar de ruta/fecha; el GPS que llega cada 15 s no mueve la vista */}
+            {!seguir && <AjustarVista puntos={puntos} clave={`${fecha}-${seleccion}-${puntos.length > 1}`} />}
+            {seguir && ruta?.posicion && <Seguir punto={{ lat: ruta.posicion.lat, lng: ruta.posicion.lng }} />}
             <MarcadorNumero position={datos.deposito} texto="A" color="#1a202c" title={datos.deposito.nombre} />
             {visibles.map((r) => (
               <Fragment key={r.id}>
@@ -130,6 +133,7 @@ export default function Monitoreo() {
             <span>🚚 Posición del conductor</span>
             {!ruta && <label className="check"><input type="checkbox" checked={verSinRuta} onChange={(e) => setVerSinRuta(e.target.checked)} /> Mostrar sin rutear</label>}
             {ruta && <label className="check"><input type="checkbox" checked={verRecorrido} onChange={(e) => setVerRecorrido(e.target.checked)} /> Recorrido GPS real</label>}
+            {ruta?.posicion && <label className="check"><input type="checkbox" checked={seguir} onChange={(e) => setSeguir(e.target.checked)} /> Seguir al conductor</label>}
           </div>
         </section>
 

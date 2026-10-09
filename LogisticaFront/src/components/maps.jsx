@@ -37,9 +37,10 @@ export function MarcadorNumero({ position, texto, color = '#2b6cb0', title, onCl
 }
 
 /** Ajusta el zoom del mapa para que se vean todos los puntos. */
-export function AjustarVista({ puntos }) {
+export function AjustarVista({ puntos, clave: claveExterna }) {
   const map = useMap();
-  const clave = JSON.stringify(puntos);
+  // con `clave` solo se reajusta cuando ella cambia (p. ej. al elegir otra ruta), no en cada actualización
+  const clave = claveExterna ?? JSON.stringify(puntos);
   useEffect(() => {
     if (!map || !puntos.length || !window.google) return;
     if (puntos.length === 1) {
@@ -52,6 +53,16 @@ export function AjustarVista({ puntos }) {
     map.fitBounds(bounds, 60);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, clave]);
+  return null;
+}
+
+/** Mantiene el mapa centrado en un punto que se mueve (p. ej. el conductor). */
+export function Seguir({ punto }) {
+  const map = useMap();
+  const clave = punto ? `${punto.lat},${punto.lng}` : '';
+  useEffect(() => {
+    if (map && punto) map.panTo(punto);
+  }, [map, clave]); // eslint-disable-line react-hooks/exhaustive-deps
   return null;
 }
 
