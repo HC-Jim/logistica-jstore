@@ -6,7 +6,7 @@ const String apiUrl = String.fromEnvironment(
 );
 
 /// Cada cuánto se envía la ubicación GPS mientras la ruta está en curso.
-const Duration intervaloGps = Duration(seconds: 30);
+const Duration intervaloGps = Duration(seconds: 10);
 
 /// Cada cuánto se consultan mensajes nuevos del chat.
 const Duration intervaloChat = Duration(seconds: 5);

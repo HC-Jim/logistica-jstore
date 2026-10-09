@@ -471,5 +471,9 @@ export const RutaModel = {
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
       [usuario.id, rutaId ?? null, lat, lng, precision ?? null, velocidad ?? null, rumbo ?? null]
     );
+    // De vez en cuando se borran las posiciones viejas para que la tabla no crezca sin límite
+    if (Math.random() < 0.01) {
+      await query(`DELETE FROM posiciones WHERE registrado_en < now() - interval '30 days'`);
+    }
   },
 };

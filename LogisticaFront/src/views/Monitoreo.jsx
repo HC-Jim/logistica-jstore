@@ -12,7 +12,7 @@ import { AjustarVista, LineaPuntos, Mapa, MarcadorNumero, Polilinea, Seguir } fr
 import { duracion, ESTADOS_PARADA, ESTADOS_RUTA, fechaHora, hace, hoyISO, km, soles, VEHICULOS } from '../utils/format';
 
 const COLORES = ['#2b6cb0', '#d53f8c', '#2f855a', '#dd6b20', '#6b46c1', '#00838f', '#b7791f', '#c53030'];
-const REFRESCO_SEG = 15;
+const REFRESCO_SEG = 10;
 
 const colorParada = (p, colorRuta) =>
   p.estado === 'pendiente' ? colorRuta : ESTADOS_PARADA[p.estado].color;

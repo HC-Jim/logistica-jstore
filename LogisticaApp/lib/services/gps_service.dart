@@ -110,7 +110,7 @@ class GpsService extends ChangeNotifier {
   Future<void> _enviar() async {
     final p = _ultima;
     if (p == null || rutaId == null) return;
-    // no más de un envío cada ~25 s
+    // no más de un envío cada ~5 s (por si el GPS y el latido coinciden)
     if (_ultimoEnvio != null && DateTime.now().difference(_ultimoEnvio!) < intervaloGps - const Duration(seconds: 5)) return;
     try {
       await api.post('/repartidor/ubicacion', {
