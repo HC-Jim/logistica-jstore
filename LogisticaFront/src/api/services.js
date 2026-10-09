@@ -59,6 +59,13 @@ export const rutasApi = {
   monitoreo: (fecha) => data(api.get('/monitoreo', { params: { fecha } })),
 };
 
+export const notificacionesApi = {
+  listar: () => data(api.get('/notificaciones')),
+  contador: () => data(api.get('/notificaciones/contador')),
+  leer: (ids) => data(api.post('/notificaciones/leer', { ids })),
+  leerTodas: () => data(api.post('/notificaciones/leer', { todas: true })),
+};
+
 export const ubicacionesApi = {
   listar: (params) => data(api.get('/ubicaciones', { params })),
   crear: (body) => data(api.post('/ubicaciones', body)),

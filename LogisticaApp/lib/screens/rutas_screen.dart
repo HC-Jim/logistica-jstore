@@ -6,7 +6,9 @@ import '../models/modelos.dart';
 import '../services/gps_service.dart';
 import '../services/rutas_service.dart';
 import '../utils/formato.dart';
+import '../services/notificaciones_service.dart';
 import 'login_screen.dart';
+import 'notificaciones_screen.dart';
 import 'ruta_screen.dart';
 
 /// Rutas del día asignadas al conductor o auxiliar.
@@ -22,6 +24,7 @@ class _RutasScreenState extends State<RutasScreen> {
   RutasDelDia? _datos;
   String? _error;
   bool _cargando = true;
+  int _noLeidas = 0;
 
   @override
   void initState() {
@@ -37,11 +40,26 @@ class _RutasScreenState extends State<RutasScreen> {
         _datos = d;
         _error = null;
       });
+      _contarAvisos();
     } on ApiException catch (e) {
       setState(() => _error = e.mensaje);
     } finally {
       if (mounted) setState(() => _cargando = false);
     }
+  }
+
+  Future<void> _contarAvisos() async {
+    try {
+      final n = await NotificacionesService.contador();
+      if (mounted) setState(() => _noLeidas = n);
+    } on ApiException {
+      // el contador no es crítico
+    }
+  }
+
+  Future<void> _abrirAvisos() async {
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotificacionesScreen()));
+    _cargar();
   }
 
   void _moverDia(int dias) {
@@ -65,6 +83,15 @@ class _RutasScreenState extends State<RutasScreen> {
       appBar: AppBar(
         title: const Text('Mis rutas'),
         actions: [
+          IconButton(
+            tooltip: 'Notificaciones',
+            onPressed: _abrirAvisos,
+            icon: Badge(
+              isLabelVisible: _noLeidas > 0,
+              label: Text(_noLeidas > 99 ? '99+' : '$_noLeidas'),
+              child: const Icon(Icons.notifications_outlined),
+            ),
+          ),
           IconButton(icon: const Icon(Icons.refresh), onPressed: _cargar, tooltip: 'Actualizar'),
           PopupMenuButton<String>(
             onSelected: (_) => _salir(),

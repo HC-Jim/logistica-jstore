@@ -245,3 +245,30 @@ CREATE TABLE IF NOT EXISTS ruta_historial (
   creado_en  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_ruta_historial ON ruta_historial(ruta_id, id);
+
+-- ============================================================
+-- Notificaciones (bandeja en web y app) y dispositivos para push (FCM)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS notificaciones (
+  id         BIGSERIAL PRIMARY KEY,
+  usuario_id INTEGER      NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+  tipo       VARCHAR(30)  NOT NULL,
+  titulo     VARCHAR(120) NOT NULL,
+  cuerpo     VARCHAR(500),
+  url        VARCHAR(255),           -- a dónde lleva en la web (p. ej. /rutas/12)
+  datos      JSONB,                  -- ruta_id, pedido_id, fecha… (la app los usa para abrir la pantalla)
+  leida      BOOLEAN      NOT NULL DEFAULT false,
+  creado_en  TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_notificaciones_usuario ON notificaciones(usuario_id, id DESC);
+CREATE INDEX IF NOT EXISTS idx_notificaciones_no_leidas ON notificaciones(usuario_id) WHERE NOT leida;
+
+CREATE TABLE IF NOT EXISTS dispositivos (
+  id         SERIAL PRIMARY KEY,
+  usuario_id INTEGER      NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+  token      TEXT         NOT NULL UNIQUE,   -- token de Firebase Cloud Messaging
+  plataforma VARCHAR(10)  NOT NULL DEFAULT 'android',
+  creado_en  TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  usado_en   TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_dispositivos_usuario ON dispositivos(usuario_id);

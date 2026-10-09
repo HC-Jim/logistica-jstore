@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { CatalogosProvider } from '../context/CatalogosContext';
+import Campana from './Campana';
 import { ROLES } from '../utils/format';
 
 // Menú y páginas permitidas por rol (el backend aplica los mismos permisos)
@@ -60,6 +61,7 @@ export default function Layout({ children }) {
       <div className="layout">
         <aside className="sidebar">
           <h1 className="logo">Logística<span>JStore</span></h1>
+          <Campana />
           <nav>
             {links.map((l) => (
               <Link key={l.href} href={l.href} className={activo(pathname, l.href) ? 'active' : ''}>{l.label}</Link>

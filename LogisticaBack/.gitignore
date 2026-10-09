@@ -4,3 +4,4 @@ node_modules/
 !.env.example
 credenciales*
 usuarios-por-defecto.sql
+firebase-service-account.json

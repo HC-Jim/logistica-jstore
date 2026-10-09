@@ -11,10 +11,11 @@ import 'parada_screen.dart';
 
 /// Una ruta: paradas, mapa y chat con logística.
 class RutaScreen extends StatefulWidget {
-  const RutaScreen({super.key, required this.rutaId, required this.fecha, required this.deposito});
+  const RutaScreen({super.key, required this.rutaId, required this.fecha, required this.deposito, this.pestana = 0});
   final int rutaId;
   final String fecha;
   final Deposito deposito;
+  final int pestana; // 0 paradas, 1 mapa, 2 chat
 
   @override
   State<RutaScreen> createState() => _RutaScreenState();
@@ -87,6 +88,7 @@ class _RutaScreenState extends State<RutaScreen> {
     final ruta = _ruta;
     return DefaultTabController(
       length: 3,
+      initialIndex: widget.pestana,
       child: Scaffold(
         appBar: AppBar(
           title: Text(ruta == null ? 'Ruta' : 'Ruta ${ruta.numero}'),

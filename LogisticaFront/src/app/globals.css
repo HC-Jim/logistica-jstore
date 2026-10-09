@@ -275,3 +275,19 @@ h3 small { display: block; font-weight: 400; }
 .etiqueta { font-weight: 600; margin-right: 6px; }
 .marca-tipo { font-weight: 700; }
 .accion-libre select { width: 100%; }
+
+/* ---- Campana de notificaciones ---- */
+.campana { position: relative; }
+.campana-boton { width: 100%; text-align: left; background: #2d3748; color: #fff; display: flex; align-items: center; gap: 6px; }
+.campana-boton .contador { margin-left: auto; background: #e53e3e; color: #fff; border-radius: 999px; padding: 0 8px; font-size: 0.8rem; font-weight: 700; }
+.campana-panel {
+  position: absolute; left: 0; top: calc(100% + 6px); z-index: 50; width: 360px; max-height: 70vh; overflow-y: auto;
+  background: #fff; color: var(--texto); border: 1px solid var(--borde); border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.25); padding: 12px;
+}
+.campana-panel ul { list-style: none; padding: 0; margin: 8px 0 0; }
+.campana-panel li { display: flex; gap: 10px; padding: 8px; border-radius: 6px; cursor: pointer; }
+.campana-panel li:hover { background: #f7fafc; }
+.campana-panel li.no-leida { background: #ebf8ff; }
+.campana-panel li.vacio { color: var(--suave); cursor: default; }
+.campana-panel .icono { font-size: 1.2rem; }
+@media (max-width: 900px) { .campana-panel { width: min(360px, 92vw); } }

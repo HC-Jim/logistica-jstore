@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { ROLES } from '../config/catalogos.js';
 import { env } from '../config/env.js';
 import { UsuarioModel } from '../models/usuario.model.js';
+import { notificar, usuariosConRol } from '../services/notificaciones.service.js';
 import { leerCampos } from '../utils/campos.js';
 import { HttpError, idParam, requerir } from '../utils/http.js';
 
@@ -58,6 +59,12 @@ export const AuthController = {
     const email = d.email.toLowerCase();
     if (await UsuarioModel.buscarPorEmail(email)) throw new HttpError(409, 'Ya existe una cuenta con ese correo');
     await UsuarioModel.crear({ ...d, email, passwordHash: await hashPassword(d.password), pendiente: true });
+    await notificar(await usuariosConRol(['admin']), {
+      tipo: 'cuenta_pendiente',
+      titulo: 'Nueva solicitud de cuenta',
+      cuerpo: `${d.nombre} (${email}) pide perfil ${d.rol}`,
+      url: '/usuarios',
+    });
     res.status(201).json({ mensaje: 'Cuenta creada. Un administrador debe aprobarla antes de que puedas ingresar.' });
   },
 

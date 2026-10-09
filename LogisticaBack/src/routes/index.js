@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { PERMISOS as P } from '../config/permisos.js';
 import { AuthController } from '../controllers/auth.controller.js';
 import { CatalogoController } from '../controllers/catalogo.controller.js';
+import { NotificacionController } from '../controllers/notificacion.controller.js';
 import { PedidoController } from '../controllers/pedido.controller.js';
 import { ProductoController } from '../controllers/producto.controller.js';
 import { RutaController } from '../controllers/ruta.controller.js';
@@ -18,6 +19,13 @@ router.post('/auth/registro', AuthController.registro);
 router.use(requireAuth); // todo lo de abajo requiere sesión
 
 router.get('/auth/perfil', AuthController.perfil);
+
+// --- Notificaciones (cualquier usuario con sesión: solo las suyas) ---
+router.get('/notificaciones', NotificacionController.listar);
+router.get('/notificaciones/contador', NotificacionController.contador);
+router.post('/notificaciones/leer', NotificacionController.marcarLeidas);
+router.post('/dispositivos', NotificacionController.registrarDispositivo);
+router.delete('/dispositivos', NotificacionController.quitarDispositivo);
 
 // --- Catálogos ---
 router.get('/catalogos', CatalogoController.catalogos);

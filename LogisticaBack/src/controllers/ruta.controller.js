@@ -6,6 +6,31 @@ import { leerCampos } from '../utils/campos.js';
 import { hoy } from '../utils/fecha.js';
 import { HttpError, idParam } from '../utils/http.js';
 import { env } from '../config/env.js';
+import { notificar, usuariosConRol } from '../services/notificaciones.service.js';
+
+const dia = (f) => `${f.slice(8, 10)}/${f.slice(5, 7)}`;
+const equipo = (r) => [r.repartidor_id, r.asistente_id].filter(Boolean);
+const datosRuta = (r, extra = {}) => ({ ruta_id: r.id, fecha: r.fecha, ...extra });
+
+/** Avisa a quienes entraron o salieron del equipo de la ruta. */
+async function avisarCambioEquipo(antes, ahora, usuario) {
+  const previos = new Set(antes ? equipo(antes) : []);
+  const nuevos = new Set(equipo(ahora));
+  const vehiculo = ahora.vehiculo_nombre ? ` · ${ahora.vehiculo_nombre}` : '';
+  await notificar([...nuevos].filter((u) => !previos.has(u)), {
+    tipo: 'ruta_asignada',
+    titulo: `Te asignaron la Ruta ${ahora.numero} del ${dia(ahora.fecha)}`,
+    cuerpo: `${ahora.total_paradas} parada(s)${vehiculo}`,
+    url: `/rutas/${ahora.id}`,
+    datos: datosRuta(ahora),
+  }, { excepto: usuario.id });
+  await notificar([...previos].filter((u) => !nuevos.has(u)), {
+    tipo: 'ruta_retirada',
+    titulo: `Ya no estás en la Ruta ${ahora.numero} del ${dia(ahora.fecha)}`,
+    cuerpo: 'Logística te quitó de esta ruta.',
+    datos: datosRuta(ahora),
+  }, { excepto: usuario.id });
+}
 
 const CAMPOS_RUTA = {
   fecha: { tipo: 'fecha', requerido: true },
@@ -103,6 +128,16 @@ export const RutaController = {
     const ruta = await rutaConAcceso(req);
     const { texto } = leerCampos(req.body, { texto: { tipo: 'texto', max: 2000, requerido: true } }, { requeridos: true });
     const id = await RutaModel.enviarMensaje(ruta.id, { texto, usuario: req.user });
+    // Del equipo de la ruta → logística (y el compañero); de logística → equipo de la ruta
+    const delEquipo = ['repartidor', 'auxiliar'].includes(req.user.rol);
+    const destinos = delEquipo ? [...(await usuariosConRol(['admin', 'planificador'])), ...equipo(ruta)] : equipo(ruta);
+    await notificar(destinos, {
+      tipo: 'mensaje',
+      titulo: `💬 Ruta ${ruta.numero} · ${req.user.nombre}`,
+      cuerpo: texto,
+      url: `/rutas/${ruta.id}`,
+      datos: datosRuta(ruta, { abrir: 'chat' }),
+    }, { excepto: req.user.id });
     res.status(201).json((await RutaModel.mensajes(ruta.id, { despues: id - 1 }))[0]);
   },
 
@@ -118,18 +153,23 @@ export const RutaController = {
       fecha: d.fecha, numero: d.numero, nombre: d.nombre, vehiculoId: d.vehiculo_id,
       repartidorId: d.repartidor_id, asistenteId: d.asistente_id, usuario: req.user,
     });
-    res.status(201).json(await RutaModel.obtener(id));
+    const ruta = await RutaModel.obtener(id);
+    await avisarCambioEquipo(null, ruta, req.user);
+    res.status(201).json(ruta);
   },
 
   async actualizar(req, res) {
     const d = leerCampos(req.body, CAMPOS_RUTA);
     const id = idParam(req.params.id);
     if (d.estado === 'finalizada') throw new HttpError(400, 'Usa "Finalizar ruta" para cerrarla');
+    const antes = await RutaModel.obtener(id);
     await RutaModel.actualizar(id, {
       nombre: d.nombre, vehiculoId: d.vehiculo_id, repartidorId: d.repartidor_id,
       asistenteId: d.asistente_id, estado: d.estado,
     }, req.user);
-    res.json(await RutaModel.obtener(id));
+    const ruta = await RutaModel.obtener(id);
+    if (antes) await avisarCambioEquipo(antes, ruta, req.user);
+    res.json(ruta);
   },
 
   async eliminar(req, res) {
@@ -141,8 +181,26 @@ export const RutaController = {
     if (!Array.isArray(req.body?.paradas)) throw new HttpError(400, 'Envía { paradas: [...] }');
     const paradas = req.body.paradas.map((p) => leerCampos(p, CAMPOS_PARADA));
     const id = idParam(req.params.id);
+    const antes = await RutaModel.obtener(id);
     await RutaModel.guardarParadas(id, paradas, req.user);
-    res.json(await RutaModel.obtener(id));
+    const ruta = await RutaModel.obtener(id);
+    // Avisar al equipo qué cambió (solo pedidos y acciones agregados o quitados)
+    const claves = (r) => new Set(r.paradas.map((p) => (p.pedido_id ? `#${p.pedido_id}` : p.descripcion)));
+    const a = claves(antes ?? { paradas: [] });
+    const b = claves(ruta);
+    const agregados = [...b].filter((k) => !a.has(k));
+    const quitados = [...a].filter((k) => !b.has(k));
+    if ((agregados.length || quitados.length) && antes) {
+      await notificar(equipo(ruta), {
+        tipo: 'ruta_modificada',
+        titulo: `Ruta ${ruta.numero} actualizada`,
+        cuerpo: [agregados.length && `+${agregados.length} parada(s)`, quitados.length && `−${quitados.length} parada(s)`,
+          `ahora ${ruta.total_paradas}`].filter(Boolean).join(' · '),
+        url: `/rutas/${ruta.id}`,
+        datos: datosRuta(ruta),
+      }, { excepto: req.user.id });
+    }
+    res.json(ruta);
   },
 
   /** Traza la ruta con Google; con { optimizar: true } también reordena las paradas pendientes. */
@@ -206,8 +264,20 @@ export const RutaController = {
       { estado: { tipo: 'enum', lista: ESTADOS_PARADA.filter((e) => e !== 'pendiente'), requerido: true }, nota: { tipo: 'texto', max: 1000 } },
       { requeridos: true }
     );
-    const rutaId = await RutaModel.atenderParada(idParam(req.params.id), { estado, nota, usuario: req.user });
-    res.json(await RutaModel.obtener(rutaId));
+    const paradaId = idParam(req.params.id);
+    const rutaId = await RutaModel.atenderParada(paradaId, { estado, nota, usuario: req.user });
+    const ruta = await RutaModel.obtener(rutaId);
+    if (estado === 'incidencia') {
+      const p = ruta.paradas.find((x) => x.id === paradaId);
+      await notificar(await usuariosConRol(['admin', 'planificador']), {
+        tipo: 'incidencia',
+        titulo: `⚠ Incidencia en la Ruta ${ruta.numero}`,
+        cuerpo: `${p?.titulo ?? 'Parada'}: ${nota}`,
+        url: p?.pedido_id ? `/pedidos/${p.pedido_id}` : `/rutas/${ruta.id}`,
+        datos: datosRuta(ruta, { pedido_id: p?.pedido_id }),
+      }, { excepto: req.user.id });
+    }
+    res.json(ruta);
   },
 
   async registrarPosicion(req, res) {
