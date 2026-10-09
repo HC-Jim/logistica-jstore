@@ -8,6 +8,37 @@ const punto = ({ lat, lng }) => ({ location: { latLng: { latitude: lat, longitud
 const segundos = (d) => (d ? parseInt(d, 10) : 0); // "123s" → 123
 
 /**
+ * Tramo en auto desde la posición del conductor hasta su próximo destino.
+ * Devuelve distancia, duración y polilínea.
+ */
+export async function trazarTramo(origen, destino) {
+  if (!env.googleMapsServerKey) {
+    throw new HttpError(400, 'Configura GOOGLE_MAPS_SERVER_KEY (Routes API) en el backend para trazar rutas');
+  }
+  const res = await fetch(ROUTES_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Goog-Api-Key': env.googleMapsServerKey,
+      'X-Goog-FieldMask': 'routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline',
+    },
+    body: JSON.stringify({ origin: punto(origen), destination: punto(destino), travelMode: 'DRIVE', languageCode: 'es' }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    console.error('Routes API:', data);
+    throw new HttpError(502, `Google Routes API: ${data.error?.message ?? res.statusText}`);
+  }
+  const ruta = data.routes?.[0];
+  if (!ruta) throw new HttpError(422, 'Google no encontró un camino hasta el destino');
+  return {
+    distanciaMetros: ruta.distanceMeters ?? 0,
+    duracionSegundos: segundos(ruta.duration),
+    polyline: ruta.polyline?.encodedPolyline ?? null,
+  };
+}
+
+/**
  * Traza la ruta depósito → paradas → depósito con Google Routes API.
  * Con `optimizar` Google reordena las paradas para minimizar el recorrido.
  * Devuelve el orden (índices de `paradas`), distancia, duración y polilínea.

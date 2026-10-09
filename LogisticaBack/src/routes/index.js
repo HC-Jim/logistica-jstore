@@ -93,6 +93,7 @@ router.get('/estadisticas', rol(...P.estadisticas), CatalogoController.estadisti
 router.get('/repartidor/rutas', rol(...P.appRepartidor), RutaController.misRutas);
 router.post('/repartidor/rutas/:id/iniciar', rol(...P.appRepartidor), RutaController.iniciarRuta);
 router.patch('/repartidor/paradas/:id', rol(...P.appRepartidor), RutaController.atenderParada);
+router.post('/repartidor/rutas/:id/tramo', rol(...P.appRepartidor), RutaController.tramoActual);
 router.post('/repartidor/ubicacion', rol(...P.appRepartidor), RutaController.registrarPosicion);
 
 export default router;

@@ -1,7 +1,7 @@
 import { ESTADOS_PARADA, ESTADOS_RUTA } from '../config/catalogos.js';
 import { PedidoModel } from '../models/pedido.model.js';
 import { paradasDe, RutaModel } from '../models/ruta.model.js';
-import { trazarRuta } from '../services/rutas.service.js';
+import { trazarRuta, trazarTramo } from '../services/rutas.service.js';
 import { leerCampos } from '../utils/campos.js';
 import { hoy } from '../utils/fecha.js';
 import { HttpError, idParam } from '../utils/http.js';
@@ -278,6 +278,32 @@ export const RutaController = {
       }, { excepto: req.user.id });
     }
     res.json(ruta);
+  },
+
+  /**
+   * Camino desde la posición actual del conductor hasta la próxima parada pendiente;
+   * si ya no quedan paradas pendientes, hasta el almacén.
+   */
+  async tramoActual(req, res) {
+    const { lat, lng } = leerCampos(
+      req.body,
+      { lat: { tipo: 'coord', max: 90, requerido: true }, lng: { tipo: 'coord', max: 180, requerido: true } },
+      { requeridos: true }
+    );
+    const ruta = await RutaModel.obtener(idParam(req.params.id));
+    if (!ruta || ![ruta.repartidor_id, ruta.asistente_id].includes(req.user.id)) {
+      throw new HttpError(404, 'Ruta no encontrada');
+    }
+    const pendientes = ruta.paradas.filter((p) => p.estado === 'pendiente');
+    const proxima = pendientes.find((p) => p.lat != null && p.lng != null);
+    if (pendientes.length && !proxima) {
+      throw new HttpError(422, 'Las paradas pendientes no tienen ubicación en el mapa');
+    }
+    const destino = proxima
+      ? { tipo: 'parada', parada_id: proxima.id, titulo: proxima.titulo, lat: Number(proxima.lat), lng: Number(proxima.lng) }
+      : { tipo: 'almacen', parada_id: null, titulo: env.deposito.nombre, lat: env.deposito.lat, lng: env.deposito.lng };
+    const t = await trazarTramo({ lat, lng }, destino);
+    res.json({ destino, distancia_metros: t.distanciaMetros, duracion_segundos: t.duracionSegundos, polyline: t.polyline });
   },
 
   async registrarPosicion(req, res) {

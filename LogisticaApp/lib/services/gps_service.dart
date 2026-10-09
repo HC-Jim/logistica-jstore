@@ -22,6 +22,7 @@ class GpsService extends ChangeNotifier {
 
   bool get activo => _suscripcion != null;
   DateTime? get ultimoEnvio => _ultimoEnvio;
+  Position? get ultima => _ultima;
 
   Future<String?>? _arrancando;
 
@@ -57,6 +58,7 @@ class GpsService extends ChangeNotifier {
     _suscripcion = Geolocator.getPositionStream(locationSettings: _configuracion()).listen(
       (p) {
         _ultima = p;
+        notifyListeners(); // el mapa de la app sigue la posición
         _enviar();
       },
       onError: (Object e) {

@@ -17,6 +17,10 @@ class RutasService {
     );
   }
 
+  /// Camino desde donde está el conductor hasta su próxima parada (o el almacén).
+  static Future<Tramo> tramo(int rutaId, double lat, double lng) async =>
+      Tramo.desdeJson(await api.post('/repartidor/rutas/$rutaId/tramo', {'lat': lat, 'lng': lng}) as Map<String, dynamic>);
+
   static Future<void> iniciar(int rutaId) => api.post('/repartidor/rutas/$rutaId/iniciar');
 
   /// estado: 'completada' | 'incidencia'

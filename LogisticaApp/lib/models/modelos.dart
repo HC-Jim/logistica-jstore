@@ -1,5 +1,7 @@
 import 'package:latlong2/latlong.dart';
 
+import '../utils/formato.dart';
+
 double? _decimal(Object? v) => v == null ? null : double.tryParse('$v');
 int _entero(Object? v) => v == null ? 0 : int.tryParse('$v') ?? 0;
 String? _texto(Object? v) => v == null || '$v'.isEmpty ? null : '$v';
@@ -154,4 +156,24 @@ class Mensaje {
   final String usuarioNombre;
   final String? usuarioRol;
   final DateTime creadoEn;
+}
+
+/// Tramo actual: de la posición del conductor a su próximo destino.
+class Tramo {
+  Tramo.desdeJson(Map<String, dynamic> j)
+      : haciaAlmacen = (j['destino'] as Map)['tipo'] == 'almacen',
+        paradaId = (j['destino'] as Map)['parada_id'] as int?,
+        titulo = '${(j['destino'] as Map)['titulo'] ?? ''}',
+        destino = LatLng(_decimal((j['destino'] as Map)['lat']) ?? 0, _decimal((j['destino'] as Map)['lng']) ?? 0),
+        distanciaMetros = _entero(j['distancia_metros']),
+        duracionSegundos = _entero(j['duracion_segundos']),
+        puntos = j['polyline'] == null ? const [] : decodificarPolyline('${j['polyline']}');
+
+  final bool haciaAlmacen;
+  final int? paradaId;
+  final String titulo;
+  final LatLng destino;
+  final int distanciaMetros;
+  final int duracionSegundos;
+  final List<LatLng> puntos;
 }
