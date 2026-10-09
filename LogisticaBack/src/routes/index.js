@@ -3,6 +3,7 @@ import { PERMISOS as P } from '../config/permisos.js';
 import { AuthController } from '../controllers/auth.controller.js';
 import { CatalogoController } from '../controllers/catalogo.controller.js';
 import { NotificacionController } from '../controllers/notificacion.controller.js';
+import { ReporteController } from '../controllers/reporte.controller.js';
 import { PedidoController } from '../controllers/pedido.controller.js';
 import { ProductoController } from '../controllers/producto.controller.js';
 import { RutaController } from '../controllers/ruta.controller.js';
@@ -50,6 +51,8 @@ router.delete('/productos/:id', rol(...P.gestionarProductos), ProductoController
 // --- Pedidos ---
 router.get('/pedidos', rol(...P.verPedidos), PedidoController.listar);
 router.post('/pedidos', rol(...P.crearPedido), PedidoController.crear);
+router.post('/pedidos/importar', rol(...P.crearPedido), PedidoController.importar);
+router.get('/pedidos/plantilla', rol(...P.crearPedido), PedidoController.plantilla);
 router.get('/pedidos/:id', rol(...P.verPedidos), PedidoController.obtener);
 router.put('/pedidos/:id', rol(...P.editarPedido), PedidoController.actualizar);
 router.patch('/pedidos/:id/estado', rol(...P.gestionarEstado), PedidoController.cambiarEstado);
@@ -86,6 +89,10 @@ router.get('/rutas/:id/recorrido', rol(...P.monitoreo), RutaController.recorrido
 
 // --- Monitoreo en vivo ---
 router.get('/monitoreo', rol(...P.monitoreo), RutaController.monitoreo);
+
+// --- Reportes (exportables a Excel) ---
+router.get('/reportes', rol(...P.estadisticas), ReporteController.listar);
+router.get('/reportes/:clave', rol(...P.estadisticas), ReporteController.ejecutar);
 
 // --- Estadísticas ---
 router.get('/estadisticas', rol(...P.estadisticas), CatalogoController.estadisticas);

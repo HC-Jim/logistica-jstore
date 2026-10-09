@@ -38,6 +38,13 @@ export const pedidosApi = {
   cambiarEstado: (id, estado, motivo) => data(api.patch(`/pedidos/${id}/estado`, { estado, motivo })),
   reprogramar: (id, fecha_entrega, motivo) => data(api.post(`/pedidos/${id}/reprogramar`, { fecha_entrega, motivo })),
   observaciones: (id, observaciones_almacen) => data(api.patch(`/pedidos/${id}/observaciones`, { observaciones_almacen })),
+  importar: (filas, confirmar) => data(api.post('/pedidos/importar', { filas, confirmar })),
+  plantilla: () => data(api.get('/pedidos/plantilla')),
+};
+
+export const reportesApi = {
+  listar: () => data(api.get('/reportes')),
+  ejecutar: (clave, params) => data(api.get(`/reportes/${clave}`, { params })),
 };
 
 export const rutasApi = {

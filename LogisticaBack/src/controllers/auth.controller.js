@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { ROLES } from '../config/catalogos.js';
 import { env } from '../config/env.js';
+import { query } from '../config/db.js';
 import { UsuarioModel } from '../models/usuario.model.js';
 import { notificar, usuariosConRol } from '../services/notificaciones.service.js';
 import { leerCampos } from '../utils/campos.js';
@@ -40,6 +41,7 @@ export const AuthController = {
     if (usuario.pendiente) throw new HttpError(403, 'Tu cuenta está pendiente de aprobación por un administrador');
     if (!usuario.activo) throw new HttpError(403, 'Tu cuenta está desactivada. Contacta al administrador');
 
+    await query('UPDATE usuarios SET ultimo_acceso = now() WHERE id = $1', [usuario.id]);
     const { password_hash: _omit, ...publico } = usuario;
     res.json({ token: firmarToken(publico), usuario: publico });
   },

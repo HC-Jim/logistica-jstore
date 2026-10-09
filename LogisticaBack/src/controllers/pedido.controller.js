@@ -6,6 +6,7 @@ import { PedidoModel } from '../models/pedido.model.js';
 import { RutaModel } from '../models/ruta.model.js';
 import { notificar } from '../services/notificaciones.service.js';
 import { UbicacionModel } from '../models/ubicacion.model.js';
+import { analizarFilas, COLUMNAS_PLANTILLA } from '../services/importacion.service.js';
 import { leerCampos } from '../utils/campos.js';
 import { hoy } from '../utils/fecha.js';
 import { HttpError, idParam, requerir } from '../utils/http.js';
@@ -99,6 +100,50 @@ async function aplicarCategoria(categoria, body) {
   return b;
 }
 
+/** Teléfono: solo dígitos (6 a 15), con +, espacios o guiones opcionales. */
+function validarTelefono(tel) {
+  if (!tel) return;
+  const digitos = tel.replace(/\D/g, '');
+  if (!/^\+?[\d\s-]+$/.test(tel) || digitos.length < 6 || digitos.length > 15) {
+    throw new HttpError(400, `N° de contacto inválido: "${tel}" (solo números, de 6 a 15 dígitos)`);
+  }
+}
+
+/**
+ * Reglas que cruzan campos (se aplican al registrar y al editar, sobre el pedido completo).
+ * Los valores de cada lista ya se validan contra el catálogo en CAMPOS.
+ */
+function validarReglas(p) {
+  validarTelefono(p.cliente_telefono);
+  if (p.categoria === 'venta' && p.plataforma && !PLATAFORMAS_VENTA.includes(p.plataforma)) {
+    throw new HttpError(400, `Plataforma inválida para una venta. Opciones: ${PLATAFORMAS_VENTA.join(', ')}`);
+  }
+  if (p.categoria !== 'encargo' && /agencia/i.test(p.tipo_pedido ?? '') && !p.agencia) {
+    throw new HttpError(400, `El tipo "${p.tipo_pedido}" requiere elegir la agencia`);
+  }
+  if (!p.agencia && (p.enviar_a || p.pago_agencia)) {
+    throw new HttpError(400, '"Enviar a" y "Pago de agencia" solo aplican cuando hay agencia');
+  }
+  if (p.categoria !== 'inversa' && p.motivo) throw new HttpError(400, 'El motivo solo aplica a logística inversa');
+}
+
+/** Valida un pedido nuevo (formulario o carga masiva) y devuelve lo que se guardará. */
+async function prepararNuevo(body0, usuario) {
+  const categoria = body0.categoria || 'venta';
+  if (!CATEGORIAS.includes(categoria)) throw new HttpError(400, 'Categoría inválida');
+  if (!PUEDE_CREAR[categoria].includes(usuario.rol)) {
+    throw new HttpError(403, 'No puedes registrar este tipo de pedido');
+  }
+  const body = await aplicarCategoria(categoria, { fecha_entrega: hoy(), cobrar: 'No Cobrar', ...body0 });
+  const datos = leerCampos(body, CAMPOS, { requeridos: true });
+  datos.categoria = categoria;
+  validarUbicacion(datos);
+  validarReglas(datos);
+  // El vendedor registra a su nombre; logística puede indicar el vendedor
+  if (usuario.rol === 'vendedor' || !datos.vendedor_id) datos.vendedor_id = usuario.id;
+  return { datos, items: leerItems(body0.items) };
+}
+
 function validarUbicacion(datos) {
   if (('lat' in datos || 'lng' in datos) && (datos.lat == null) !== (datos.lng == null)) {
     throw new HttpError(400, 'Envía lat y lng juntos');
@@ -155,19 +200,46 @@ export const PedidoController = {
   },
 
   async crear(req, res) {
-    const categoria = req.body.categoria || 'venta';
-    if (!CATEGORIAS.includes(categoria)) throw new HttpError(400, 'Categoría inválida');
-    if (!PUEDE_CREAR[categoria].includes(req.user.rol)) {
-      throw new HttpError(403, 'No puedes registrar este tipo de pedido');
-    }
-    const body = await aplicarCategoria(categoria, { fecha_entrega: hoy(), cobrar: 'No Cobrar', ...req.body });
-    const datos = leerCampos(body, CAMPOS, { requeridos: true });
-    datos.categoria = categoria;
-    validarUbicacion(datos);
-    // El vendedor registra a su nombre; logística puede indicar el vendedor
-    if (req.user.rol === 'vendedor' || !datos.vendedor_id) datos.vendedor_id = req.user.id;
-    const id = await PedidoModel.crear({ datos, items: leerItems(req.body.items), usuario: req.user });
+    const { datos, items } = await prepararNuevo(req.body, req.user);
+    const id = await PedidoModel.crear({ datos, items, usuario: req.user });
     res.status(201).json(await PedidoModel.obtener(id));
+  },
+
+  /**
+   * Carga masiva de ventas desde CSV. { filas, confirmar }.
+   * Sin confirmar solo revisa y muestra cómo quedarían; con confirmar registra todo,
+   * siempre que ninguna fila tenga errores.
+   */
+  async importar(req, res) {
+    const { pedidos, errores, advertencias = [] } = await analizarFilas(req.body?.filas, req.user);
+    // cada pedido pasa por las mismas validaciones del formulario
+    for (const p of pedidos) {
+      try {
+        await prepararNuevo(p.body, req.user);
+      } catch (err) {
+        if (!(err instanceof HttpError)) throw err;
+        errores.push({ fila: p.fila, mensaje: err.message });
+      }
+    }
+    errores.sort((a, b) => (a.fila ?? 0) - (b.fila ?? 0));
+    const resumen = pedidos.map((p) => ({
+      fila: p.fila, filas: p.filas, cliente: p.cliente, plataforma: p.body.plataforma, tipo: p.body.tipo_pedido,
+      fecha_entrega: p.body.fecha_entrega ?? hoy(), lineas: p.lineas, ubicado: p.body.lat != null, avisos: p.avisos,
+    }));
+    if (!req.body?.confirmar || errores.length) {
+      return res.json({ confirmado: false, pedidos: resumen, errores, advertencias });
+    }
+    const creados = [];
+    for (const p of pedidos) {
+      const { datos, items } = await prepararNuevo(p.body, req.user);
+      creados.push(await PedidoModel.crear({ datos, items, usuario: req.user }));
+    }
+    res.status(201).json({ confirmado: true, creados, pedidos: resumen, errores: [], advertencias });
+  },
+
+  /** Columnas de la plantilla CSV. */
+  plantilla(_req, res) {
+    res.json({ columnas: COLUMNAS_PLANTILLA });
   },
 
   async actualizar(req, res) {
@@ -180,6 +252,7 @@ export const PedidoController = {
     delete datos.fecha_entrega;
     const id = idParam(req.params.id);
     const antes = await PedidoModel.obtener(id);
+    if (antes) validarReglas({ ...antes, ...datos });
     await PedidoModel.actualizar(id, { datos, items: leerItems(req.body.items), usuario: req.user });
     const despues = await PedidoModel.obtener(id);
     const cambiados = Object.keys(CAMPOS_AVISO).filter((c) => antes && String(antes[c] ?? '') !== String(despues[c] ?? ''));

@@ -301,3 +301,29 @@ h3 small { display: block; font-weight: 400; }
 .ahora { background: #fffbea; border: 1px solid #f6e05e; border-radius: 8px; padding: 8px 10px; margin: 8px 0; }
 .lista-paradas li.actual { background: #fffbea; border-radius: 6px; }
 .foto-entrega { max-width: 220px; max-height: 220px; border-radius: 8px; border: 1px solid var(--borde); object-fit: cover; }
+
+/* ---- Reportes ---- */
+.reportes { display: grid; grid-template-columns: 220px 1fr; gap: 16px; align-items: start; }
+.reportes-menu { display: flex; flex-direction: column; gap: 4px; padding: 8px; }
+.reportes-menu button { text-align: left; background: transparent; color: var(--texto); border: none; padding: 8px 10px; border-radius: 6px; }
+.reportes-menu button:hover { background: #edf2f7; }
+.reportes-menu button.activo { background: var(--primario, #2b6cb0); color: #fff; }
+.reportes-cuerpo { min-width: 0; }
+.reportes-cuerpo .filtros { flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0 12px; }
+.resumen-reporte { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.resumen-reporte div { border: 1px solid var(--borde); border-radius: 8px; padding: 8px 12px; min-width: 110px; }
+.resumen-reporte strong { display: block; font-size: 1.25rem; }
+.resumen-reporte small { color: var(--suave); text-transform: capitalize; }
+.resumen-reporte .alerta { border-color: #f56565; background: #fff5f5; }
+.tabla-scroll { overflow-x: auto; max-height: 65vh; overflow-y: auto; }
+.tabla-reporte th { cursor: pointer; white-space: nowrap; position: sticky; top: 0; background: var(--fondo-tarjeta, #fff); }
+.tabla-reporte td, .tabla-reporte th { font-size: 0.85rem; }
+.tabla-reporte .num { text-align: right; white-space: nowrap; }
+@media (max-width: 900px) { .reportes { grid-template-columns: 1fr; } .reportes-menu { flex-direction: row; flex-wrap: wrap; } }
+
+/* ---- Importar pedidos ---- */
+.ayuda-import { margin: 8px 0 12px; padding-left: 20px; }
+.ayuda-import li { margin: 4px 0; }
+tr.con-error { background: #fff5f5; }
+.ok { color: #2f855a; font-weight: 600; }
+.doc-bsale { font-family: ui-monospace, monospace; font-size: 0.85rem; }

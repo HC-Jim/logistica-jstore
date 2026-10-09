@@ -48,6 +48,7 @@ export default function Pedidos() {
       <div className="encabezado">
         <h2>{usuario.rol === 'vendedor' ? 'Mis ventas' : 'Pedidos'}</h2>
         <div className="fila">
+          {puedeCrear && <Link className="btn-sec" href="/pedidos/importar">⬆ Importar CSV</Link>}
           {puedeCrear && <Link className="btn" href="/pedidos/nuevo">+ Nuevo pedido</Link>}
           {puedeCrear && <Link className="btn btn-inversa" href="/pedidos/inversa/nuevo">+ Logística inversa</Link>}
           {puedeEncargo && <Link className="btn btn-encargo" href="/pedidos/encargo/nuevo">+ Encargo</Link>}
@@ -96,16 +97,17 @@ export default function Pedidos() {
           <table className="tabla-pedidos">
             <thead>
               <tr>
-                <th>Código</th><th>Entrega</th><th>Plataforma / Tipo</th><th>Cliente</th><th>Distrito</th>
+                <th>Código</th><th>Doc. Bsale</th><th>Entrega</th><th>Plataforma / Tipo</th><th>Cliente</th><th>Distrito</th>
                 <th>Productos</th><th>Total</th><th>Cobrar</th><th>Vendedor</th><th>Estado</th><th>Ruta</th>
               </tr>
             </thead>
             <tbody>
               {pedidos.map((p) => (
                 <tr key={p.id}>
-                  <td><Link href={`/pedidos/${p.id}`}><strong>{p.id}</strong></Link> <span title={CATEGORIAS[p.categoria]?.label}>{p.categoria !== 'venta' && CATEGORIAS[p.categoria]?.icono}</span><small>{p.documento_bsale}</small></td>
+                  <td><Link href={`/pedidos/${p.id}`}><strong>{p.id}</strong></Link> <span title={CATEGORIAS[p.categoria]?.label}>{p.categoria !== 'venta' && CATEGORIAS[p.categoria]?.icono}</span></td>
+                  <td>{p.documento_bsale ? <strong className="doc-bsale">{p.documento_bsale}</strong> : p.categoria === 'venta' ? <small className="error">sin documento</small> : '—'}</td>
                   <td>{fechaCorta(p.fecha_entrega)}</td>
-                  <td>{p.categoria === 'encargo' ? 'Encargo' : p.plataforma}<small>{p.tipo_pedido}{p.agencia ? ` · ${p.agencia}` : ''}{p.motivo ? ` · ${p.motivo}` : ''}</small></td>
+                  <td>{p.categoria === 'encargo' ? 'Encargo' : p.plataforma}<small>{p.numero_pedido ? `#${p.numero_pedido} · ` : ''}{p.tipo_pedido}{p.agencia ? ` · ${p.agencia}` : ''}{p.motivo ? ` · ${p.motivo}` : ''}</small></td>
                   <td>{p.cliente_nombre}<small>{p.cliente_telefono}</small></td>
                   <td>{p.distrito}{p.lat == null && <small className="error">sin ubicación</small>}</td>
                   <td className="productos">{p.productos}</td>
@@ -118,7 +120,7 @@ export default function Pedidos() {
                     : '—'}</td>
                 </tr>
               ))}
-              {!cargando && !pedidos.length && <tr><td colSpan={11}>No hay pedidos con estos filtros</td></tr>}
+              {!cargando && !pedidos.length && <tr><td colSpan={12}>No hay pedidos con estos filtros</td></tr>}
             </tbody>
           </table>
         </div>

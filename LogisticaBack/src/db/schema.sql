@@ -289,3 +289,6 @@ ALTER TABLE rutas ADD COLUMN IF NOT EXISTS restante_duracion  INTEGER;
 ALTER TABLE rutas ADD COLUMN IF NOT EXISTS restante_destino   JSONB;
 ALTER TABLE rutas ADD COLUMN IF NOT EXISTS restante_clave     TEXT;        -- paradas pendientes usadas en el cálculo
 ALTER TABLE rutas ADD COLUMN IF NOT EXISTS restante_en        TIMESTAMPTZ;
+
+-- Último ingreso de cada cuenta (reporte de usuarios)
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS ultimo_acceso TIMESTAMPTZ;

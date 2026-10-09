@@ -18,6 +18,7 @@ const LINKS = [
   { href: '/vehiculos', label: 'Vehículos', roles: ['admin', 'planificador'] },
   { href: '/ubicaciones', label: 'Ubicaciones', roles: ['admin', 'planificador', 'almacen', 'vendedor'] },
   { href: '/productos', label: 'Productos', roles: ['admin', 'planificador', 'almacen', 'vendedor'] },
+  { href: '/reportes', label: 'Reportes', roles: ['admin', 'planificador'] },
   { href: '/usuarios', label: 'Usuarios', roles: ['admin'] },
 ];
 
