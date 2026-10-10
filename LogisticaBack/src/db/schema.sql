@@ -180,7 +180,9 @@ FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY fecha ORDER BY id) AS n FROM ru
 WHERE r.id = x.id AND r.numero IS NULL;
 ALTER TABLE rutas ALTER COLUMN numero SET NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS uq_rutas_fecha_numero ON rutas(fecha, numero);
-CREATE UNIQUE INDEX IF NOT EXISTS uq_rutas_fecha_vehiculo ON rutas(fecha, vehiculo_id) WHERE vehiculo_id IS NOT NULL;
+-- Un vehículo físico no puede estar en dos rutas el mismo día: lo valida la API (validarVehiculo),
+-- porque "A pie" y "Transporte público" sí pueden repetirse.
+DROP INDEX IF EXISTS uq_rutas_fecha_vehiculo;
 
 -- Historial: un pedido puede tener varias paradas (p. ej. incidencia en la Ruta 1 y entrega al día
 -- siguiente en la Ruta 2). Solo puede tener UNA parada activa (pendiente) a la vez.
