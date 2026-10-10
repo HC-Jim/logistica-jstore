@@ -61,6 +61,7 @@ export const rutasApi = {
   actualizar: (id, body) => data(api.put(`/rutas/${id}`, body)),
   eliminar: (id) => data(api.delete(`/rutas/${id}`)),
   guardarParadas: (id, paradas) => data(api.put(`/rutas/${id}/paradas`, { paradas })),
+  moverParada: (paradaId, rutaId) => data(api.post(`/rutas/paradas/${paradaId}/mover`, { ruta_id: rutaId })),
   trazar: (id, optimizar) => data(api.post(`/rutas/${id}/trazar`, { optimizar })),
   pedidosSinRuta: (fecha) => data(api.get('/rutas/pedidos-sin-ruta', { params: { fecha } })),
   recorrido: (id) => data(api.get(`/rutas/${id}/recorrido`)),

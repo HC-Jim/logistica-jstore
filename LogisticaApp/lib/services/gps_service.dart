@@ -6,7 +6,8 @@ import 'package:geolocator/geolocator.dart';
 import '../api/api_client.dart';
 import '../config.dart';
 
-/// Comparte la ubicación del conductor con logística mientras la ruta está en curso.
+/// Comparte la ubicación del conductor con logística: cada 10 s con la ruta en curso y,
+/// en turno (sesión abierta sin ruta en curso), cada minuto para que logística lo ubique.
 /// En Android usa un servicio en primer plano (notificación fija) para seguir enviando
 /// la posición aunque la pantalla esté apagada o la app en segundo plano.
 class GpsService extends ChangeNotifier {
@@ -29,12 +30,13 @@ class GpsService extends ChangeNotifier {
   /// Devuelve null si arrancó bien, o el motivo por el que no se pudo.
   /// Si se llama varias veces seguidas, todas esperan la misma solicitud de permiso
   /// (Android solo permite una a la vez).
-  Future<String?> iniciar(int rutaId) {
+  /// rutaId null = en turno, sin ruta en curso.
+  Future<String?> iniciar(int? rutaId) {
     if (activo && this.rutaId == rutaId) return Future.value(null);
     return _arrancando ??= _arrancar(rutaId).whenComplete(() => _arrancando = null);
   }
 
-  Future<String?> _arrancar(int rutaId) async {
+  Future<String?> _arrancar(int? rutaId) async {
     try {
       return await _arrancarSinControl(rutaId);
     } catch (_) {
@@ -42,7 +44,7 @@ class GpsService extends ChangeNotifier {
     }
   }
 
-  Future<String?> _arrancarSinControl(int rutaId) async {
+  Future<String?> _arrancarSinControl(int? rutaId) async {
     detener();
 
     if (!await Geolocator.isLocationServiceEnabled()) {
@@ -67,7 +69,7 @@ class GpsService extends ChangeNotifier {
       },
     );
     // Si el conductor está detenido (entregando) igual se reporta cada cierto tiempo
-    _latido = Timer.periodic(intervaloGps, (_) => _enviar());
+    _latido = Timer.periodic(_intervalo, (_) => _enviar());
     error = null;
     notifyListeners();
     return null;
@@ -82,15 +84,18 @@ class GpsService extends ChangeNotifier {
     notifyListeners();
   }
 
+  Duration get _intervalo => rutaId == null ? intervaloGpsTurno : intervaloGps;
+  bool get enTurno => activo && rutaId == null;
+
   LocationSettings _configuracion() {
     if (kIsWeb) return const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 20);
     if (defaultTargetPlatform == TargetPlatform.android) {
       return AndroidSettings(
         accuracy: LocationAccuracy.high,
         distanceFilter: 20,
-        intervalDuration: intervaloGps,
-        foregroundNotificationConfig: const ForegroundNotificationConfig(
-          notificationTitle: 'Ruta en curso',
+        intervalDuration: _intervalo,
+        foregroundNotificationConfig: ForegroundNotificationConfig(
+          notificationTitle: rutaId == null ? 'En turno' : 'Ruta en curso',
           notificationText: 'Compartiendo tu ubicación con logística',
           enableWakeLock: true,
         ),
@@ -111,14 +116,14 @@ class GpsService extends ChangeNotifier {
 
   Future<void> _enviar() async {
     final p = _ultima;
-    if (p == null || rutaId == null) return;
-    // no más de un envío cada ~5 s (por si el GPS y el latido coinciden)
-    if (_ultimoEnvio != null && DateTime.now().difference(_ultimoEnvio!) < intervaloGps - const Duration(seconds: 5)) return;
+    if (p == null) return;
+    // no más de un envío por intervalo (por si el GPS y el latido coinciden)
+    if (_ultimoEnvio != null && DateTime.now().difference(_ultimoEnvio!) < _intervalo - const Duration(seconds: 5)) return;
     try {
       await api.post('/repartidor/ubicacion', {
         'lat': p.latitude,
         'lng': p.longitude,
-        'ruta_id': rutaId,
+        if (rutaId != null) 'ruta_id': rutaId,
         if (p.accuracy >= 0) 'precision': p.accuracy,
         if (p.speed >= 0) 'velocidad': p.speed,
         if (p.heading >= 0) 'rumbo': p.heading,

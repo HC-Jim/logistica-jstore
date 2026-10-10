@@ -2,7 +2,7 @@ import { query, withTransaction } from '../config/db.js';
 import { env } from '../config/env.js';
 import { registrarRuta } from '../models/historial.js';
 import { HttpError } from '../utils/http.js';
-import { trazarRestante } from './rutas.service.js';
+import { modoViaje, trazarRestante } from './rutas.service.js';
 
 /** Si el conductor se aleja más que esto del camino calculado, se recalcula (p. ej. desvío por tráfico o cierre). */
 const DESVIO_METROS = 250;
@@ -105,7 +105,10 @@ async function guardar(db, rutaId, clave, paradas, t) {
  * o cuando el conductor se desvía del camino; si no, devuelve el último cálculo.
  */
 export async function actualizarRestante(rutaId, pos) {
-  const { rows: [ruta] } = await query('SELECT * FROM rutas WHERE id = $1', [rutaId]);
+  const { rows: [ruta] } = await query(
+    'SELECT r.*, v.tipo AS vehiculo_tipo FROM rutas r LEFT JOIN vehiculos v ON v.id = r.vehiculo_id WHERE r.id = $1',
+    [rutaId]
+  );
   if (!ruta || ruta.estado !== 'en_curso') return null;
 
   const paradas = await pendientesConUbicacion(rutaId);
@@ -116,7 +119,7 @@ export async function actualizarRestante(rutaId, pos) {
     const camino = decodificarPolyline(ruta.restante_polyline);
     if (distanciaAlCamino(pos, camino) <= DESVIO_METROS) return respuesta(ruta);
   }
-  const t = await trazarRestante(pos, paradas);
+  const t = await trazarRestante(pos, paradas, { modo: modoViaje(ruta.vehiculo_tipo) });
   return guardar({ query }, rutaId, clave, paradas, t);
 }
 
@@ -143,13 +146,16 @@ export async function verificarLlegada(rutaId, pos, usuario) {
  * (las ya atendidas quedan primero, en su orden). Devuelve el nuevo camino restante.
  */
 export async function reoptimizar(rutaId, pos, usuario) {
-  const { rows: [ruta] } = await query('SELECT estado FROM rutas WHERE id = $1', [rutaId]);
+  const { rows: [ruta] } = await query(
+    'SELECT r.estado, v.tipo AS vehiculo_tipo FROM rutas r LEFT JOIN vehiculos v ON v.id = r.vehiculo_id WHERE r.id = $1',
+    [rutaId]
+  );
   if (!ruta) throw new HttpError(404, 'Ruta no encontrada');
   if (ruta.estado === 'finalizada') throw new HttpError(409, 'La ruta ya está finalizada');
   const paradas = await pendientesConUbicacion(rutaId);
   if (paradas.length < 2) throw new HttpError(400, 'Hay menos de 2 paradas pendientes: no hay nada que reordenar');
 
-  const t = await trazarRestante(pos, paradas, { optimizar: true });
+  const t = await trazarRestante(pos, paradas, { optimizar: true, modo: modoViaje(ruta.vehiculo_tipo) });
   const ordenadas = t.orden.map((i) => paradas[i]);
   return withTransaction(async (client) => {
     const { rows: todas } = await client.query(

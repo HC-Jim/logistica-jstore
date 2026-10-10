@@ -327,3 +327,9 @@ h3 small { display: block; font-weight: 400; }
 tr.con-error { background: #fff5f5; }
 .ok { color: #2f855a; font-weight: 600; }
 .doc-bsale { font-family: ui-monospace, monospace; font-size: 0.85rem; }
+
+/* ---- Error de pantalla, movimiento entre rutas, equipo sin ruta ---- */
+.error-detalle { background: #fff5f5; border: 1px solid #feb2b2; padding: 10px; border-radius: 6px; white-space: pre-wrap; font-size: 0.85rem; }
+.mover-ruta { flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.vehiculo.libre { border-color: #718096; background: #f7fafc; }
+.foto-mini { display: block; font-size: 0.8rem; margin-top: 4px; }

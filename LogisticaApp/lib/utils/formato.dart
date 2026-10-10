@@ -31,6 +31,8 @@ const iconosVehiculo = {
   'moto': Icons.two_wheeler,
   'bicicleta': Icons.pedal_bike,
   'furgoneta': Icons.airport_shuttle,
+  'a_pie': Icons.directions_walk,
+  'transporte_publico': Icons.directions_bus,
   'otro': Icons.local_shipping,
 };
 

@@ -81,6 +81,7 @@ router.put('/rutas/:id/paradas', rol(...P.gestionarRutas), RutaController.guarda
 router.post('/rutas/:id/trazar', rol(...P.gestionarRutas), RutaController.trazar);
 router.post('/rutas/:id/finalizar', rol(...P.gestionarRutas), RutaController.finalizar);
 router.post('/rutas/:id/reoptimizar', rol(...P.gestionarRutas), RutaController.reoptimizarWeb);
+router.post('/rutas/paradas/:id/mover', rol(...P.gestionarRutas), RutaController.moverParada);
 router.patch('/rutas/:id/despacho', rol(...P.despacho), RutaController.despachar);
 router.get('/rutas/:id/historial', rol(...P.despacho), RutaController.historialCambios);
 router.get('/rutas/:id/mensajes', rol(...P.chatRuta), RutaController.mensajes);

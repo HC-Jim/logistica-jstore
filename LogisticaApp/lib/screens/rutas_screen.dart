@@ -32,6 +32,8 @@ class _RutasScreenState extends State<RutasScreen> {
     super.initState();
     _cargar();
     push.registrar();
+    // en turno: logística ve dónde está el conductor aunque no tenga ruta en curso
+    if (!gps.activo) gps.iniciar(null);
     push.llegadas.addListener(_contarAvisos);
     final aviso = push.pendiente;
     if (aviso != null) {

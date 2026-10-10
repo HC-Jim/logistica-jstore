@@ -114,7 +114,7 @@ export default function Pedidos() {
                   <td>{soles(p.total_pedido)}</td>
                   <td>{p.cobrar}<small>{p.medio_pago}</small></td>
                   <td>{p.vendedor_nombre}</td>
-                  <td><EstadoBadge estado={p.estado} /></td>
+                  <td><EstadoBadge estado={p.estado} />{p.entrega_foto_url && <a className="foto-mini" href={p.entrega_foto_url} target="_blank" rel="noreferrer" title="Ver foto de la entrega">📷 foto</a>}</td>
                   <td>{p.ruta_id && ['ruteado', 'entregado', 'incidencia'].includes(p.estado)
                     ? <Link href={`/rutas/${p.ruta_id}`}>Ruta {p.ruta_numero}<small>{p.repartidor_nombre ?? 'sin conductor'} · parada {p.ruta_orden}</small></Link>
                     : '—'}</td>

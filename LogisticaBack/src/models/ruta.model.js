@@ -1,4 +1,5 @@
 import { query, withTransaction } from '../config/db.js';
+import { MOVILIDAD_COMPARTIDA } from '../config/catalogos.js';
 import { HttpError } from '../utils/http.js';
 import { historialRuta, registrarRuta } from './historial.js';
 import { registrarHistorial } from './pedido.model.js';
@@ -98,8 +99,9 @@ async function validarRepartidores(client, [conductorId, auxiliarId]) {
 /** Un vehículo no puede estar en dos rutas el mismo día. */
 async function validarVehiculo(client, { fecha, vehiculoId, rutaId = 0 }) {
   if (!vehiculoId) return;
-  const { rows: [v] } = await client.query('SELECT nombre, activo FROM vehiculos WHERE id = $1', [vehiculoId]);
+  const { rows: [v] } = await client.query('SELECT nombre, tipo, activo FROM vehiculos WHERE id = $1', [vehiculoId]);
   if (!v?.activo) throw new HttpError(400, 'El vehículo no existe o está inactivo');
+  if (MOVILIDAD_COMPARTIDA.includes(v.tipo)) return; // a pie o en bus: varias rutas a la vez
   const { rows: [otra] } = await client.query(
     'SELECT numero FROM rutas WHERE fecha = $1 AND vehiculo_id = $2 AND id <> $3',
     [fecha, vehiculoId, rutaId]
@@ -478,6 +480,60 @@ export const RutaModel = {
     const url = await guardar(`ruta${parada.ruta_id}-parada${paradaId}`);
     await query('UPDATE ruta_paradas SET foto_url = $1 WHERE id = $2', [url, paradaId]);
     return url;
+  },
+
+  /** Pasa una parada pendiente a otra ruta del mismo día (queda al final de la ruta destino). */
+  async moverParada(paradaId, destinoId, usuario) {
+    return withTransaction(async (client) => {
+      const { rows: [p] } = await client.query(
+        `SELECT rp.*, r.fecha, r.numero FROM ruta_paradas rp JOIN rutas r ON r.id = rp.ruta_id WHERE rp.id = $1 FOR UPDATE OF rp`,
+        [paradaId]
+      );
+      if (!p) throw new HttpError(404, 'Parada no encontrada');
+      if (p.estado !== 'pendiente') throw new HttpError(409, 'Solo se pueden pasar a otra ruta las paradas pendientes');
+      if (p.ruta_id === destinoId) throw new HttpError(400, 'La parada ya está en esa ruta');
+      const [origen, destino] = [await bloquearRuta(client, p.ruta_id), await bloquearRuta(client, destinoId)];
+      if (destino.estado === 'finalizada') throw new HttpError(409, `La Ruta ${destino.numero} ya está finalizada`);
+      if (String(destino.fecha) !== String(origen.fecha)) throw new HttpError(400, 'Solo se puede pasar a otra ruta del mismo día');
+
+      const { rows: [{ n }] } = await client.query('SELECT COALESCE(MAX(orden), 0) + 1 AS n FROM ruta_paradas WHERE ruta_id = $1', [destinoId]);
+      // el paquete cambia de vehículo: el despacho se vuelve a marcar en la ruta nueva
+      await client.query(
+        'UPDATE ruta_paradas SET ruta_id = $1, orden = $2, despachado_en = NULL, despachado_por = NULL WHERE id = $3',
+        [destinoId, n, paradaId]
+      );
+      // los trazados de ambas rutas ya no sirven
+      await client.query(
+        `UPDATE rutas SET polyline = NULL, distancia_metros = NULL, duracion_segundos = NULL, restante_clave = NULL, actualizado_en = now()
+         WHERE id = ANY($1::int[])`,
+        [[origen.id, destino.id]]
+      );
+      const detalle = { pedido_id: p.pedido_id, descripcion: p.descripcion };
+      await registrarRuta(client, origen.id, usuario.id, 'pedido_movido', { ...detalle, a_ruta: destino.numero });
+      await registrarRuta(client, destino.id, usuario.id, 'pedido_movido', { ...detalle, de_ruta: origen.numero });
+      if (p.pedido_id) {
+        await registrarHistorial(client, p.pedido_id, usuario.id, 'ruteado', {
+          motivo: `Pasó de la Ruta ${origen.numero} a la Ruta ${destino.numero}`, ruta_id: destino.id,
+        });
+      }
+      return { origen, destino, pedidoId: p.pedido_id };
+    });
+  },
+
+  /** Última posición de cada conductor y auxiliar activo (para verlos aunque no tengan ruta). */
+  async posicionesEquipo() {
+    const { rows } = await query(
+      `SELECT u.id AS usuario_id, u.nombre, u.rol, x.lat, x.lng, x.velocidad, x.registrado_en, x.ruta_id
+       FROM usuarios u
+       JOIN LATERAL (
+         SELECT lat, lng, velocidad, registrado_en, ruta_id FROM posiciones
+         WHERE usuario_id = u.id AND registrado_en > now() - interval '12 hours'
+         ORDER BY registrado_en DESC LIMIT 1
+       ) x ON true
+       WHERE u.activo AND u.rol IN ('repartidor', 'auxiliar')
+       ORDER BY u.nombre`
+    );
+    return rows;
   },
 
   async registrarPosicion({ usuario, lat, lng, precision, velocidad, rumbo, rutaId }) {

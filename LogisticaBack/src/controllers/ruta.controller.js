@@ -1,7 +1,7 @@
 import { ESTADOS_PARADA, ESTADOS_RUTA } from '../config/catalogos.js';
 import { PedidoModel } from '../models/pedido.model.js';
 import { paradasDe, RutaModel } from '../models/ruta.model.js';
-import { trazarRuta } from '../services/rutas.service.js';
+import { modoViaje, trazarRuta } from '../services/rutas.service.js';
 import { guardarFoto } from '../services/fotos.service.js';
 import { actualizarRestante, reoptimizar, verificarLlegada } from '../services/seguimiento.service.js';
 import { leerCampos } from '../utils/campos.js';
@@ -229,7 +229,7 @@ export const RutaController = {
     const atendidas = ruta.paradas.filter((p) => p.estado !== 'pendiente');
     const pendientes = ruta.paradas.filter((p) => p.estado === 'pendiente');
     const aTrazar = optimizar ? pendientes : ruta.paradas;
-    const t = await trazarRuta(aTrazar, { optimizar });
+    const t = await trazarRuta(aTrazar, { optimizar, modo: modoViaje(ruta.vehiculo_tipo) });
     const orden = optimizar
       ? [...atendidas.map((p) => p.id), ...t.orden.map((i) => pendientes[i].id)]
       : null;
@@ -247,7 +247,16 @@ export const RutaController = {
     const fecha = fechaQuery(req.query);
     const rutas = await armarRutas(await RutaModel.listar({ fecha }));
     const sinRuta = await PedidoModel.listar({ fecha, estado: 'pendiente,incidencia', sinRuta: true });
-    res.json({ fecha, deposito: env.deposito, rutas, sinRuta, generado: new Date().toISOString() });
+    // conductores y auxiliares que comparten su ubicación (con o sin ruta); solo tiene sentido para hoy
+    const equipo = fecha === hoy()
+      ? await RutaModel.posicionesEquipo().catch((err) => { console.error('Posiciones del equipo:', err.message); return []; })
+      : [];
+    const enRuta = new Map(rutas.flatMap((r) => [[r.repartidor_id, r], [r.asistente_id, r]]).filter(([u]) => u));
+    const conductores = equipo.map((c) => {
+      const r = enRuta.get(c.usuario_id);
+      return { ...c, ruta_id: r?.id ?? null, ruta_numero: r?.numero ?? null, ruta_estado: r?.estado ?? null };
+    });
+    res.json({ fecha, deposito: env.deposito, rutas, sinRuta, conductores, generado: new Date().toISOString() });
   },
 
   async recorrido(req, res) {
@@ -345,6 +354,26 @@ export const RutaController = {
     const ruta = await rutaDelEquipo(req.params.id, req.user);
     await RutaModel.finalizar(ruta.id, req.user);
     res.json(await RutaModel.obtener(ruta.id));
+  },
+
+  /** Pasa un pedido pendiente a otra ruta del mismo día. { ruta_id } */
+  async moverParada(req, res) {
+    const { ruta_id: destinoId } = leerCampos(req.body, { ruta_id: { tipo: 'entero', requerido: true } }, { requeridos: true });
+    const { origen, destino, pedidoId } = await RutaModel.moverParada(idParam(req.params.id), destinoId, req.user);
+    const ref = pedidoId ? `Pedido #${pedidoId}` : 'Una parada';
+    await notificar([origen.repartidor_id, origen.asistente_id], {
+      tipo: 'pedido_retirado',
+      titulo: `${ref} pasó a la Ruta ${destino.numero}`,
+      cuerpo: `Ya no está en tu Ruta ${origen.numero}: no lo entregues (lo lleva la Ruta ${destino.numero}).`,
+      datos: datosRuta(origen),
+    }, { excepto: req.user.id });
+    await notificar([destino.repartidor_id, destino.asistente_id], {
+      tipo: 'ruta_modificada',
+      titulo: `Ruta ${destino.numero}: se agregó ${ref.toLowerCase()}`,
+      cuerpo: `Viene de la Ruta ${origen.numero}. Recógelo si aún lo tiene el otro equipo.`,
+      datos: datosRuta(destino),
+    }, { excepto: req.user.id });
+    res.json(await RutaModel.obtener(destino.id));
   },
 
   async registrarPosicion(req, res) {

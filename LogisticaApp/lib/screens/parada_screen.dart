@@ -48,27 +48,48 @@ class _ParadaScreenState extends State<ParadaScreen> {
         : Uri.parse('https://www.google.com/maps/dir/?api=1&destination=${destino.latitude},${destino.longitude}&travelmode=driving'));
   }
 
-  /// Toma la foto del cliente con el producto y la sube. Devuelve los bytes (para mostrarla) o null.
-  Future<Uint8List?> _tomarFoto() async {
+  // Foto de la entrega: se toma y se sube antes de marcar "Entregado"
+  Uint8List? _foto;
+  bool _subiendo = false;
+  bool _fotoSubida = false;
+  String? _errorFoto;
+
+  /// Abre la cámara y sube la foto. Devuelve true si quedó subida.
+  Future<bool> _tomarFoto() async {
     final XFile? archivo;
     try {
       // tamaño moderado: se ve bien y sube rápido con datos móviles
       archivo = await ImagePicker().pickImage(source: ImageSource.camera, maxWidth: 1280, maxHeight: 1280, imageQuality: 70);
     } catch (_) {
       _mensaje('No se pudo abrir la cámara. Revisa el permiso de cámara de la app.');
-      return null;
+      return false;
     }
-    if (archivo == null) return null; // canceló
+    if (archivo == null) return false; // canceló
     final bytes = await archivo.readAsBytes();
-    setState(() => _enviando = true);
+    setState(() {
+      _foto = bytes;
+      _fotoSubida = false;
+    });
+    return _subirFoto();
+  }
+
+  /// Sube la foto ya tomada (también sirve para reintentar si falló la conexión).
+  Future<bool> _subirFoto() async {
+    final foto = _foto;
+    if (foto == null) return false;
+    setState(() {
+      _subiendo = true;
+      _errorFoto = null;
+    });
     try {
-      await RutasService.subirFoto(p.id, bytes);
-      return bytes;
+      await RutasService.subirFoto(p.id, foto);
+      if (mounted) setState(() => _fotoSubida = true);
+      return true;
     } on ApiException catch (e) {
-      _mensaje('No se pudo subir la foto: ${e.mensaje}');
-      return null;
+      if (mounted) setState(() => _errorFoto = e.mensaje);
+      return false;
     } finally {
-      if (mounted) setState(() => _enviando = false);
+      if (mounted) setState(() => _subiendo = false);
     }
   }
 
@@ -78,11 +99,15 @@ class _ParadaScreenState extends State<ParadaScreen> {
 
   Future<void> _completar() async {
     // Los pedidos necesitan la foto del cliente con el producto; las acciones (Falabella, almacén...) no
-    Uint8List? foto;
-    if (!p.esAccion) {
-      foto = await _tomarFoto();
-      if (foto == null || !mounted) return;
+    if (!p.esAccion && !_fotoSubida) {
+      final ok = _foto == null ? await _tomarFoto() : await _subirFoto();
+      if (!ok) {
+        if (_errorFoto != null) _mensaje('No se pudo subir la foto: $_errorFoto');
+        return;
+      }
     }
+    if (!mounted) return;
+    final foto = _foto;
     final confirmado = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -107,6 +132,47 @@ class _ParadaScreenState extends State<ParadaScreen> {
       ),
     );
     if (confirmado == true) await _enviar('completada');
+  }
+
+  /// Tarjeta con el botón de la cámara, la vista previa y el estado de la subida.
+  Widget _tarjetaFoto() {
+    final foto = _foto;
+    return Card(
+      color: _fotoSubida ? Colors.green.shade50 : Colors.amber.shade50,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Icon(Icons.photo_camera_outlined),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text('Foto de la entrega (obligatoria)', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+            if (_fotoSubida) const Icon(Icons.check_circle, color: Color(0xFF2F855A)),
+          ]),
+          const SizedBox(height: 4),
+          Text(p.esRecojo ? 'Foto de lo que recoges, con el cliente si es posible.' : 'Foto del cliente recibiendo el producto.'),
+          const SizedBox(height: 10),
+          if (foto != null) ...[
+            ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.memory(foto, height: 180, width: double.infinity, fit: BoxFit.cover)),
+            const SizedBox(height: 8),
+            if (_subiendo) const Row(children: [SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)), SizedBox(width: 8), Text('Subiendo foto…')]),
+            if (_fotoSubida) const Text('✔ Foto guardada. Ya puedes marcar la entrega.', style: TextStyle(color: Color(0xFF2F855A), fontWeight: FontWeight.w600)),
+            if (_errorFoto != null) Text('✖ No se pudo subir: $_errorFoto', style: const TextStyle(color: Colors.red)),
+          ],
+          const SizedBox(height: 6),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            if (foto == null)
+              FilledButton.icon(onPressed: _subiendo || _enviando ? null : _tomarFoto, icon: const Icon(Icons.photo_camera), label: const Text('Tomar foto'))
+            else ...[
+              OutlinedButton.icon(onPressed: _subiendo || _enviando ? null : _tomarFoto, icon: const Icon(Icons.refresh), label: const Text('Volver a tomar')),
+              if (_errorFoto != null)
+                FilledButton.icon(onPressed: _subiendo ? null : _subirFoto, icon: const Icon(Icons.cloud_upload), label: const Text('Reintentar subida')),
+            ],
+          ]),
+        ]),
+      ),
+    );
   }
 
   Future<void> _incidencia() async {
@@ -180,6 +246,7 @@ class _ParadaScreenState extends State<ParadaScreen> {
             ),
           if (p.motivo != null) Text('Motivo: ${p.motivo}'),
           const SizedBox(height: 12),
+          if (puedeMarcar && !p.esAccion) _tarjetaFoto(),
 
           // Dirección y acciones de contacto
           Card(
@@ -262,8 +329,8 @@ class _ParadaScreenState extends State<ParadaScreen> {
                     flex: 3,
                     child: FilledButton.icon(
                       style: FilledButton.styleFrom(backgroundColor: const Color(0xFF2F855A)),
-                      onPressed: _enviando ? null : _completar,
-                      icon: Icon(p.esAccion ? Icons.check : Icons.photo_camera),
+                      onPressed: _enviando || _subiendo ? null : _completar,
+                      icon: Icon(p.esAccion || _fotoSubida ? Icons.check : Icons.photo_camera),
                       label: Text(_enviando ? 'Enviando…' : p.verboCompletar),
                     ),
                   ),

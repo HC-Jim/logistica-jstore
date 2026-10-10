@@ -54,8 +54,8 @@ class _RutaScreenState extends State<RutaScreen> {
         _error = ruta == null ? 'Esta ruta ya no está asignada a ti.' : null;
       });
       // La ruta en curso comparte la ubicación automáticamente; al finalizar se deja de compartir
-      if (ruta != null && ruta.estado == 'en_curso' && !gps.activo) await _activarGps(ruta.id);
-      if (ruta != null && ruta.finalizada && gps.rutaId == ruta.id) gps.detener();
+      if (ruta != null && ruta.estado == 'en_curso' && gps.rutaId != ruta.id) await _activarGps(ruta.id);
+      if (ruta != null && ruta.finalizada && gps.rutaId == ruta.id) gps.iniciar(null); // vuelve a "en turno"
     } on ApiException catch (e) {
       setState(() => _error = e.mensaje);
     }

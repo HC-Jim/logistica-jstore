@@ -60,6 +60,8 @@ export const VEHICULOS = {
   moto: { label: 'Moto', icono: '🏍️' },
   bicicleta: { label: 'Bicicleta', icono: '🚲' },
   furgoneta: { label: 'Furgoneta', icono: '🚐' },
+  a_pie: { label: 'A pie', icono: '🚶' },
+  transporte_publico: { label: 'Transporte público (bus / tren)', icono: '🚌' },
   otro: { label: 'Otro', icono: '🚚' },
 };
 

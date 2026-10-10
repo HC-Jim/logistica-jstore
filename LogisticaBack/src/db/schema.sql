@@ -292,3 +292,11 @@ ALTER TABLE rutas ADD COLUMN IF NOT EXISTS restante_en        TIMESTAMPTZ;
 
 -- Último ingreso de cada cuenta (reporte de usuarios)
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS ultimo_acceso TIMESTAMPTZ;
+
+-- Movilidad sin vehículo propio: a pie o en transporte público (bus, tren eléctrico)
+ALTER TABLE vehiculos DROP CONSTRAINT IF EXISTS vehiculos_tipo_check;
+ALTER TABLE vehiculos ADD CONSTRAINT vehiculos_tipo_check
+  CHECK (tipo IN ('auto', 'moto', 'bicicleta', 'furgoneta', 'a_pie', 'transporte_publico', 'otro'));
+INSERT INTO vehiculos (nombre, tipo)
+SELECT v.nombre, v.tipo FROM (VALUES ('A pie', 'a_pie'), ('Transporte público', 'transporte_publico')) AS v(nombre, tipo)
+WHERE NOT EXISTS (SELECT 1 FROM vehiculos x WHERE x.tipo = v.tipo);

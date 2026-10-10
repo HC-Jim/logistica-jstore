@@ -53,6 +53,7 @@ const ACCIONES_RUTA = {
   pedido_retirado: 'Retiró un pedido',
   finalizada: 'Finalizó la ruta',
   paradas_reordenadas: 'Reordenó las paradas pendientes',
+  pedido_movido: 'Pasó un pedido',
 };
 
 /** Texto legible del detalle de un cambio de la ruta. */
@@ -76,6 +77,8 @@ function describirCambio(h) {
       return `${d.pedido_id ? `#${d.pedido_id}` : d.descripcion} → ${d.estado}${d.nota ? ` (${d.nota})` : ''}${d.origen ? ` · ${d.origen}` : ''}`;
     case 'pedido_retirado':
       return `#${d.pedido_id}${d.motivo ? ` (${d.motivo})` : ''}`;
+    case 'pedido_movido':
+      return `${d.pedido_id ? `#${d.pedido_id}` : d.descripcion} ${d.a_ruta ? `a la Ruta ${d.a_ruta}` : `desde la Ruta ${d.de_ruta}`}`;
     case 'paradas_reordenadas':
       return `${(d.orden ?? []).join(' → ')}${d.origen ? ` · ${d.origen}` : ''}`;
     case 'finalizada':
@@ -99,9 +102,12 @@ export default function RutaEditor() {
   const [historial, setHistorial] = useState([]);
   const [trabajando, setTrabajando] = useState('');
   const [error, setError] = useState('');
+  const [otrasRutas, setOtrasRutas] = useState([]);
+  const [moviendo, setMoviendo] = useState(null); // id de la parada que se está pasando
 
   const aplicar = useCallback((r) => {
     setRuta(r);
+    rutasApi.listar(r.fecha).then((l) => setOtrasRutas(l.filter((x) => x.id !== r.id && x.estado !== 'finalizada'))).catch(() => {});
     setLista(r.paradas.map(desdeParada));
     setSucio(false);
     return rutasApi.pedidosSinRuta(r.fecha).then(setSinRuta);
@@ -146,6 +152,13 @@ export default function RutaEditor() {
     [copia[i], copia[j]] = [copia[j], copia[i]];
     cambiar(copia);
   };
+  const pasarARuta = (p, destinoId) => accion('mover', async () => {
+    const destino = otrasRutas.find((x) => x.id === destinoId);
+    if (!confirm(`¿Pasar "${p.titulo}" a la Ruta ${destino.numero}? Se avisará a los dos equipos.`)) return;
+    await rutasApi.moverParada(p.id, destinoId);
+    setMoviendo(null);
+    await aplicar(await rutasApi.obtener(id));
+  });
   const enLista = new Set(lista.map((p) => p.pedido_id).filter(Boolean));
   const disponibles = sinRuta.filter((p) => !enLista.has(p.id));
   const agregar = (p) => cambiar([...lista, desdePedido(p)]);
@@ -291,10 +304,24 @@ export default function RutaEditor() {
                     <span className="botonera">
                       <button className="btn-mini btn-sec" onClick={() => mover(i, -1)} disabled={i === 0}>↑</button>
                       <button className="btn-mini btn-sec" onClick={() => mover(i, 1)} disabled={i === lista.length - 1}>↓</button>
+                      {p.id && otrasRutas.length > 0 && (
+                        <button className="btn-mini btn-sec" title="Pasar a otra ruta" disabled={sucio}
+                          onClick={() => setMoviendo(moviendo === p.id ? null : p.id)}>⇄</button>
+                      )}
                       <button className="btn-mini btn-peligro" onClick={() => cambiar(lista.filter((_, j) => j !== i))}>✕</button>
                     </span>
                   )}
                 </div>
+                {moviendo === p.id && (
+                  <div className="fila mover-ruta">
+                    <small>Pasar a:</small>
+                    {otrasRutas.map((r) => (
+                      <button key={r.id} className="btn-mini" disabled={!!trabajando} onClick={() => pasarARuta(p, r.id)}>
+                        Ruta {r.numero}{r.repartidor_nombre ? ` · ${r.repartidor_nombre}` : ''}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <small>{p.direccion}</small>
               </li>
             ))}

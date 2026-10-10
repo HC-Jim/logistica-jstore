@@ -62,6 +62,20 @@ function Avance({ r }) {
   );
 }
 
+/** Conductor o auxiliar que comparte su ubicación sin ruta en curso (o que no es el que se ve en su ruta). */
+function PersonaLibre({ c }) {
+  const reciente = Date.now() - new Date(c.registrado_en) < 10 * 60 * 1000;
+  const estado = c.ruta_numero ? `Ruta ${c.ruta_numero} (${c.ruta_estado === 'planificada' ? 'sin iniciar' : c.ruta_estado.replace('_', ' ')})` : 'sin ruta';
+  return (
+    <AdvancedMarker position={{ lat: Number(c.lat), lng: Number(c.lng) }} title={`${c.nombre} · ${estado} · ${hace(c.registrado_en)}`} zIndex={900}>
+      <div className={`vehiculo libre ${reciente ? '' : 'sin-senal'}`}>
+        <span>{c.rol === 'auxiliar' ? '🧍' : '👤'}</span> {c.nombre}
+        <small>{estado} · {hace(c.registrado_en)}</small>
+      </div>
+    </AdvancedMarker>
+  );
+}
+
 /** Marcador del vehículo con el nombre del repartidor. */
 function Vehiculo({ posicion, nombre, color, tipo }) {
   const reciente = Date.now() - new Date(posicion.registrado_en) < 10 * 60 * 1000;
@@ -137,6 +151,12 @@ export default function Monitoreo() {
     }
   }
 
+  // personas cuya posición no se está mostrando como vehículo de una ruta en curso
+  const libres = (datos.conductores ?? []).filter((c) => {
+    const r = rutas.find((x) => x.id === c.ruta_id);
+    return !(r && r.estado === 'en_curso' && r.posicion?.usuario_id === c.usuario_id);
+  });
+
   const progreso = (r) => `${r.paradas.filter((p) => p.estado !== 'pendiente').length}/${r.paradas.length}`;
 
   return (
@@ -187,6 +207,7 @@ export default function Monitoreo() {
               </Fragment>
             ))}
             {verRecorrido && <LineaPuntos puntos={recorrido} />}
+            {!ruta && libres.map((c) => <PersonaLibre key={`c${c.usuario_id}`} c={c} />)}
             {verSinRuta && !ruta && datos.sinRuta.filter((p) => p.lat != null).map((p) => (
               <MarcadorNumero key={`s${p.id}`} position={{ lat: p.lat, lng: p.lng }} texto="•" color="#a0aec0"
                 title={`Sin rutear: ${p.cliente_nombre}`} />
@@ -271,6 +292,23 @@ export default function Monitoreo() {
                 </tbody>
               </table>
               <p>Pedidos sin rutear: <strong>{datos.sinRuta.length}</strong></p>
+              {(datos.conductores ?? []).length > 0 && (
+                <>
+                  <h3 style={{ marginTop: 16 }}>Ubicación del equipo</h3>
+                  <table>
+                    <thead><tr><th>Persona</th><th>Ruta</th><th>Última señal</th></tr></thead>
+                    <tbody>
+                      {datos.conductores.map((c) => (
+                        <tr key={c.usuario_id}>
+                          <td>{c.rol === 'auxiliar' ? '🧍' : '👤'} {c.nombre}</td>
+                          <td>{c.ruta_numero ? `Ruta ${c.ruta_numero} · ${c.ruta_estado === 'planificada' ? 'sin iniciar' : c.ruta_estado.replace('_', ' ')}` : 'Sin ruta'}</td>
+                          <td>{hace(c.registrado_en)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </>
+              )}
             </>
           )}
         </section>

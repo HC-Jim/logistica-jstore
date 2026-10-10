@@ -65,7 +65,9 @@ export const ESTADOS_RUTA = ['planificada', 'en_curso', 'finalizada'];
 // Rutas que se muestran cada día (Ruta 1, 2, 3). Se pueden abrir más según la demanda.
 export const RUTAS_POR_DEFECTO = 3;
 
-export const TIPOS_VEHICULO = ['auto', 'moto', 'bicicleta', 'furgoneta', 'otro'];
+export const TIPOS_VEHICULO = ['auto', 'moto', 'bicicleta', 'furgoneta', 'a_pie', 'transporte_publico', 'otro'];
+// Movilidades que pueden usar varias rutas el mismo día (no son un vehículo físico)
+export const MOVILIDAD_COMPARTIDA = ['a_pie', 'transporte_publico'];
 export const ESTADOS_PARADA = ['pendiente', 'completada', 'incidencia', 'cancelada'];
 
 export const catalogos = {
