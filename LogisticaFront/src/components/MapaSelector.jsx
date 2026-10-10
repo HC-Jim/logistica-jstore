@@ -131,8 +131,15 @@ function BuscarDireccion({ direccion, onEncontrado, onError, disabled }) {
       });
       const loc = results[0].geometry.location;
       onEncontrado(redondear({ lat: loc.lat(), lng: loc.lng() }));
-    } catch {
-      onError('No se encontró la dirección; marca el punto en el mapa.');
+    } catch (err) {
+      // Google indica el motivo en err.code: sin resultados, cupo agotado o clave rechazada
+      const motivo = {
+        ZERO_RESULTS: 'No se encontró la dirección; revisa el texto o marca el punto en el mapa.',
+        OVER_QUERY_LIMIT: 'Se agotó el cupo de búsquedas de Google por hoy; marca el punto en el mapa.',
+        OVER_DAILY_LIMIT: 'Se agotó el cupo de búsquedas de Google por hoy; marca el punto en el mapa.',
+        REQUEST_DENIED: 'Google rechazó la búsqueda (revisa la clave de Maps y que Geocoding esté permitido).',
+      }[err?.code];
+      onError(motivo ?? 'No se pudo buscar la dirección; marca el punto en el mapa.');
     }
   }
   return (
