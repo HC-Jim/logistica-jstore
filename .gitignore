@@ -3,3 +3,6 @@ dist/
 .env
 .env.local
 APK/
+
+# compilación de Next.js (también si se ejecuta desde la raíz)
+.next/
