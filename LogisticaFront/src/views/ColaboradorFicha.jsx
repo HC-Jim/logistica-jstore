@@ -13,15 +13,23 @@ import { nombresRoles, tiene } from '../utils/roles';
 import { Chip } from './MiEspacio';
 
 const VACIO = {
-  usuario_id: '', nombres: '', apellidos: '', tipo_documento: 'DNI', numero_documento: '', fecha_nacimiento: '', sexo: '',
-  estado_civil: '', telefono: '', email_personal: '', direccion: '', ubigeo: '', emergencia_nombre: '', emergencia_parentesco: '',
-  emergencia_telefono: '', hijos: '0', banco: '', cuenta_sueldo: '', cci: '', cargo: '', area: '', jefe_id: '', horario_id: '',
-  fecha_ingreso: '', tipo_contrato: 'Plazo fijo', contrato_fin: '', sueldo: '', asignacion_familiar: false,
-  sistema_pension: 'ONP', afp: '', cuspp: '', essalud: true, examen_medico_vence: '', licencia_numero: '',
-  licencia_categoria: '', licencia_vence: '', sctr_vence: '', record_conductor: '', vacaciones_ajuste: '0',
-  fecha_cese: '', motivo_cese: '', activo: true, observaciones: '',
+  usuario_id: '', nombres: '', apellido_paterno: '', apellido_materno: '', tipo_documento: 'DNI', numero_documento: '',
+  pais_emisor: '', nacionalidad: 'Peruana', fecha_nacimiento: '', sexo: '', estado_civil: '', telefono: '', email_personal: '',
+  direccion: '', direccion_referencia: '', ubigeo: '', situacion_educativa: '', institucion_educativa: '', carrera: '',
+  anio_egreso: '', discapacidad: false, carne_conadis: '', emergencia_nombre: '', emergencia_parentesco: '', emergencia_telefono: '',
+  cargo: '', area: '', jefe_id: '', horario_id: '', regimen_laboral: 'Privado general (D. Leg. 728)', categoria_ocupacional: 'Empleado',
+  ocupacion: '', situacion_especial: 'Ninguna', jornada: 'Tiempo completo', jornada_atipica: false, horario_nocturno: false,
+  sindicalizado: false, fecha_ingreso: '', periodo_prueba_fin: '', tipo_contrato: 'Necesidades del mercado', contrato_fin: '',
+  sueldo: '', periodicidad_pago: 'Mensual', tipo_pago: 'Depósito en cuenta', asignacion_familiar: false, banco: '',
+  cuenta_sueldo: '', cci: '', banco_cts: '', cuenta_cts: '', regimen_salud: 'EsSalud regular', eps: '', sistema_pension: 'ONP',
+  afp: '', comision_afp: '', cuspp: '', pension_fecha_inscripcion: '', sctr: false, sctr_salud: '', sctr_pension: '',
+  sctr_vence: '', vida_ley: true, vida_ley_aseguradora: '', examen_medico_vence: '', licencia_numero: '', licencia_categoria: '',
+  licencia_vence: '', record_conductor: '', vacaciones_ajuste: '0', fecha_cese: '', motivo_cese: '', activo: true, observaciones: '',
 };
-const ESTADOS_CIVILES = ['Soltero(a)', 'Casado(a)', 'Conviviente', 'Divorciado(a)', 'Viudo(a)'];
+const DH_VACIO = {
+  id: null, vinculo: 'Hijo(a) menor de edad', tipo_documento: 'DNI', numero_documento: '', nombres: '', apellido_paterno: '',
+  apellido_materno: '', fecha_nacimiento: '', sexo: '', documento_vinculo: '', estudia: false, activo: true,
+};
 const DOC_VACIO = { tipo: 'Contrato', vence: '', archivo: null };
 
 /** Ficha del colaborador: datos personales y laborales, documentos, vacaciones y ausencias. */
@@ -38,6 +46,7 @@ export default function ColaboradorFicha() {
   const [solicitudes, setSolicitudes] = useState([]);
   const [doc, setDoc] = useState(DOC_VACIO);
   const [ausencia, setAusencia] = useState(null);
+  const [dh, setDh] = useState(null); // derechohabiente que se está editando
   const [error, setError] = useState('');
   const [aviso, setAviso] = useState('');
   const [guardando, setGuardando] = useState(false);
@@ -89,6 +98,29 @@ export default function ColaboradorFicha() {
     }
   }
 
+  async function guardarDh(e) {
+    e.preventDefault();
+    try {
+      const { id: dhId, nombre_completo: _n, edad: _e, colaborador_id: _c, creado_en: _f, ...body } = dh;
+      const datos = Object.fromEntries(Object.entries(body).map(([k, x]) => [k, x === '' ? null : x]));
+      await rrhhApi.guardarDerechohabiente(id, dhId, datos);
+      setDh(null);
+      cargar();
+    } catch (err) {
+      alert(mensajeError(err));
+    }
+  }
+
+  async function eliminarDh(d) {
+    if (!confirm(`¿Eliminar a ${d.nombre_completo}? Si ya no es derechohabiente, mejor edítalo y dalo de baja.`)) return;
+    try {
+      await rrhhApi.eliminarDerechohabiente(d.id);
+      cargar();
+    } catch (err) {
+      alert(mensajeError(err));
+    }
+  }
+
   async function eliminarDocumento(d) {
     if (!confirm(`¿Eliminar ${d.nombre}?`)) return;
     try {
@@ -114,6 +146,13 @@ export default function ColaboradorFicha() {
   if (!nuevo && !original) return error ? <p className="error">{error}</p> : <p>Cargando…</p>;
 
   const v = original?.vacaciones;
+  const lista = (k) => cat[k] ?? [];
+  const check = (k, texto) => (
+    <label className="check"><input type="checkbox" disabled={!esRrhh} checked={Boolean(form[k])} onChange={(e) => set(k, e.target.checked)} /> {texto}</label>
+  );
+  const edad = form.fecha_nacimiento ? Math.floor((new Date(`${hoyISO()}T12:00:00Z`) - new Date(`${form.fecha_nacimiento}T12:00:00Z`)) / (365.25 * 86400000)) : null;
+  const tieneHijoQueSustenta = (original?.derechohabientes ?? []).some((d) => d.activo && d.vinculo.startsWith('Hijo')
+    && (d.edad == null || d.edad < 18 || (d.estudia && d.edad < 24) || d.vinculo.includes('discapacidad')));
   const usuarioLibre = opciones.usuarios.filter((u) => !u.colaborador_id || String(u.colaborador_id) === id);
   const conductor = form.area === 'Logística' || form.licencia_categoria || /conductor|chofer|repartidor/i.test(form.cargo);
 
@@ -139,23 +178,25 @@ export default function ColaboradorFicha() {
       <form className="tarjeta form-grid" onSubmit={guardar}>
         <h3 className="ficha-seccion">Datos personales</h3>
         <label>Nombres *<input required maxLength={80} {...input('nombres')} /></label>
-        <label>Apellidos *<input required maxLength={80} {...input('apellidos')} /></label>
+        <label>Apellido paterno *<input required maxLength={60} {...input('apellido_paterno')} /></label>
+        <label>Apellido materno<input maxLength={60} {...input('apellido_materno')} /></label>
         {esRrhh && (
           <>
             <label>Documento *
               <div className="fila sin-envolver">
-                <select {...input('tipo_documento')} style={{ width: 110 }}>{(cat.tiposDocumentoIdentidad ?? []).map((t) => <option key={t}>{t}</option>)}</select>
+                <select {...input('tipo_documento')} style={{ width: 110 }}>{lista('tiposDocumentoIdentidad').map((t) => <option key={t}>{t}</option>)}</select>
                 <input required maxLength={15} {...input('numero_documento')} />
               </div>
             </label>
-            <label>Fecha de nacimiento<input type="date" {...input('fecha_nacimiento')} /></label>
+            {form.tipo_documento !== 'DNI' && <label>País emisor *<input required maxLength={40} {...input('pais_emisor')} /></label>}
+            <label>Nacionalidad<input maxLength={40} {...input('nacionalidad')} /></label>
+            <label>Fecha de nacimiento<input type="date" max={hoyISO()} {...input('fecha_nacimiento')} />{edad != null && <small>{edad} años{edad < 18 ? ' — menor de edad: requiere autorización del MTPE' : ''}</small>}</label>
             <label>Sexo
               <select {...input('sexo')}><option value="">—</option><option value="F">Femenino</option><option value="M">Masculino</option></select>
             </label>
             <label>Estado civil
-              <select {...input('estado_civil')}><option value="">—</option>{ESTADOS_CIVILES.map((e) => <option key={e}>{e}</option>)}</select>
+              <select {...input('estado_civil')}><option value="">—</option>{lista('estadosCiviles').map((e) => <option key={e}>{e}</option>)}</select>
             </label>
-            <label>Hijos<input type="number" min={0} {...input('hijos')} /></label>
           </>
         )}
         <label>Teléfono<input maxLength={30} {...input('telefono')} /></label>
@@ -163,7 +204,20 @@ export default function ColaboradorFicha() {
           <>
             <label>Correo personal<input type="email" maxLength={160} {...input('email_personal')} /></label>
             <UbigeoSelect valor={form.ubigeo || null} onChange={(v) => set('ubigeo', v ?? '')} />
-            <label className="ancho">Dirección<input maxLength={255} {...input('direccion')} /></label>
+            <label className="ancho">Domicilio (vía, número, interior, urbanización)<input maxLength={255} {...input('direccion')} /></label>
+            <label className="ancho">Referencia del domicilio<input maxLength={255} {...input('direccion_referencia')} /></label>
+            <label>Situación educativa
+              <select {...input('situacion_educativa')}><option value="">—</option>{lista('situacionesEducativas').map((e) => <option key={e}>{e}</option>)}</select>
+            </label>
+            {lista('educacionConEstudios').includes(form.situacion_educativa) && (
+              <>
+                <label>Institución *<input required maxLength={120} {...input('institucion_educativa')} /></label>
+                <label>Carrera<input maxLength={120} {...input('carrera')} /></label>
+                <label>Año de egreso<input type="number" min={1950} max={2100} {...input('anio_egreso')} /></label>
+              </>
+            )}
+            {check('discapacidad', 'Persona con discapacidad')}
+            {form.discapacidad && <label>Carné CONADIS<input maxLength={20} {...input('carne_conadis')} /></label>}
 
             <h3 className="ficha-seccion">Contacto de emergencia</h3>
             <label>Nombre<input maxLength={120} {...input('emergencia_nombre')} /></label>
@@ -175,7 +229,7 @@ export default function ColaboradorFicha() {
         <h3 className="ficha-seccion">Datos laborales</h3>
         <label>Cargo *<input required maxLength={80} {...input('cargo')} /></label>
         <label>Área *
-          <select required {...input('area')}><option value="">Elige…</option>{(cat.areas ?? []).map((a) => <option key={a}>{a}</option>)}</select>
+          <select required {...input('area')}><option value="">Elige…</option>{lista('areas').map((a) => <option key={a}>{a}</option>)}</select>
         </label>
         {esRrhh ? (
           <>
@@ -198,6 +252,23 @@ export default function ColaboradorFicha() {
               </select>
               <small>Con usuario puede marcar y pedir vacaciones en <em>Mi espacio</em>. Si es conductor o auxiliar, su asistencia sale del GPS del app.</small>
             </label>
+            <label>Régimen laboral
+              <select {...input('regimen_laboral')}>{lista('regimenesLaborales').map((t) => <option key={t}>{t}</option>)}</select>
+              <small>Define vacaciones (30 o 15 días), CTS y gratificaciones.</small>
+            </label>
+            <label>Categoría ocupacional
+              <select {...input('categoria_ocupacional')}>{lista('categoriasOcupacionales').map((t) => <option key={t}>{t}</option>)}</select>
+            </label>
+            <label>Ocupación (T-Registro)<input maxLength={120} placeholder="Ej. Conductor de vehículo de reparto" {...input('ocupacion')} /></label>
+            <label>Situación especial
+              <select {...input('situacion_especial')}>{lista('situacionesEspeciales').map((t) => <option key={t}>{t}</option>)}</select>
+            </label>
+            <label>Jornada
+              <select {...input('jornada')}>{lista('jornadas').map((t) => <option key={t}>{t}</option>)}</select>
+            </label>
+            {check('jornada_atipica', 'Jornada atípica o acumulativa')}
+            {check('horario_nocturno', 'Horario nocturno')}
+            {check('sindicalizado', 'Sindicalizado')}
           </>
         ) : (
           <>
@@ -207,31 +278,66 @@ export default function ColaboradorFicha() {
         )}
         <label>Fecha de ingreso *<input type="date" required {...input('fecha_ingreso')} /></label>
         <label>Tipo de contrato *
-          <select required {...input('tipo_contrato')}>{(cat.tiposContrato ?? []).map((t) => <option key={t}>{t}</option>)}</select>
+          <select required {...input('tipo_contrato')}>{lista('tiposContrato').map((t) => <option key={t}>{t}</option>)}</select>
         </label>
         {form.tipo_contrato !== 'Plazo indeterminado' && (
-          <label>Fin de contrato<input type="date" min={form.fecha_ingreso} {...input('contrato_fin')} /></label>
+          <label>Fin de contrato{!lista('contratosSinFin').includes(form.tipo_contrato) && ' *'}
+            <input type="date" min={form.fecha_ingreso} required={!lista('contratosSinFin').includes(form.tipo_contrato)} {...input('contrato_fin')} />
+          </label>
         )}
+        <label>Fin del periodo de prueba<input type="date" min={form.fecha_ingreso} {...input('periodo_prueba_fin')} />
+          {nuevo && <small>Si lo dejas vacío: 3 meses (6 si es de confianza, 12 si es de dirección).</small>}
+        </label>
         <label>Examen médico ocupacional vence<input type="date" {...input('examen_medico_vence')} /></label>
 
         {esRrhh && (
           <>
-            <h3 className="ficha-seccion">Remuneración, pensiones y cuenta de sueldo</h3>
-            <label>Sueldo básico (S/)<input type="number" min={0} step="0.01" {...input('sueldo')} /></label>
-            <label className="check"><input type="checkbox" checked={form.asignacion_familiar} onChange={(e) => set('asignacion_familiar', e.target.checked)} /> Asignación familiar (10 % de la RMV)</label>
-            <label className="check"><input type="checkbox" checked={form.essalud} onChange={(e) => set('essalud', e.target.checked)} /> Afiliado a EsSalud</label>
+            <h3 className="ficha-seccion">Remuneración y cuentas</h3>
+            <label>Remuneración básica (S/)<input type="number" min={0} step="0.01" {...input('sueldo')} />
+              {form.sueldo !== '' && Number(form.sueldo) < (cat.rmv ?? 0) && form.jornada === 'Tiempo completo' && <small className="error">Menor que la RMV (S/ {cat.rmv})</small>}
+            </label>
+            <label>Periodicidad
+              <select {...input('periodicidad_pago')}>{lista('periodicidadesPago').map((t) => <option key={t}>{t}</option>)}</select>
+            </label>
+            <label>Tipo de pago
+              <select {...input('tipo_pago')}>{lista('tiposPago').map((t) => <option key={t}>{t}</option>)}</select>
+            </label>
+            {check('asignacion_familiar', 'Asignación familiar (10 % de la RMV)')}
+            {form.asignacion_familiar && !nuevo && !tieneHijoQueSustenta && <small className="pendiente-texto">⚠ Registra al hijo que la sustenta en Derechohabientes.</small>}
+            <label>Banco (sueldo)<select {...input('banco')}><option value="">—</option>{lista('bancos').map((t) => <option key={t}>{t}</option>)}</select></label>
+            <label>Cuenta de sueldo<input maxLength={30} {...input('cuenta_sueldo')} /></label>
+            <label>CCI (20 dígitos)<input maxLength={25} {...input('cci')} /></label>
+            <label>Banco CTS (lo elige el trabajador)
+              <select {...input('banco_cts')}><option value="">—</option>{[...lista('bancos'), 'Caja municipal', 'Financiera'].map((t) => <option key={t}>{t}</option>)}</select>
+            </label>
+            <label>Cuenta CTS<input maxLength={30} {...input('cuenta_cts')} /></label>
+
+            <h3 className="ficha-seccion">Seguridad social</h3>
+            <label>Régimen de salud
+              <select {...input('regimen_salud')}>{lista('regimenesSalud').map((t) => <option key={t}>{t}</option>)}</select>
+            </label>
+            {form.regimen_salud === 'EsSalud + EPS' && <label>EPS<input maxLength={40} placeholder="Pacífico, Rímac, Mapfre, Sanitas…" {...input('eps')} /></label>}
             <label>Sistema de pensiones
-              <select {...input('sistema_pension')}>{(cat.sistemasPension ?? []).map((t) => <option key={t}>{t}</option>)}</select>
+              <select {...input('sistema_pension')}>{lista('sistemasPension').map((t) => <option key={t}>{t}</option>)}</select>
             </label>
             {form.sistema_pension === 'AFP' && (
               <>
-                <label>AFP *<select required {...input('afp')}><option value="">Elige…</option>{(cat.afps ?? []).map((t) => <option key={t}>{t}</option>)}</select></label>
-                <label>CUSPP<input maxLength={15} {...input('cuspp')} /></label>
+                <label>AFP *<select required {...input('afp')}><option value="">Elige…</option>{lista('afps').map((t) => <option key={t}>{t}</option>)}</select></label>
+                <label>Comisión *<select required {...input('comision_afp')}><option value="">Elige…</option>{lista('comisionesAfp').map((t) => <option key={t} value={t}>{t === 'Flujo' ? 'Sobre el flujo (sueldo)' : 'Mixta (sobre el saldo)'}</option>)}</select></label>
+                <label>CUSPP (12 caracteres)<input maxLength={12} {...input('cuspp')} /></label>
               </>
             )}
-            <label>Banco<select {...input('banco')}><option value="">—</option>{(cat.bancos ?? []).map((t) => <option key={t}>{t}</option>)}</select></label>
-            <label>Cuenta de sueldo<input maxLength={30} {...input('cuenta_sueldo')} /></label>
-            <label>CCI<input maxLength={25} {...input('cci')} /></label>
+            {form.sistema_pension !== 'Sin sistema' && <label>Fecha de inscripción al sistema<input type="date" {...input('pension_fecha_inscripcion')} /></label>}
+            {check('vida_ley', 'Seguro Vida Ley (obligatorio desde el primer día)')}
+            {form.vida_ley && <label>Aseguradora Vida Ley<input maxLength={60} {...input('vida_ley_aseguradora')} /></label>}
+            {check('sctr', 'SCTR (actividad de riesgo)')}
+            {form.sctr && (
+              <>
+                <label>SCTR salud *<select required {...input('sctr_salud')}><option value="">Elige…</option>{lista('sctrSalud').map((t) => <option key={t}>{t}</option>)}</select></label>
+                <label>SCTR pensión *<select required {...input('sctr_pension')}><option value="">Elige…</option>{lista('sctrPension').map((t) => <option key={t}>{t}</option>)}</select></label>
+                <label>Póliza SCTR vence<input type="date" {...input('sctr_vence')} /></label>
+              </>
+            )}
           </>
         )}
 
@@ -240,10 +346,9 @@ export default function ColaboradorFicha() {
             <h3 className="ficha-seccion">Conductor</h3>
             <label>Licencia de conducir<input maxLength={15} {...input('licencia_numero')} /></label>
             <label>Categoría
-              <select {...input('licencia_categoria')}><option value="">—</option>{(cat.categoriasLicencia ?? []).map((t) => <option key={t}>{t}</option>)}</select>
+              <select {...input('licencia_categoria')}><option value="">—</option>{lista('categoriasLicencia').map((t) => <option key={t}>{t}</option>)}</select>
             </label>
             <label>Licencia vence<input type="date" {...input('licencia_vence')} /></label>
-            <label>SCTR vence<input type="date" {...input('sctr_vence')} /></label>
             {esRrhh && <label className="ancho">Récord del conductor (papeletas, accidentes)<textarea rows={2} maxLength={2000} {...input('record_conductor')} /></label>}
           </>
         )}
@@ -256,7 +361,11 @@ export default function ColaboradorFicha() {
               <small>Negativo para descontar días gozados antes de usar el sistema; positivo para sumar.</small>
             </label>
             <label>Fecha de cese<input type="date" min={form.fecha_ingreso} {...input('fecha_cese')} /></label>
-            {form.fecha_cese && <label>Motivo de cese<input maxLength={120} {...input('motivo_cese')} placeholder="Renuncia, fin de contrato…" /></label>}
+            {form.fecha_cese && (
+              <label>Motivo de cese *
+                <select required {...input('motivo_cese')}><option value="">Elige…</option>{lista('motivosCese').map((t) => <option key={t}>{t}</option>)}</select>
+              </label>
+            )}
             {!nuevo && !original.activo && (
               <div className="ancho"><button type="button" className="btn-sec" onClick={() => setForm({ ...form, fecha_cese: '', motivo_cese: '', activo: true })}>Reactivar colaborador</button></div>
             )}
@@ -278,12 +387,60 @@ export default function ColaboradorFicha() {
           <h3>🏖️ Vacaciones</h3>
           <div className="kpis kpis-compactos">
             <div className="kpi"><small>Saldo</small><strong>{v.saldo} días</strong></div>
-            <div className="kpi"><small>Ganados ({v.anios_completos} años)</small><strong>{v.ganados}</strong></div>
+            <div className="kpi"><small>Ganados ({v.anios_completos} años × {v.dias_anio} días)</small><strong>{v.ganados}</strong></div>
             <div className="kpi"><small>Proporcional en curso</small><strong>{v.en_curso}</strong></div>
             <div className="kpi"><small>Gozados</small><strong>{v.gozados}</strong></div>
             <div className="kpi"><small>Programados</small><strong>{v.programados}</strong></div>
             <div className="kpi"><small>Por aprobar</small><strong>{v.pendientes}</strong></div>
           </div>
+        </section>
+      )}
+
+      {!nuevo && esRrhh && (
+        <section className="tarjeta">
+          <div className="fila espacio">
+            <h3>👪 Derechohabientes</h3>
+            {!dh && <button className="btn-sec" onClick={() => setDh(DH_VACIO)}>+ Agregar</button>}
+          </div>
+          <small>Cónyuge, concubino(a) e hijos: se declaran en el T-Registro para EsSalud y sustentan la asignación familiar (hijos menores de 18, o hasta 24 si estudian).</small>
+          {dh && (
+            <form className="form-grid nueva-ruta" onSubmit={guardarDh}>
+              <label>Vínculo *<select required value={dh.vinculo} onChange={(e) => setDh({ ...dh, vinculo: e.target.value })}>{lista('vinculosDerechohabiente').map((t) => <option key={t}>{t}</option>)}</select></label>
+              <label>Nombres *<input required maxLength={80} value={dh.nombres} onChange={(e) => setDh({ ...dh, nombres: e.target.value })} /></label>
+              <label>Apellido paterno *<input required maxLength={60} value={dh.apellido_paterno} onChange={(e) => setDh({ ...dh, apellido_paterno: e.target.value })} /></label>
+              <label>Apellido materno<input maxLength={60} value={dh.apellido_materno ?? ''} onChange={(e) => setDh({ ...dh, apellido_materno: e.target.value })} /></label>
+              <label>Documento
+                <div className="fila sin-envolver">
+                  <select style={{ width: 110 }} value={dh.tipo_documento} onChange={(e) => setDh({ ...dh, tipo_documento: e.target.value })}>{lista('tiposDocumentoIdentidad').map((t) => <option key={t}>{t}</option>)}</select>
+                  <input maxLength={15} value={dh.numero_documento ?? ''} onChange={(e) => setDh({ ...dh, numero_documento: e.target.value })} />
+                </div>
+              </label>
+              <label>Fecha de nacimiento<input type="date" value={dh.fecha_nacimiento ?? ''} onChange={(e) => setDh({ ...dh, fecha_nacimiento: e.target.value })} /></label>
+              <label>Sexo<select value={dh.sexo ?? ''} onChange={(e) => setDh({ ...dh, sexo: e.target.value })}><option value="">—</option><option value="F">Femenino</option><option value="M">Masculino</option></select></label>
+              <label>Documento que acredita el vínculo<input maxLength={60} placeholder="Partida de nacimiento, acta de matrimonio…" value={dh.documento_vinculo ?? ''} onChange={(e) => setDh({ ...dh, documento_vinculo: e.target.value })} /></label>
+              {dh.vinculo.startsWith('Hijo') && <label className="check"><input type="checkbox" checked={dh.estudia} onChange={(e) => setDh({ ...dh, estudia: e.target.checked })} /> Cursa estudios superiores</label>}
+              {dh.id && <label className="check"><input type="checkbox" checked={!dh.activo} onChange={(e) => setDh({ ...dh, activo: !e.target.checked })} /> Dar de baja</label>}
+              <div className="fila ancho"><button>Guardar</button><button type="button" className="btn-sec" onClick={() => setDh(null)}>Cancelar</button></div>
+            </form>
+          )}
+          <table>
+            <thead><tr><th>Vínculo</th><th>Nombre</th><th>Documento</th><th>Nacimiento</th><th>Acredita</th><th /></tr></thead>
+            <tbody>
+              {original.derechohabientes?.map((d) => (
+                <tr key={d.id} className={d.activo ? '' : 'inactivo'}>
+                  <td>{d.vinculo}{d.estudia && <small> · estudia</small>}</td><td>{d.nombre_completo}</td>
+                  <td>{d.numero_documento ? `${d.tipo_documento} ${d.numero_documento}` : '—'}</td>
+                  <td>{d.fecha_nacimiento ? `${fechaCorta(d.fecha_nacimiento)} (${d.edad} años)` : '—'}</td>
+                  <td>{d.documento_vinculo}</td>
+                  <td className="acciones">
+                    <button className="btn-sec btn-mini" onClick={() => setDh(Object.fromEntries(Object.entries({ ...DH_VACIO, ...d }).map(([k, x]) => [k, x ?? ''])))}>Editar</button>
+                    <button className="btn-peligro btn-mini" onClick={() => eliminarDh(d)}>Eliminar</button>
+                  </td>
+                </tr>
+              ))}
+              {!original.derechohabientes?.length && <tr><td colSpan={6}>Sin derechohabientes registrados.</td></tr>}
+            </tbody>
+          </table>
         </section>
       )}
 

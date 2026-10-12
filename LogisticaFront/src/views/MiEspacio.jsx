@@ -163,7 +163,7 @@ export default function MiEspacio() {
             <div className="kpi"><small>Gozados</small><strong>{v.gozados}</strong></div>
             <div className="kpi"><small>Programados · por aprobar</small><strong>{v.programados} · {v.pendientes}</strong></div>
           </div>
-          <small>30 días por año de servicio (2,5 por mes). Ingreso: {fechaCorta(c.fecha_ingreso)}.</small>
+          <small>{v.dias_anio} días por año de servicio ({c.regimen_laboral}). Ingreso: {fechaCorta(c.fecha_ingreso)}.</small>
         </section>
       </div>
 

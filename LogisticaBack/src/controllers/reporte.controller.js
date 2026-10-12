@@ -405,7 +405,7 @@ const MODULOS = {
   precios: { roles: ['admin', 'catalogo'], claves: ['cambios_precio', 'descuento_plataforma', 'variacion_precio'] },
   rrhh: {
     roles: ['admin', 'rrhh'],
-    claves: ['personal', 'vencimientos', 'asistencia', 'asistencia_resumen', 'solicitudes', 'vacaciones', 'desempeno', 'planilla'],
+    claves: ['personal', 'tregistro', 'derechohabientes', 'vencimientos', 'asistencia', 'asistencia_resumen', 'solicitudes', 'vacaciones', 'desempeno', 'planilla'],
   },
 };
 const moduloDe = (clave) => Object.entries(MODULOS).find(([, m]) => m.claves.includes(clave));

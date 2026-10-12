@@ -95,7 +95,7 @@ export async function asistenciaDiaria({ desde, hasta, colaboradorIds = null, ar
   const { rows } = await query(
     `WITH dias AS (SELECT d::date AS fecha FROM generate_series($1::date, $2::date, interval '1 day') d),
      col AS (
-       SELECT c.id, c.nombres || ' ' || c.apellidos AS colaborador, c.area, c.cargo, c.usuario_id, c.fecha_ingreso, c.fecha_cese,
+       SELECT c.id, concat_ws(' ', c.nombres, c.apellido_paterno, c.apellido_materno) AS colaborador, c.area, c.cargo, c.usuario_id, c.fecha_ingreso, c.fecha_cese,
               h.nombre AS horario, to_char(h.hora_entrada, 'HH24:MI') AS hora_entrada, to_char(h.hora_salida, 'HH24:MI') AS hora_salida,
               h.tolerancia_min, h.refrigerio_min, h.dias::int[] AS dias_lab
        FROM colaboradores c LEFT JOIN rrhh_horarios h ON h.id = c.horario_id

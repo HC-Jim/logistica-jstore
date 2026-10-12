@@ -1,23 +1,30 @@
-import { DIAS_VACACIONES_ANIO } from '../config/catalogos.js';
+import { diasVacacionesAnio } from '../config/catalogos.js';
 import { query, withTransaction } from '../config/db.js';
 import { env } from '../config/env.js';
 import { HttpError } from '../utils/http.js';
 
 // Columnas de la ficha que se pueden escribir (el controlador las valida con leerCampos)
 export const COLUMNAS_FICHA = [
-  'usuario_id', 'nombres', 'apellidos', 'tipo_documento', 'numero_documento', 'fecha_nacimiento', 'sexo', 'estado_civil',
-  'telefono', 'email_personal', 'direccion', 'ubigeo', 'emergencia_nombre', 'emergencia_parentesco', 'emergencia_telefono',
-  'hijos', 'banco', 'cuenta_sueldo', 'cci', 'cargo', 'area', 'jefe_id', 'horario_id', 'fecha_ingreso', 'tipo_contrato',
-  'contrato_fin', 'sueldo', 'asignacion_familiar', 'sistema_pension', 'afp', 'cuspp', 'essalud', 'examen_medico_vence',
-  'licencia_numero', 'licencia_categoria', 'licencia_vence', 'sctr_vence', 'record_conductor', 'vacaciones_ajuste',
+  'usuario_id', 'nombres', 'apellido_paterno', 'apellido_materno', 'tipo_documento', 'numero_documento', 'pais_emisor',
+  'nacionalidad', 'fecha_nacimiento', 'sexo', 'estado_civil', 'telefono', 'email_personal', 'direccion', 'direccion_referencia',
+  'ubigeo', 'situacion_educativa', 'institucion_educativa', 'carrera', 'anio_egreso', 'discapacidad', 'carne_conadis',
+  'emergencia_nombre', 'emergencia_parentesco', 'emergencia_telefono',
+  'cargo', 'area', 'jefe_id', 'horario_id', 'regimen_laboral', 'categoria_ocupacional', 'ocupacion', 'situacion_especial',
+  'jornada', 'jornada_atipica', 'horario_nocturno', 'sindicalizado', 'fecha_ingreso', 'periodo_prueba_fin', 'tipo_contrato',
+  'contrato_fin', 'sueldo', 'periodicidad_pago', 'tipo_pago', 'asignacion_familiar', 'banco', 'cuenta_sueldo', 'cci',
+  'banco_cts', 'cuenta_cts', 'regimen_salud', 'eps', 'sistema_pension', 'afp', 'comision_afp', 'cuspp',
+  'pension_fecha_inscripcion', 'sctr', 'sctr_salud', 'sctr_pension', 'sctr_vence', 'vida_ley', 'vida_ley_aseguradora',
+  'examen_medico_vence', 'licencia_numero', 'licencia_categoria', 'licencia_vence', 'record_conductor', 'vacaciones_ajuste',
   'fecha_cese', 'motivo_cese', 'activo', 'observaciones',
 ];
 
-// Datos que solo ve RRHH (sueldo, banco, pensiones, documentos personales)
+// Datos que solo ve RRHH (sueldo, banco, pensiones, salud, datos personales)
 export const COLUMNAS_RESERVADAS = [
-  'fecha_nacimiento', 'estado_civil', 'email_personal', 'direccion', 'ubigeo', 'emergencia_nombre', 'emergencia_parentesco',
-  'emergencia_telefono', 'hijos', 'banco', 'cuenta_sueldo', 'cci', 'sueldo', 'asignacion_familiar', 'sistema_pension', 'afp',
-  'cuspp', 'essalud', 'vacaciones_ajuste', 'motivo_cese', 'observaciones', 'record_conductor', 'numero_documento',
+  'numero_documento', 'pais_emisor', 'fecha_nacimiento', 'estado_civil', 'email_personal', 'direccion', 'direccion_referencia',
+  'ubigeo', 'discapacidad', 'carne_conadis', 'emergencia_nombre', 'emergencia_parentesco', 'emergencia_telefono',
+  'sindicalizado', 'sueldo', 'periodicidad_pago', 'tipo_pago', 'asignacion_familiar', 'banco', 'cuenta_sueldo', 'cci',
+  'banco_cts', 'cuenta_cts', 'regimen_salud', 'eps', 'sistema_pension', 'afp', 'comision_afp', 'cuspp',
+  'pension_fecha_inscripcion', 'vida_ley_aseguradora', 'record_conductor', 'vacaciones_ajuste', 'motivo_cese', 'observaciones',
 ];
 
 const TZ = env.timezone;
@@ -31,7 +38,9 @@ const SQL_VENCIMIENTOS = `
   FROM colaboradores c
   CROSS JOIN LATERAL (VALUES
     ('Contrato', c.contrato_fin), ('Licencia de conducir', c.licencia_vence),
-    ('SCTR', c.sctr_vence), ('Examen médico', c.examen_medico_vence)
+    ('SCTR', c.sctr_vence), ('Examen médico', c.examen_medico_vence),
+    -- el fin del periodo de prueba solo avisa antes de que llegue
+    ('Fin del periodo de prueba', CASE WHEN c.periodo_prueba_fin >= (now() AT TIME ZONE '${env.timezone}')::date THEN c.periodo_prueba_fin END)
   ) AS x(concepto, vence)
   WHERE c.activo AND x.vence IS NOT NULL
   UNION ALL
@@ -48,16 +57,16 @@ export const RrhhModel = {
     const cond = [];
     const params = [];
     const agregar = (sql, v) => { params.push(v); cond.push(sql.replaceAll('?', `$${params.length}`)); };
-    if (q) agregar("(c.nombres || ' ' || c.apellidos ILIKE ? OR c.numero_documento ILIKE ? OR c.cargo ILIKE ?)", `%${q}%`);
+    if (q) agregar("(concat_ws(' ', c.nombres, c.apellido_paterno, c.apellido_materno) ILIKE ? OR c.numero_documento ILIKE ? OR c.cargo ILIKE ?)", `%${q}%`);
     if (area) agregar('c.area = ?', area);
     if (estado === 'activos') cond.push('c.activo');
     if (estado === 'cesados') cond.push('NOT c.activo');
     if (ids) agregar('c.id = ANY(?::int[])', ids);
     const { rows } = await query(
       `WITH venc AS (${SQL_VENCIMIENTOS})
-       SELECT c.*, c.nombres || ' ' || c.apellidos AS nombre_completo,
+       SELECT c.*, concat_ws(' ', c.nombres, c.apellido_paterno, c.apellido_materno) AS nombre_completo,
               u.email AS usuario_email, u.nombre AS usuario_nombre, u.roles AS usuario_roles,
-              j.nombres || ' ' || j.apellidos AS jefe_nombre, h.nombre AS horario_nombre,
+              concat_ws(' ', j.nombres, j.apellido_paterno, j.apellido_materno) AS jefe_nombre, h.nombre AS horario_nombre,
               (SELECT COUNT(*) FROM rrhh_documentos d WHERE d.colaborador_id = c.id)::int AS documentos,
               (SELECT json_agg(json_build_object('concepto', v.concepto, 'vence', v.vence) ORDER BY v.vence)
                  FROM venc v WHERE v.colaborador_id = c.id
@@ -67,7 +76,7 @@ export const RrhhModel = {
        LEFT JOIN colaboradores j ON j.id = c.jefe_id
        LEFT JOIN rrhh_horarios h ON h.id = c.horario_id
        ${cond.length ? `WHERE ${cond.join(' AND ')}` : ''}
-       ORDER BY c.activo DESC, c.apellidos, c.nombres`,
+       ORDER BY c.activo DESC, c.apellido_paterno, c.apellido_materno, c.nombres`,
       params
     );
     return rows;
@@ -124,7 +133,7 @@ export const RrhhModel = {
   /** Vencimientos de todo el personal activo hasta `dias` días adelante (incluye los ya vencidos). */
   async vencimientos(dias = 60) {
     const { rows } = await query(
-      `SELECT v.*, c.nombres || ' ' || c.apellidos AS colaborador, c.area, c.cargo,
+      `SELECT v.*, concat_ws(' ', c.nombres, c.apellido_paterno, c.apellido_materno) AS colaborador, c.area, c.cargo,
               v.vence - (now() AT TIME ZONE '${TZ}')::date AS dias_restantes
        FROM (${SQL_VENCIMIENTOS}) v JOIN colaboradores c ON c.id = v.colaborador_id
        WHERE v.vence <= (now() AT TIME ZONE '${TZ}')::date + $1::int
@@ -143,34 +152,74 @@ export const RrhhModel = {
   async vacaciones(ids) {
     const { rows } = await query(
       `WITH base AS (
-         SELECT c.id, c.fecha_ingreso, c.vacaciones_ajuste,
+         SELECT c.id, c.fecha_ingreso, c.vacaciones_ajuste, c.regimen_laboral, c.jornada,
                 age(LEAST(COALESCE(c.fecha_cese, 'infinity'::date), (now() AT TIME ZONE '${TZ}')::date), c.fecha_ingreso) AS servicio
          FROM colaboradores c WHERE c.id = ANY($1::int[])
        )
-       SELECT b.id AS colaborador_id,
+       SELECT b.id AS colaborador_id, b.regimen_laboral, b.jornada,
               GREATEST((EXTRACT(YEAR FROM b.servicio) * 12 + EXTRACT(MONTH FROM b.servicio))::int, 0) AS meses_servicio,
               b.vacaciones_ajuste AS ajuste,
               COALESCE(SUM(s.dias) FILTER (WHERE s.estado = 'aprobada' AND s.desde <= (now() AT TIME ZONE '${TZ}')::date), 0)::int AS gozados,
               COALESCE(SUM(s.dias) FILTER (WHERE s.estado = 'aprobada' AND s.desde > (now() AT TIME ZONE '${TZ}')::date), 0)::int AS programados,
               COALESCE(SUM(s.dias) FILTER (WHERE s.estado = 'pendiente'), 0)::int AS pendientes
        FROM base b LEFT JOIN rrhh_solicitudes s ON s.colaborador_id = b.id AND s.tipo = 'vacaciones'
-       GROUP BY b.id, b.servicio, b.vacaciones_ajuste`,
+       GROUP BY b.id, b.servicio, b.vacaciones_ajuste, b.regimen_laboral, b.jornada`,
       [ids]
     );
     return Object.fromEntries(rows.map((r) => {
-      const devengados = Math.round(r.meses_servicio * (DIAS_VACACIONES_ANIO / 12) * 10) / 10;
+      const diasAnio = diasVacacionesAnio(r.regimen_laboral, r.jornada);
+      const devengados = Math.round(r.meses_servicio * (diasAnio / 12) * 10) / 10;
       const saldo = Math.round((devengados + Number(r.ajuste) - r.gozados - r.programados) * 10) / 10;
       const anios = Math.floor(r.meses_servicio / 12);
       return [r.colaborador_id, {
         ...r,
+        dias_anio: diasAnio, // 30 en el régimen general, 15 en MYPE
         anios_completos: anios,
-        ganados: anios * DIAS_VACACIONES_ANIO, // derecho adquirido por años completos
-        en_curso: Math.round((devengados - anios * DIAS_VACACIONES_ANIO) * 10) / 10, // proporcional del año en curso
+        ganados: anios * diasAnio, // derecho adquirido por años completos
+        en_curso: Math.round((devengados - anios * diasAnio) * 10) / 10, // proporcional del año en curso
         devengados,
         saldo,
         disponible: Math.round((saldo - r.pendientes) * 10) / 10,
       }];
     }));
+  },
+
+  // ---------------- derechohabientes ----------------
+
+  async derechohabientes(colaboradorId) {
+    const { rows } = await query(
+      `SELECT *, concat_ws(' ', nombres, apellido_paterno, apellido_materno) AS nombre_completo,
+              EXTRACT(YEAR FROM age((now() AT TIME ZONE '${TZ}')::date, fecha_nacimiento))::int AS edad
+       FROM rrhh_derechohabientes WHERE colaborador_id = $1 ORDER BY activo DESC, fecha_nacimiento NULLS LAST`,
+      [colaboradorId]
+    );
+    return rows;
+  },
+
+  async guardarDerechohabiente(id, colaboradorId, d) {
+    const cols = Object.keys(d);
+    if (id) {
+      const { rowCount } = await query(
+        `UPDATE rrhh_derechohabientes SET ${cols.map((c, i) => `${c} = $${i + 2}`).join(', ')} WHERE id = $1`,
+        [id, ...cols.map((c) => d[c])]
+      );
+      return rowCount > 0;
+    }
+    await query(
+      `INSERT INTO rrhh_derechohabientes (colaborador_id, ${cols.join(', ')}) VALUES ($1, ${cols.map((_, i) => `$${i + 2}`).join(', ')})`,
+      [colaboradorId, ...cols.map((c) => d[c])]
+    );
+    return true;
+  },
+
+  async derechohabiente(id) {
+    const { rows } = await query('SELECT * FROM rrhh_derechohabientes WHERE id = $1', [id]);
+    return rows[0] ?? null;
+  },
+
+  async eliminarDerechohabiente(id) {
+    const { rowCount } = await query('DELETE FROM rrhh_derechohabientes WHERE id = $1', [id]);
+    return rowCount > 0;
   },
 
   // ---------------- documentos ----------------
@@ -303,7 +352,7 @@ export const RrhhModel = {
     if (hasta) agregar('s.desde <= ?', hasta);
     if (id) agregar('s.id = ?', id);
     const { rows } = await query(
-      `SELECT s.*, c.nombres || ' ' || c.apellidos AS colaborador, c.area, c.cargo, c.jefe_id, c.usuario_id,
+      `SELECT s.*, concat_ws(' ', c.nombres, c.apellido_paterno, c.apellido_materno) AS colaborador, c.area, c.cargo, c.jefe_id, c.usuario_id,
               cu.roles AS usuario_roles, r.nombre AS resuelto_por_nombre, cr.nombre AS creado_por_nombre,
               (SELECT json_agg(json_build_object('id', d.id, 'nombre', d.nombre, 'mime', d.mime))
                  FROM rrhh_documentos d WHERE d.solicitud_id = s.id) AS documentos
@@ -361,7 +410,7 @@ export const RrhhModel = {
   async ausencias(desde, hasta, { soloAprobadas = false } = {}) {
     const { rows } = await query(
       `SELECT s.id, s.colaborador_id, s.tipo, s.con_goce, s.desde, s.hasta, s.dias, s.estado,
-              c.nombres || ' ' || c.apellidos AS colaborador, c.area, c.cargo, c.usuario_id, u.roles AS usuario_roles
+              concat_ws(' ', c.nombres, c.apellido_paterno, c.apellido_materno) AS colaborador, c.area, c.cargo, c.usuario_id, u.roles AS usuario_roles
        FROM rrhh_solicitudes s JOIN colaboradores c ON c.id = s.colaborador_id
        LEFT JOIN usuarios u ON u.id = c.usuario_id
        WHERE s.desde <= $2 AND s.hasta >= $1 AND s.estado = ANY($3::text[])

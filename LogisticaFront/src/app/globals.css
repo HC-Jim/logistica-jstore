@@ -410,3 +410,5 @@ label.adjuntar { display: inline-flex; flex-direction: row; cursor: pointer; }
   .calendario-dia { min-height: 60px; font-size: 0.7rem; }
   .grid-graficos { grid-template-columns: 1fr; }
 }
+.sin-envolver > input, .sin-envolver > select { min-width: 0; }
+.sin-envolver > input { flex: 1; }

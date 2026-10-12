@@ -22,7 +22,109 @@ function limitarRango(f, max = 93) {
   if ((new Date(f.hasta) - new Date(f.desde)) / 86400000 >= max) throw new HttpError(400, `Elige un rango de hasta ${max} días`);
 }
 
+const sino = (b) => (b ? 'Sí' : 'No');
+
 export const REPORTES_RRHH = {
+  tregistro: {
+    titulo: 'T-Registro',
+    descripcion: 'Datos de cada trabajador como los pide el T-Registro de SUNAT (alta, modificación y baja). Revisa los campos vacíos antes de registrar.',
+    sinFechas: true,
+    filtros: [{ clave: 'estado', etiqueta: 'Estado', opciones: ['Activos', 'Cesados'] }],
+    async ejecutar(f) {
+      const estado = f.estado === 'Cesados' ? 'cesados' : f.estado === 'Activos' ? 'activos' : 'todos';
+      const [rows, { rows: ubigeos }] = await Promise.all([
+        RrhhModel.listar({ estado }),
+        query('SELECT codigo, departamento, provincia, distrito FROM ubigeos'),
+      ]);
+      const ub = new Map(ubigeos.map((u) => [u.codigo, u]));
+      const OBLIGATORIOS = {
+        fecha_nacimiento: 'fecha de nacimiento', sexo: 'sexo', direccion: 'domicilio', ubigeo: 'distrito',
+        situacion_educativa: 'situación educativa', ocupacion: 'ocupación',
+      };
+      const filas = rows.filter((r) => !r.tipo_contrato.startsWith('Locación')).map((r) => {
+        const faltan = Object.entries(OBLIGATORIOS).filter(([k]) => !r[k]).map(([, t]) => t);
+        if (r.sistema_pension === 'AFP' && !r.cuspp) faltan.push('CUSPP');
+        if (r.tipo_pago === 'Depósito en cuenta' && !r.cuenta_sueldo) faltan.push('cuenta de sueldo');
+        const u = ub.get(r.ubigeo);
+        return {
+          ...r,
+          documento: r.numero_documento,
+          ubigeo_txt: u ? `${r.ubigeo} ${u.departamento} / ${u.provincia} / ${u.distrito}` : '',
+          pension: r.sistema_pension === 'AFP' ? `SPP ${r.afp ?? ''} (comisión ${r.comision_afp?.toLowerCase() ?? '?'})` : r.sistema_pension === 'ONP' ? 'SNP (ONP)' : 'Sin régimen',
+          sctr_txt: r.sctr ? `Salud: ${r.sctr_salud ?? '?'} · Pensión: ${r.sctr_pension ?? '?'}` : 'No',
+          discapacidad_txt: sino(r.discapacidad), sindicalizado_txt: sino(r.sindicalizado), atipica_txt: sino(r.jornada_atipica),
+          nocturno_txt: sino(r.horario_nocturno), asig_txt: sino(r.asignacion_familiar),
+          estudios: [r.institucion_educativa, r.carrera, r.anio_egreso].filter(Boolean).join(' · '),
+          faltan: faltan.join(', '),
+        };
+      });
+      return {
+        columnas: [
+          col('tipo_documento', 'Tipo doc.'), col('documento', 'Nro. documento'), col('pais_emisor', 'País emisor'),
+          col('apellido_paterno', 'Ap. paterno'), col('apellido_materno', 'Ap. materno'), col('nombres', 'Nombres'),
+          col('fecha_nacimiento', 'Nacimiento', 'fecha'), col('sexo', 'Sexo'), col('nacionalidad', 'Nacionalidad'),
+          col('estado_civil', 'Estado civil'), col('telefono', 'Teléfono'), col('email_personal', 'Correo'),
+          col('direccion', 'Domicilio'), col('direccion_referencia', 'Referencia'), col('ubigeo_txt', 'Ubigeo'),
+          col('situacion_educativa', 'Situación educativa'), col('estudios', 'Institución · carrera · egreso'),
+          col('discapacidad_txt', 'Discapacidad'), col('carne_conadis', 'CONADIS'),
+          col('regimen_laboral', 'Régimen laboral'), col('categoria_ocupacional', 'Categoría ocupacional'),
+          col('ocupacion', 'Ocupación'), col('cargo', 'Cargo'), col('tipo_contrato', 'Tipo de contrato'),
+          col('fecha_ingreso', 'Fecha de inicio', 'fecha'), col('contrato_fin', 'Fin de contrato', 'fecha'),
+          col('periodo_prueba_fin', 'Fin periodo de prueba', 'fecha'), col('situacion_especial', 'Situación especial'),
+          col('jornada', 'Jornada'), col('atipica_txt', 'Jornada atípica/acumulativa'), col('nocturno_txt', 'Horario nocturno'),
+          col('sindicalizado_txt', 'Sindicalizado'), col('sueldo', 'Remuneración básica', 'monto'), col('asig_txt', 'Asig. familiar'),
+          col('periodicidad_pago', 'Periodicidad'), col('tipo_pago', 'Tipo de pago'), col('banco', 'Banco'),
+          col('cuenta_sueldo', 'Cuenta sueldo'), col('banco_cts', 'Banco CTS'), col('cuenta_cts', 'Cuenta CTS'),
+          col('regimen_salud', 'Régimen de salud'), col('eps', 'EPS'), col('pension', 'Régimen pensionario'),
+          col('cuspp', 'CUSPP'), col('pension_fecha_inscripcion', 'Inscripción pensión', 'fecha'), col('sctr_txt', 'SCTR'),
+          col('fecha_cese', 'Fecha de baja', 'fecha'), col('motivo_cese', 'Motivo de baja'), col('faltan', 'Datos por completar'),
+        ],
+        filas,
+        resumen: [
+          { etiqueta: 'Trabajadores', valor: filas.length },
+          { etiqueta: 'Con datos por completar', valor: filas.filter((r) => r.faltan).length, alerta: filas.some((r) => r.faltan) },
+          { etiqueta: 'Locadores excluidos', valor: rows.length - filas.length },
+        ],
+      };
+    },
+  },
+
+  derechohabientes: {
+    titulo: 'Derechohabientes',
+    descripcion: 'Cónyuges, concubinos e hijos registrados (EsSalud y sustento de la asignación familiar).',
+    sinFechas: true,
+    async ejecutar() {
+      const { rows } = await query(
+        `SELECT d.*, concat_ws(' ', d.nombres, d.apellido_paterno, d.apellido_materno) AS derechohabiente,
+                concat_ws(' ', c.nombres, c.apellido_paterno, c.apellido_materno) AS colaborador, c.numero_documento AS doc_titular,
+                c.asignacion_familiar, EXTRACT(YEAR FROM age(now()::date, d.fecha_nacimiento))::int AS edad
+         FROM rrhh_derechohabientes d JOIN colaboradores c ON c.id = d.colaborador_id
+         WHERE c.activo ORDER BY colaborador, d.fecha_nacimiento NULLS LAST`
+      );
+      const filas = rows.map((r) => ({
+        ...r,
+        documento: r.numero_documento ? `${r.tipo_documento} ${r.numero_documento}` : '',
+        situacion: r.activo ? 'Activo' : 'De baja',
+        // hijos que sustentan la asignación familiar: menores de 18 o hasta 24 si cursan estudios superiores
+        sustenta: r.activo && r.vinculo.startsWith('Hijo') && (r.edad == null || r.edad < 18 || (r.estudia && r.edad < 24)) ? 'Sí' : 'No',
+      }));
+      const titulares = new Set(filas.filter((r) => r.sustenta === 'Sí').map((r) => r.colaborador_id));
+      const sinSustento = (await RrhhModel.listar({})).filter((c) => c.asignacion_familiar && !titulares.has(c.id));
+      return {
+        columnas: [
+          col('colaborador', 'Titular'), col('doc_titular', 'Doc. titular'), col('vinculo', 'Vínculo'), col('derechohabiente', 'Derechohabiente'),
+          col('documento', 'Documento'), col('fecha_nacimiento', 'Nacimiento', 'fecha'), col('edad', 'Edad', 'entero'),
+          col('documento_vinculo', 'Acredita vínculo'), col('sustenta', 'Sustenta asig. familiar'), col('situacion', 'Situación'),
+        ],
+        filas,
+        resumen: [
+          { etiqueta: 'Derechohabientes', valor: filas.length },
+          { etiqueta: 'Con asig. familiar sin hijo registrado', valor: sinSustento.length, alerta: sinSustento.length > 0 },
+        ],
+      };
+    },
+  },
+
   personal: {
     titulo: 'Padrón de personal',
     descripcion: 'Fichas con datos laborales, sueldo, sistema de pensiones y cuenta de sueldo.',
@@ -39,7 +141,8 @@ export const REPORTES_RRHH = {
           col('documento', 'Documento'), col('nombre_completo', 'Colaborador'), col('cargo', 'Cargo'), col('area', 'Área'),
           col('jefe_nombre', 'Jefe'), col('fecha_ingreso', 'Ingreso', 'fecha'), col('tipo_contrato', 'Contrato'),
           col('contrato_fin', 'Fin de contrato', 'fecha'), col('sueldo', 'Sueldo', 'monto'), col('asig_familiar', 'Asig. familiar', 'monto'),
-          col('pension', 'Pensión'), col('cuspp', 'CUSPP'), col('banco', 'Banco'), col('cuenta_sueldo', 'Cuenta sueldo'),
+          col('regimen_laboral', 'Régimen laboral'), col('pension', 'Pensión'), col('cuspp', 'CUSPP'), col('regimen_salud', 'Salud'),
+          col('banco', 'Banco'), col('cuenta_sueldo', 'Cuenta sueldo'),
           col('cci', 'CCI'), col('telefono', 'Teléfono'), col('horario_nombre', 'Horario'), col('usuario_email', 'Usuario del sistema'),
           col('licencia', 'Licencia'), col('licencia_vence', 'Vence licencia', 'fecha'), col('estado_txt', 'Estado'),
           col('fecha_cese', 'Cese', 'fecha'), col('motivo_cese', 'Motivo de cese'),
@@ -48,7 +151,7 @@ export const REPORTES_RRHH = {
           ...r,
           documento: `${r.tipo_documento} ${r.numero_documento}`,
           asig_familiar: r.asignacion_familiar ? RMV * 0.1 : 0,
-          pension: r.sistema_pension === 'AFP' ? `AFP ${r.afp ?? ''}` : r.sistema_pension,
+          pension: r.sistema_pension === 'AFP' ? `AFP ${r.afp ?? ''} (${r.comision_afp ?? '?'})` : r.sistema_pension,
           licencia: r.licencia_categoria ? `${r.licencia_categoria} ${r.licencia_numero ?? ''}` : '',
           estado_txt: r.activo ? 'Activo' : 'Cesado',
         })),
@@ -220,7 +323,7 @@ export const REPORTES_RRHH = {
                   COUNT(*) FILTER (WHERE x.estado = 'completada') AS paradas
            FROM ruta_paradas x JOIN rutas r ON r.id = x.ruta_id WHERE r.fecha BETWEEN $1 AND $2 GROUP BY 1
          )
-         SELECT u.id, u.nombre, c.nombres || ' ' || c.apellidos AS colaborador, c.area,
+         SELECT u.id, u.nombre, concat_ws(' ', c.nombres, c.apellido_paterno, c.apellido_materno) AS colaborador, c.area,
                 COUNT(DISTINCT eq.fecha)::int AS dias,
                 COUNT(*) FILTER (WHERE eq.rol = 'conductor')::int AS rutas_conductor,
                 COUNT(*) FILTER (WHERE eq.rol = 'auxiliar')::int AS rutas_auxiliar,
@@ -231,7 +334,7 @@ export const REPORTES_RRHH = {
          LEFT JOIN par ON par.ruta_id = eq.ruta_id
          LEFT JOIN gps ON gps.ruta_id = eq.ruta_id
          LEFT JOIN colaboradores c ON c.usuario_id = u.id
-         GROUP BY u.id, u.nombre, c.nombres, c.apellidos, c.area
+         GROUP BY u.id, u.nombre, c.nombres, c.apellido_paterno, c.apellido_materno, c.area
          ORDER BY entregas DESC`,
         [f.desde, f.hasta]
       );
@@ -276,7 +379,7 @@ export const REPORTES_RRHH = {
           ...c, ...a,
           documento: `${c.tipo_documento} ${c.numero_documento}`,
           asig_familiar: c.asignacion_familiar ? RMV * 0.1 : 0,
-          pension: c.sistema_pension === 'AFP' ? `AFP ${c.afp ?? ''}` : c.sistema_pension,
+          pension: c.sistema_pension === 'AFP' ? `AFP ${c.afp ?? ''} (${c.comision_afp ?? '?'})` : c.sistema_pension,
           no_remunerados: a.faltas + a.permisos_sin_goce + a.licencias_sin_goce,
         };
       });
@@ -285,7 +388,9 @@ export const REPORTES_RRHH = {
           col('documento', 'Documento'), col('nombre_completo', 'Colaborador'), col('cargo', 'Cargo'), col('area', 'Área'),
           col('fecha_ingreso', 'Ingreso', 'fecha'), col('fecha_cese', 'Cese', 'fecha'), col('tipo_contrato', 'Contrato'),
           col('sueldo', 'Sueldo', 'monto'), col('asig_familiar', 'Asig. familiar', 'monto'), col('pension', 'Pensión'),
-          col('cuspp', 'CUSPP'), col('essalud_txt', 'EsSalud'), col('banco', 'Banco'), col('cuenta_sueldo', 'Cuenta'),
+          col('cuspp', 'CUSPP'), col('regimen_laboral', 'Régimen laboral'), col('regimen_salud', 'Salud'), col('eps', 'EPS'),
+          col('sctr_txt', 'SCTR'), col('periodicidad_pago', 'Periodicidad'), col('banco', 'Banco'), col('cuenta_sueldo', 'Cuenta'),
+          col('cci', 'CCI'),
           col('dias_laborables', 'Días laborables', 'entero'), col('asistencias', 'Asistencias', 'entero'),
           col('faltas', 'Faltas', 'entero'), col('permisos_sin_goce', 'Permisos sin goce', 'entero'),
           col('licencias_sin_goce', 'Licencias sin goce', 'entero'), col('no_remunerados', 'Días no remunerados', 'entero'),
@@ -293,7 +398,7 @@ export const REPORTES_RRHH = {
           col('feriados_trabajados', 'Descansos/feriados trabajados', 'entero'), col('vacaciones', 'Días de vacaciones', 'entero'),
           col('descanso_medico', 'Días de descanso médico', 'entero'), col('licencias_con_goce', 'Licencias con goce', 'entero'),
         ],
-        filas: filas.map((r) => ({ ...r, essalud_txt: r.essalud ? 'Sí' : 'No' })),
+        filas: filas.map((r) => ({ ...r, sctr_txt: r.sctr ? `${r.sctr_salud} / ${r.sctr_pension}` : 'No' })),
         resumen: [
           { etiqueta: 'Colaboradores', valor: filas.length },
           { etiqueta: 'Sueldos + asig. familiar', valor: sumar(filas, 'sueldo') + sumar(filas, 'asig_familiar'), tipo: 'monto' },

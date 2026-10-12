@@ -148,6 +148,9 @@ router.get('/rrhh/colaboradores/:id', rol(...P.rrhhEquipo), RH.obtener);
 router.put('/rrhh/colaboradores/:id', rol(...P.rrhh), RH.actualizar);
 router.post('/rrhh/colaboradores/:id/documentos', rol(...P.rrhh), documento, RH.subirDocumento);
 router.delete('/rrhh/documentos/:id', rol(...P.rrhh), RH.eliminarDocumento);
+router.post('/rrhh/colaboradores/:id/derechohabientes', rol(...P.rrhh), RH.guardarDerechohabiente);
+router.put('/rrhh/derechohabientes/:dhId', rol(...P.rrhh), RH.guardarDerechohabiente);
+router.delete('/rrhh/derechohabientes/:dhId', rol(...P.rrhh), RH.eliminarDerechohabiente);
 
 router.get('/rrhh/horarios', rol(...P.rrhhEquipo), RH.horarios);
 router.post('/rrhh/horarios', rol(...P.rrhh), RH.guardarHorario);

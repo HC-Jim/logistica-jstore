@@ -1,6 +1,9 @@
 import {
-  AFPS, AREAS, BANCOS, CATEGORIAS_LICENCIA, ESTADOS_SOLICITUD, RMV, SISTEMAS_PENSION, TASA_ESSALUD,
-  TIPOS_CONTRATO, TIPOS_DOCUMENTO_IDENTIDAD, TIPOS_DOCUMENTO_RRHH, TIPOS_SOLICITUD,
+  AFPS, AREAS, BANCOS, CATEGORIAS_LICENCIA, CATEGORIAS_OCUPACIONALES, COMISIONES_AFP, CONTRATOS_SIN_FIN,
+  EDUCACION_CON_ESTUDIOS, ESTADOS_CIVILES, ESTADOS_SOLICITUD, JORNADAS, MOTIVOS_CESE, PERIODICIDADES_PAGO,
+  REGIMENES_LABORALES, REGIMENES_SALUD, RMV, SCTR_PENSION, SCTR_SALUD, SISTEMAS_PENSION, SITUACIONES_EDUCATIVAS,
+  SITUACIONES_ESPECIALES, TASA_ESSALUD, TIPOS_CONTRATO, TIPOS_DOCUMENTO_IDENTIDAD, TIPOS_DOCUMENTO_RRHH, TIPOS_PAGO,
+  TIPOS_SOLICITUD, VINCULOS_DERECHOHABIENTE,
 } from '../config/catalogos.js';
 import { query } from '../config/db.js';
 import { env } from '../config/env.js';
@@ -16,48 +19,98 @@ const TZ = env.timezone;
 
 const CAMPOS_FICHA = {
   usuario_id: { tipo: 'entero' },
+  // datos personales
   nombres: { tipo: 'texto', max: 80, requerido: true },
-  apellidos: { tipo: 'texto', max: 80, requerido: true },
+  apellido_paterno: { tipo: 'texto', max: 60, requerido: true },
+  apellido_materno: { tipo: 'texto', max: 60 },
   tipo_documento: { tipo: 'enum', lista: TIPOS_DOCUMENTO_IDENTIDAD, requerido: true },
   numero_documento: { tipo: 'texto', max: 15, requerido: true },
+  pais_emisor: { tipo: 'texto', max: 40 },
+  nacionalidad: { tipo: 'texto', max: 40 },
   fecha_nacimiento: { tipo: 'fecha' },
   sexo: { tipo: 'enum', lista: ['M', 'F'] },
-  estado_civil: { tipo: 'enum', lista: ['Soltero(a)', 'Casado(a)', 'Conviviente', 'Divorciado(a)', 'Viudo(a)'] },
+  estado_civil: { tipo: 'enum', lista: ESTADOS_CIVILES },
   telefono: { tipo: 'texto', max: 30 },
   email_personal: { tipo: 'texto', max: 160 },
   direccion: { tipo: 'texto', max: 255 },
+  direccion_referencia: { tipo: 'texto', max: 255 },
   ubigeo: { tipo: 'ubigeo' },
+  situacion_educativa: { tipo: 'enum', lista: SITUACIONES_EDUCATIVAS },
+  institucion_educativa: { tipo: 'texto', max: 120 },
+  carrera: { tipo: 'texto', max: 120 },
+  anio_egreso: { tipo: 'entero' },
+  discapacidad: { tipo: 'booleano' },
+  carne_conadis: { tipo: 'texto', max: 20 },
   emergencia_nombre: { tipo: 'texto', max: 120 },
   emergencia_parentesco: { tipo: 'texto', max: 40 },
   emergencia_telefono: { tipo: 'texto', max: 30 },
-  hijos: { tipo: 'natural' },
-  banco: { tipo: 'enum', lista: BANCOS },
-  cuenta_sueldo: { tipo: 'texto', max: 30 },
-  cci: { tipo: 'texto', max: 25 },
+  // datos laborales
   cargo: { tipo: 'texto', max: 80, requerido: true },
   area: { tipo: 'enum', lista: AREAS, requerido: true },
   jefe_id: { tipo: 'entero' },
   horario_id: { tipo: 'entero' },
+  regimen_laboral: { tipo: 'enum', lista: REGIMENES_LABORALES },
+  categoria_ocupacional: { tipo: 'enum', lista: CATEGORIAS_OCUPACIONALES },
+  ocupacion: { tipo: 'texto', max: 120 },
+  situacion_especial: { tipo: 'enum', lista: SITUACIONES_ESPECIALES },
+  jornada: { tipo: 'enum', lista: JORNADAS },
+  jornada_atipica: { tipo: 'booleano' },
+  horario_nocturno: { tipo: 'booleano' },
+  sindicalizado: { tipo: 'booleano' },
   fecha_ingreso: { tipo: 'fecha', requerido: true },
+  periodo_prueba_fin: { tipo: 'fecha' },
   tipo_contrato: { tipo: 'enum', lista: TIPOS_CONTRATO, requerido: true },
   contrato_fin: { tipo: 'fecha' },
+  // remuneración y cuentas
   sueldo: { tipo: 'monto' },
+  periodicidad_pago: { tipo: 'enum', lista: PERIODICIDADES_PAGO },
+  tipo_pago: { tipo: 'enum', lista: TIPOS_PAGO },
   asignacion_familiar: { tipo: 'booleano' },
+  banco: { tipo: 'enum', lista: BANCOS },
+  cuenta_sueldo: { tipo: 'texto', max: 30 },
+  cci: { tipo: 'texto', max: 25 },
+  banco_cts: { tipo: 'enum', lista: [...BANCOS, 'Caja municipal', 'Financiera'] },
+  cuenta_cts: { tipo: 'texto', max: 30 },
+  // seguridad social
+  regimen_salud: { tipo: 'enum', lista: REGIMENES_SALUD },
+  eps: { tipo: 'texto', max: 40 },
   sistema_pension: { tipo: 'enum', lista: SISTEMAS_PENSION },
   afp: { tipo: 'enum', lista: AFPS },
+  comision_afp: { tipo: 'enum', lista: COMISIONES_AFP },
   cuspp: { tipo: 'texto', max: 15 },
-  essalud: { tipo: 'booleano' },
+  pension_fecha_inscripcion: { tipo: 'fecha' },
+  sctr: { tipo: 'booleano' },
+  sctr_salud: { tipo: 'enum', lista: SCTR_SALUD },
+  sctr_pension: { tipo: 'enum', lista: SCTR_PENSION },
+  sctr_vence: { tipo: 'fecha' },
+  vida_ley: { tipo: 'booleano' },
+  vida_ley_aseguradora: { tipo: 'texto', max: 60 },
   examen_medico_vence: { tipo: 'fecha' },
+  // conductores
   licencia_numero: { tipo: 'texto', max: 15 },
   licencia_categoria: { tipo: 'enum', lista: CATEGORIAS_LICENCIA },
   licencia_vence: { tipo: 'fecha' },
-  sctr_vence: { tipo: 'fecha' },
   record_conductor: { tipo: 'texto', max: 2000 },
+  // vacaciones y cese
   vacaciones_ajuste: { tipo: 'decimal' },
   fecha_cese: { tipo: 'fecha' },
-  motivo_cese: { tipo: 'texto', max: 120 },
+  motivo_cese: { tipo: 'enum', lista: MOTIVOS_CESE },
   activo: { tipo: 'booleano' },
   observaciones: { tipo: 'texto', max: 2000 },
+};
+
+const CAMPOS_DERECHOHABIENTE = {
+  vinculo: { tipo: 'enum', lista: VINCULOS_DERECHOHABIENTE, requerido: true },
+  tipo_documento: { tipo: 'enum', lista: TIPOS_DOCUMENTO_IDENTIDAD },
+  numero_documento: { tipo: 'texto', max: 15 },
+  nombres: { tipo: 'texto', max: 80, requerido: true },
+  apellido_paterno: { tipo: 'texto', max: 60, requerido: true },
+  apellido_materno: { tipo: 'texto', max: 60 },
+  fecha_nacimiento: { tipo: 'fecha' },
+  sexo: { tipo: 'enum', lista: ['M', 'F'] },
+  documento_vinculo: { tipo: 'texto', max: 60 },
+  estudia: { tipo: 'booleano' },
+  activo: { tipo: 'booleano' },
 };
 
 // Archivos que se aceptan como documento (Vercel acepta hasta 4,5 MB por petición)
@@ -113,20 +166,73 @@ function distancia(a, b) {
   return Math.round(2 * 6371000 * Math.asin(Math.sqrt(h)));
 }
 
-async function validarFicha(d, id = null) {
+/** Meses que dura el periodo de prueba (D. Leg. 728): 3; confianza 6; dirección 12. */
+const mesesPrueba = (situacion) => (situacion === 'Trabajador de dirección' ? 12 : situacion === 'Trabajador de confianza' ? 6 : 3);
+const sumarMeses = (iso, meses) => {
+  const f = new Date(`${iso}T12:00:00Z`);
+  f.setUTCMonth(f.getUTCMonth() + meses);
+  return f.toISOString().slice(0, 10);
+};
+
+/**
+ * Normaliza y valida la ficha. `actual` es la ficha guardada (al editar): las reglas que combinan
+ * varios campos usan el valor nuevo si llegó y si no el guardado.
+ */
+async function validarFicha(d, actual = null) {
+  const id = actual?.id ?? null;
+  const v = (k) => (k in d ? d[k] : actual?.[k]);
   // vacíos en columnas obligatorias: se usa el valor por defecto
-  for (const k of ['sueldo', 'hijos', 'vacaciones_ajuste']) if (d[k] === null) d[k] = 0;
-  for (const k of ['sistema_pension', 'asignacion_familiar', 'essalud', 'activo']) if (d[k] === null) delete d[k];
-  if (d.sistema_pension && d.sistema_pension !== 'AFP') d.afp = null;
-  if (d.sistema_pension === 'AFP' && !d.afp && !id) throw new HttpError(400, 'Elige la AFP');
-  if (d.tipo_contrato === 'Plazo indeterminado') d.contrato_fin = null;
-  if (d.jefe_id && (await RrhhModel.creariaCiclo(id, d.jefe_id))) throw new HttpError(400, 'El jefe elegido depende de este colaborador');
-  if (d.fecha_cese) d.activo = false;
-  if (d.activo === true) { d.fecha_cese = null; d.motivo_cese = null; }
-  if (d.numero_documento) d.numero_documento = d.numero_documento.toUpperCase();
-  if (d.tipo_documento === 'DNI' && d.numero_documento && !/^\d{8}$/.test(d.numero_documento)) {
-    throw new HttpError(400, 'El DNI debe tener 8 dígitos');
+  for (const k of ['sueldo', 'vacaciones_ajuste']) if (d[k] === null) d[k] = 0;
+  for (const k of ['sistema_pension', 'asignacion_familiar', 'activo', 'regimen_laboral', 'categoria_ocupacional',
+    'situacion_especial', 'jornada', 'periodicidad_pago', 'tipo_pago', 'regimen_salud', 'discapacidad', 'jornada_atipica',
+    'horario_nocturno', 'sindicalizado', 'sctr', 'vida_ley', 'nacionalidad']) if (d[k] === null) delete d[k];
+
+  if (d.numero_documento) d.numero_documento = d.numero_documento.toUpperCase().replace(/\s/g, '');
+  const tipoDoc = v('tipo_documento');
+  const numDoc = v('numero_documento');
+  if (tipoDoc === 'DNI' && numDoc && !/^\d{8}$/.test(numDoc)) throw new HttpError(400, 'El DNI debe tener 8 dígitos');
+  if (tipoDoc !== 'DNI' && numDoc && !/^[A-Z0-9]{6,12}$/.test(numDoc)) throw new HttpError(400, 'El documento debe tener de 6 a 12 letras o números');
+  if (tipoDoc && tipoDoc !== 'DNI' && !v('pais_emisor')) throw new HttpError(400, 'Indica el país emisor del documento');
+  if (d.fecha_nacimiento && d.fecha_nacimiento > hoy()) throw new HttpError(400, 'La fecha de nacimiento es futura');
+  if (EDUCACION_CON_ESTUDIOS.includes(v('situacion_educativa')) && !v('institucion_educativa')) {
+    throw new HttpError(400, 'Con estudios superiores completos el T-Registro pide la institución y la carrera');
   }
+  if (d.discapacidad === false) d.carne_conadis = null;
+
+  // contrato y periodo de prueba
+  if (CONTRATOS_SIN_FIN.includes(v('tipo_contrato'))) { if (v('tipo_contrato') === 'Plazo indeterminado') d.contrato_fin = null; }
+  else if (!v('contrato_fin')) throw new HttpError(400, 'Los contratos sujetos a modalidad necesitan fecha de fin');
+  if (!id && !d.periodo_prueba_fin && d.fecha_ingreso && !v('tipo_contrato')?.startsWith('Convenio') && !v('tipo_contrato')?.startsWith('Locación')) {
+    d.periodo_prueba_fin = sumarMeses(d.fecha_ingreso, mesesPrueba(v('situacion_especial')));
+  }
+  if (d.jefe_id && (await RrhhModel.creariaCiclo(id, d.jefe_id))) throw new HttpError(400, 'El jefe elegido depende de este colaborador');
+
+  // remuneración
+  if (d.cci && !/^\d{20}$/.test(d.cci.replace(/[\s-]/g, ''))) throw new HttpError(400, 'El CCI debe tener 20 dígitos');
+  if (d.cci) d.cci = d.cci.replace(/[\s-]/g, '');
+  if (!id && v('regimen_laboral') === 'MYPE - Microempresa' && !('regimen_salud' in d)) d.regimen_salud = 'SIS - Microempresa';
+  if (v('regimen_salud') !== 'EsSalud + EPS') d.eps = null;
+
+  // pensiones
+  if (v('sistema_pension') !== 'AFP') { d.afp = null; d.comision_afp = null; d.cuspp = null; }
+  else {
+    if (!v('afp')) throw new HttpError(400, 'Elige la AFP');
+    if (!v('comision_afp')) throw new HttpError(400, 'Indica el tipo de comisión de la AFP (flujo o mixta)');
+    if (d.cuspp && !/^[A-Z0-9]{12}$/.test(d.cuspp.toUpperCase())) throw new HttpError(400, 'El CUSPP tiene 12 caracteres');
+    if (d.cuspp) d.cuspp = d.cuspp.toUpperCase();
+  }
+  if (v('sistema_pension') === 'Sin sistema') d.pension_fecha_inscripcion = null;
+
+  // SCTR
+  if (v('sctr') === false) { d.sctr_salud = null; d.sctr_pension = null; d.sctr_vence = null; }
+  else if (v('sctr') && (!v('sctr_salud') || !v('sctr_pension'))) throw new HttpError(400, 'Con SCTR indica la cobertura de salud y de pensión');
+
+  // cese
+  if (d.fecha_cese) {
+    d.activo = false;
+    if (!v('motivo_cese')) throw new HttpError(400, 'Indica el motivo del cese');
+  }
+  if (d.activo === true) { d.fecha_cese = null; d.motivo_cese = null; }
 }
 
 /** Lee los datos de una solicitud y valida fechas y saldo de vacaciones. */
@@ -197,14 +303,44 @@ export const RrhhController = {
     if (!c) throw new HttpError(404, 'Colaborador no encontrado');
     const vacaciones = (await RrhhModel.vacaciones([id]))[id];
     if (ids) return res.json({ ...sinReservados(c), vacaciones });
-    res.json({ ...c, vacaciones, documentos_lista: await RrhhModel.documentos(id) });
+    const [documentos, derechohabientes] = await Promise.all([RrhhModel.documentos(id), RrhhModel.derechohabientes(id)]);
+    res.json({ ...c, vacaciones, documentos_lista: documentos, derechohabientes });
+  },
+
+  // ---------------- derechohabientes ----------------
+
+  /** Crea (POST /colaboradores/:id/derechohabientes) o edita (PUT /derechohabientes/:id). */
+  async guardarDerechohabiente(req, res) {
+    const editar = Boolean(req.params.dhId);
+    const id = editar ? idParam(req.params.dhId) : null;
+    const actual = editar ? await RrhhModel.derechohabiente(id) : null;
+    if (editar && !actual) throw new HttpError(404, 'Derechohabiente no encontrado');
+    const colaboradorId = editar ? actual.colaborador_id : idParam(req.params.id);
+    if (!(await RrhhModel.obtener(colaboradorId))) throw new HttpError(404, 'Colaborador no encontrado');
+    const d = leerCampos(req.body, CAMPOS_DERECHOHABIENTE, { requeridos: !editar });
+    for (const k of ['estudia', 'activo', 'tipo_documento']) if (d[k] === null) delete d[k];
+    if (d.numero_documento) d.numero_documento = d.numero_documento.toUpperCase();
+    const tipo = d.tipo_documento ?? actual?.tipo_documento ?? 'DNI';
+    if (tipo === 'DNI' && d.numero_documento && !/^\d{8}$/.test(d.numero_documento)) throw new HttpError(400, 'El DNI debe tener 8 dígitos');
+    if (d.fecha_nacimiento && d.fecha_nacimiento > hoy() && (d.vinculo ?? actual?.vinculo) !== 'Gestante') {
+      throw new HttpError(400, 'La fecha de nacimiento es futura');
+    }
+    await RrhhModel.guardarDerechohabiente(id, colaboradorId, d);
+    res.status(editar ? 200 : 201).json(await RrhhModel.derechohabientes(colaboradorId));
+  },
+
+  async eliminarDerechohabiente(req, res) {
+    const actual = await RrhhModel.derechohabiente(idParam(req.params.dhId));
+    if (!actual) throw new HttpError(404, 'Derechohabiente no encontrado');
+    await RrhhModel.eliminarDerechohabiente(actual.id);
+    res.json(await RrhhModel.derechohabientes(actual.colaborador_id));
   },
 
   /** Listas para el formulario de la ficha: horarios, posibles jefes y usuarios sin ficha. */
   async opciones(_req, res) {
     const [horarios, jefes, usuarios] = await Promise.all([
       RrhhModel.horarios(),
-      query(`SELECT id, nombres || ' ' || apellidos AS nombre, cargo, area FROM colaboradores WHERE activo ORDER BY apellidos, nombres`),
+      query(`SELECT id, concat_ws(' ', nombres, apellido_paterno, apellido_materno) AS nombre, cargo, area FROM colaboradores WHERE activo ORDER BY apellido_paterno, apellido_materno, nombres`),
       query(`SELECT u.id, u.nombre, u.email, u.roles, c.id AS colaborador_id FROM usuarios u
              LEFT JOIN colaboradores c ON c.usuario_id = u.id WHERE NOT u.pendiente ORDER BY u.nombre`),
     ]);
@@ -223,7 +359,9 @@ export const RrhhController = {
     for (const [k, s] of Object.entries(CAMPOS_FICHA)) {
       if (s.requerido && k in d && d[k] == null) throw new HttpError(400, `${k} es requerido`);
     }
-    await validarFicha(d, id);
+    const actual = await RrhhModel.obtener(id);
+    if (!actual) throw new HttpError(404, 'Colaborador no encontrado');
+    await validarFicha(d, actual);
     const c = await RrhhModel.actualizar(id, d);
     if (!c) throw new HttpError(404, 'Colaborador no encontrado');
     res.json(c);
@@ -500,7 +638,7 @@ export const RrhhController = {
                     SUM(sueldo + CASE WHEN asignacion_familiar THEN $1 ELSE 0 END) AS planilla
              FROM colaboradores WHERE activo GROUP BY area ORDER BY cantidad DESC`, [RMV * 0.1]),
       query(`SELECT tipo_contrato AS nombre, COUNT(*)::int AS cantidad FROM colaboradores WHERE activo GROUP BY 1 ORDER BY 2 DESC`),
-      query(`SELECT id, nombres || ' ' || apellidos AS colaborador, area, fecha_nacimiento,
+      query(`SELECT id, concat_ws(' ', nombres, apellido_paterno, apellido_materno) AS colaborador, area, fecha_nacimiento,
                     EXTRACT(DAY FROM fecha_nacimiento)::int AS dia
              FROM colaboradores WHERE activo AND EXTRACT(MONTH FROM fecha_nacimiento) = EXTRACT(MONTH FROM $1::date)
              ORDER BY dia`, [fecha]),

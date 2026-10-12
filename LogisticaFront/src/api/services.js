@@ -74,6 +74,10 @@ export const rrhhApi = {
     params, headers: { 'Content-Type': archivo.type },
   })),
   eliminarDocumento: (id) => data(api.delete(`/rrhh/documentos/${id}`)),
+  guardarDerechohabiente: (colaboradorId, id, body) => data(id
+    ? api.put(`/rrhh/derechohabientes/${id}`, body)
+    : api.post(`/rrhh/colaboradores/${colaboradorId}/derechohabientes`, body)),
+  eliminarDerechohabiente: (id) => data(api.delete(`/rrhh/derechohabientes/${id}`)),
   /** Abre el archivo en otra pestaña (se descarga con la sesión: no hay enlaces públicos). */
   async verDocumento(id) {
     const ventana = window.open('', '_blank'); // se abre antes de la descarga para que el navegador no la bloquee

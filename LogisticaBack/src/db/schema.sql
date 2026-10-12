@@ -507,55 +507,88 @@ INSERT INTO rrhh_feriados (fecha, nombre) VALUES
   ('2027-12-08', 'Inmaculada Concepción'), ('2027-12-09', 'Batalla de Ayacucho'), ('2027-12-25', 'Navidad')
 ON CONFLICT (fecha) DO NOTHING;
 
--- Ficha del colaborador. Se vincula (opcionalmente) con su usuario del sistema.
+-- Ficha del colaborador (datos del T-Registro de SUNAT y legajo). Se vincula (opcionalmente) con su usuario.
+-- Los valores de las listas (régimen laboral, situación educativa, motivo de cese…) están en catalogos.js.
 CREATE TABLE IF NOT EXISTS colaboradores (
   id                       SERIAL PRIMARY KEY,
   usuario_id               INTEGER      UNIQUE REFERENCES usuarios(id) ON DELETE SET NULL,
   -- datos personales
   nombres                  VARCHAR(80)  NOT NULL,
-  apellidos                VARCHAR(80)  NOT NULL,
+  apellido_paterno         VARCHAR(60)  NOT NULL,
+  apellido_materno         VARCHAR(60),
   tipo_documento           VARCHAR(10)  NOT NULL DEFAULT 'DNI',
   numero_documento         VARCHAR(15)  NOT NULL,
+  pais_emisor              VARCHAR(40),            -- documentos extranjeros (CE, pasaporte, PTP)
+  nacionalidad             VARCHAR(40)  NOT NULL DEFAULT 'Peruana',
   fecha_nacimiento         DATE,
   sexo                     CHAR(1)      CHECK (sexo IN ('M', 'F')),
   estado_civil             VARCHAR(15),
   telefono                 VARCHAR(30),
   email_personal           VARCHAR(160),
   direccion                VARCHAR(255),
+  direccion_referencia     VARCHAR(255),
   ubigeo                   CHAR(6)      REFERENCES ubigeos(codigo),
+  situacion_educativa      VARCHAR(40),
+  institucion_educativa    VARCHAR(120),
+  carrera                  VARCHAR(120),
+  anio_egreso              SMALLINT     CHECK (anio_egreso BETWEEN 1950 AND 2100),
+  discapacidad             BOOLEAN      NOT NULL DEFAULT false,
+  carne_conadis            VARCHAR(20),
   emergencia_nombre        VARCHAR(120),
   emergencia_parentesco    VARCHAR(40),
   emergencia_telefono      VARCHAR(30),
-  hijos                    SMALLINT     NOT NULL DEFAULT 0 CHECK (hijos >= 0),
-  banco                    VARCHAR(30),
-  cuenta_sueldo            VARCHAR(30),
-  cci                      VARCHAR(25),
   -- datos laborales
   cargo                    VARCHAR(80)  NOT NULL,
   area                     VARCHAR(40)  NOT NULL,
   jefe_id                  INTEGER      REFERENCES colaboradores(id) ON DELETE SET NULL,
   horario_id               INTEGER      REFERENCES rrhh_horarios(id) ON DELETE SET NULL,
+  regimen_laboral          VARCHAR(40)  NOT NULL DEFAULT 'Privado general (D. Leg. 728)',
+  categoria_ocupacional    VARCHAR(15)  NOT NULL DEFAULT 'Empleado',
+  ocupacion                VARCHAR(120),
+  situacion_especial       VARCHAR(30)  NOT NULL DEFAULT 'Ninguna',
+  jornada                  VARCHAR(30)  NOT NULL DEFAULT 'Tiempo completo',
+  jornada_atipica          BOOLEAN      NOT NULL DEFAULT false,   -- jornada acumulativa o atípica
+  horario_nocturno         BOOLEAN      NOT NULL DEFAULT false,
+  sindicalizado            BOOLEAN      NOT NULL DEFAULT false,
   fecha_ingreso            DATE         NOT NULL,
-  tipo_contrato            VARCHAR(30)  NOT NULL,
+  periodo_prueba_fin       DATE,
+  tipo_contrato            VARCHAR(40)  NOT NULL,
   contrato_fin             DATE,
+  -- remuneración
   sueldo                   NUMERIC(10, 2) NOT NULL DEFAULT 0 CHECK (sueldo >= 0),
+  periodicidad_pago        VARCHAR(10)  NOT NULL DEFAULT 'Mensual',
+  tipo_pago                VARCHAR(20)  NOT NULL DEFAULT 'Depósito en cuenta',
   asignacion_familiar      BOOLEAN      NOT NULL DEFAULT false,
+  banco                    VARCHAR(30),
+  cuenta_sueldo            VARCHAR(30),
+  cci                      VARCHAR(25),
+  banco_cts                VARCHAR(30),             -- el trabajador elige dónde se deposita su CTS
+  cuenta_cts               VARCHAR(30),
+  -- seguridad social
+  regimen_salud            VARCHAR(30)  NOT NULL DEFAULT 'EsSalud regular',
+  eps                      VARCHAR(40),
   sistema_pension          VARCHAR(15)  NOT NULL DEFAULT 'ONP',
   afp                      VARCHAR(20),
+  comision_afp             VARCHAR(10),             -- Flujo o Mixta
   cuspp                    VARCHAR(15),
-  essalud                  BOOLEAN      NOT NULL DEFAULT true,
+  pension_fecha_inscripcion DATE,
+  sctr                     BOOLEAN      NOT NULL DEFAULT false,   -- actividad de riesgo (Anexo 5, D.S. 009-97-SA)
+  sctr_salud               VARCHAR(20),             -- EsSalud o EPS
+  sctr_pension             VARCHAR(30),             -- ONP o compañía de seguros
+  sctr_vence               DATE,
+  vida_ley                 BOOLEAN      NOT NULL DEFAULT true,    -- obligatorio desde el primer día (D. Leg. 688)
+  vida_ley_aseguradora     VARCHAR(60),
   examen_medico_vence      DATE,
   -- conductores
   licencia_numero          VARCHAR(15),
   licencia_categoria       VARCHAR(10),
   licencia_vence           DATE,
-  sctr_vence               DATE,
   record_conductor         TEXT,
   -- vacaciones: días a sumar o restar al saldo calculado (p. ej. días gozados antes de usar el sistema)
   vacaciones_ajuste        NUMERIC(5, 1) NOT NULL DEFAULT 0,
   -- cese
   fecha_cese               DATE,
-  motivo_cese              VARCHAR(120),
+  motivo_cese              VARCHAR(60),
   activo                   BOOLEAN      NOT NULL DEFAULT true,
   observaciones            TEXT,
   creado_en                TIMESTAMPTZ  NOT NULL DEFAULT now(),
@@ -563,6 +596,7 @@ CREATE TABLE IF NOT EXISTS colaboradores (
   UNIQUE (tipo_documento, numero_documento),
   CHECK (jefe_id IS DISTINCT FROM id),
   CHECK (contrato_fin IS NULL OR contrato_fin >= fecha_ingreso),
+  CHECK (periodo_prueba_fin IS NULL OR periodo_prueba_fin >= fecha_ingreso),
   CHECK (fecha_cese IS NULL OR fecha_cese >= fecha_ingreso)
 );
 CREATE INDEX IF NOT EXISTS idx_colaboradores_jefe ON colaboradores(jefe_id);
@@ -585,6 +619,25 @@ CREATE TABLE IF NOT EXISTS rrhh_documentos (
 );
 CREATE INDEX IF NOT EXISTS idx_rrhh_documentos_colaborador ON rrhh_documentos(colaborador_id);
 CREATE INDEX IF NOT EXISTS idx_rrhh_documentos_vence ON rrhh_documentos(vence) WHERE vence IS NOT NULL;
+
+-- Derechohabientes (cónyuge, concubino, hijos): EsSalud del T-Registro y sustento de la asignación familiar
+CREATE TABLE IF NOT EXISTS rrhh_derechohabientes (
+  id                SERIAL PRIMARY KEY,
+  colaborador_id    INTEGER      NOT NULL REFERENCES colaboradores(id) ON DELETE CASCADE,
+  vinculo           VARCHAR(40)  NOT NULL,
+  tipo_documento    VARCHAR(10)  NOT NULL DEFAULT 'DNI',
+  numero_documento  VARCHAR(15),
+  nombres           VARCHAR(80)  NOT NULL,
+  apellido_paterno  VARCHAR(60)  NOT NULL,
+  apellido_materno  VARCHAR(60),
+  fecha_nacimiento  DATE,
+  sexo              CHAR(1)      CHECK (sexo IN ('M', 'F')),
+  documento_vinculo VARCHAR(60),             -- acta de matrimonio, partida de nacimiento, declaración de concubinato…
+  estudia           BOOLEAN      NOT NULL DEFAULT false,   -- hijo mayor de 18 que cursa estudios superiores
+  activo            BOOLEAN      NOT NULL DEFAULT true,
+  creado_en         TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_rrhh_derechohabientes ON rrhh_derechohabientes(colaborador_id);
 
 -- Marcaciones de asistencia: web, celular (con GPS), reloj biométrico (importado) o registro manual de RRHH.
 -- Conductores y auxiliares además marcan solos con el GPS del app de reparto (tabla posiciones).

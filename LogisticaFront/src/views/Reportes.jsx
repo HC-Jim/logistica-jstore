@@ -12,7 +12,7 @@ const ICONOS = {
   recorrido: '🛰️', flota: '🚚', incidencias: '⚠️', inversa: '↩️', usuarios: '👥',
   catalogo: '✅', combos: '🎁', cambios_precio: '📈', descuento_plataforma: '🏪',
   personal: '🪪', vencimientos: '⏰', asistencia: '🕘', asistencia_resumen: '📊', solicitudes: '🏖️',
-  vacaciones: '🗓️', desempeno: '🏅', planilla: '💼',
+  vacaciones: '🗓️', desempeno: '🏅', planilla: '💼', tregistro: '🏛️', derechohabientes: '👪',
 };
 const TITULOS = {
   logistica: 'Reportes de Logística', productos: 'Reportes de Productos', precios: 'Reportes de Precios', rrhh: 'Reportes de RRHH',

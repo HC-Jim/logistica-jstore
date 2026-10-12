@@ -79,9 +79,11 @@ Cualquier usuario con ficha de colaborador vinculada tiene *Mi espacio*, sea cua
 
 Menú *Recursos Humanos* (`/rrhh/...`):
 
-- **Colaboradores**: ficha con datos personales, contacto de emergencia, banco, cargo, área, jefe inmediato,
-  horario, contrato, sueldo, asignación familiar, AFP/ONP, EsSalud; para conductores licencia (categoría y
-  vencimiento), SCTR y récord. Se vincula opcionalmente con un usuario del sistema. **Documentos** (contrato, DNI,
+- **Colaboradores**: ficha alineada al T-Registro de SUNAT: identificación, domicilio, situación educativa,
+  discapacidad, contacto de emergencia, régimen laboral (general, MYPE, agrario), categoría ocupacional, situación
+  especial, jornada, contrato y periodo de prueba, remuneración, cuentas de sueldo y CTS, régimen de salud y EPS,
+  AFP/ONP con tipo de comisión y CUSPP, Vida Ley, SCTR salud y pensión, derechohabientes y motivo de baja; para
+  conductores licencia (categoría y vencimiento) y récord. Ver [docs/RRHH-validacion-contador.md](docs/RRHH-validacion-contador.md). Se vincula opcionalmente con un usuario del sistema. **Documentos** (contrato, DNI,
   licencia, antecedentes…) se guardan en la base y solo se descargan con sesión (no hay enlaces públicos).
   **Alertas** de contratos, licencias, SCTR, exámenes médicos y documentos por vencer.
 - **Asistencia**: grilla mensual con faltas, tardanzas (pasada la tolerancia se cuentan desde la hora de entrada),
@@ -92,7 +94,7 @@ Menú *Recursos Humanos* (`/rrhh/...`):
 - **Calendario del equipo**: quién falta cada día. En *Rutas* se avisa si el conductor o auxiliar asignado está
   ausente ese día.
 - **Horarios y feriados** (feriados nacionales 2026–2027 precargados), **Dashboard** (personal, asistencia de hoy,
-  ausentismo, rotación, planilla por área, vencimientos, cumpleaños) y **Reportes** (padrón, vencimientos, asistencia,
+  ausentismo, rotación, planilla por área, vencimientos, cumpleaños) y **Reportes** (padrón, T-Registro, derechohabientes, vencimientos, asistencia,
   vacaciones, desempeño de reparto, **datos para planilla** para el contador).
 
 La planilla (boletas, gratificaciones, CTS, PLAME) queda para una segunda etapa; por ahora se exporta el reporte
@@ -128,7 +130,7 @@ LogisticaFront/src/
 
 `usuarios`, `ubigeos`, `productos` (SKU), `pedidos`, `pedido_items` (uno o más productos, con SKU, cantidad,
 precio y subtotal), `pedido_historial`, `rutas`, `ruta_paradas` (pedido o acción libre), `posiciones` (GPS).
-RRHH: `colaboradores`, `rrhh_documentos`, `rrhh_horarios`, `rrhh_feriados`, `rrhh_marcaciones`, `rrhh_solicitudes`.
+RRHH: `colaboradores`, `rrhh_derechohabientes`, `rrhh_documentos`, `rrhh_horarios`, `rrhh_feriados`, `rrhh_marcaciones`, `rrhh_solicitudes`.
 El **Código** del pedido es su `id`. Para continuar la numeración de la hoja actual (p. ej. desde 27200):
 
 ```sql

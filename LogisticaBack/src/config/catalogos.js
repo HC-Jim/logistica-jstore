@@ -84,7 +84,54 @@ export const ESTADOS_PARADA = ['pendiente', 'completada', 'incidencia', 'cancela
 // --- Módulo Recursos Humanos ---
 export const AREAS = ['Gerencia', 'Administración', 'Comercial', 'Logística', 'Almacén', 'Catálogo', 'Recursos Humanos', 'Otro'];
 export const TIPOS_DOCUMENTO_IDENTIDAD = ['DNI', 'CE', 'Pasaporte', 'PTP'];
-export const TIPOS_CONTRATO = ['Plazo indeterminado', 'Plazo fijo', 'Tiempo parcial', 'Prácticas', 'Locación de servicios'];
+// Tipos de contrato (Tabla 12 del T-Registro). Los sujetos a modalidad necesitan fecha de fin.
+export const TIPOS_CONTRATO = [
+  'Plazo indeterminado', 'Tiempo parcial', 'Inicio o incremento de actividad', 'Necesidades del mercado',
+  'Reconversión empresarial', 'Ocasional', 'Suplencia', 'Emergencia', 'Obra determinada o servicio específico',
+  'Intermitente', 'Temporada', 'Convenio de prácticas (modalidad formativa)', 'Locación de servicios (no es planilla)',
+];
+export const CONTRATOS_SIN_FIN = ['Plazo indeterminado', 'Tiempo parcial', 'Intermitente', 'Locación de servicios (no es planilla)'];
+// Régimen laboral: define vacaciones (30 o 15 días), CTS y gratificaciones
+export const REGIMENES_LABORALES = [
+  'Privado general (D. Leg. 728)', 'MYPE - Pequeña empresa', 'MYPE - Microempresa', 'Agrario (Ley 31110)', 'Modalidad formativa',
+];
+/** Días de vacaciones (o descanso) por año completo según el régimen y la jornada. */
+export function diasVacacionesAnio(regimen, jornada) {
+  if (jornada === 'Tiempo parcial (menos de 4 h)') return 0; // sin derecho a vacaciones (jornada menor a 4 horas)
+  if (regimen?.startsWith('MYPE') || regimen === 'Modalidad formativa') return 15;
+  return 30;
+}
+export const CATEGORIAS_OCUPACIONALES = ['Empleado', 'Obrero', 'Ejecutivo'];
+export const SITUACIONES_ESPECIALES = ['Ninguna', 'Trabajador de dirección', 'Trabajador de confianza'];
+export const JORNADAS = ['Tiempo completo', 'Tiempo parcial (menos de 4 h)'];
+export const PERIODICIDADES_PAGO = ['Mensual', 'Quincenal', 'Semanal', 'Diaria'];
+export const TIPOS_PAGO = ['Depósito en cuenta', 'Efectivo', 'Otros'];
+export const REGIMENES_SALUD = ['EsSalud regular', 'EsSalud + EPS', 'EsSalud agrario', 'SIS - Microempresa'];
+export const COMISIONES_AFP = ['Flujo', 'Mixta'];
+export const SCTR_SALUD = ['EsSalud', 'EPS'];
+export const SCTR_PENSION = ['ONP', 'Compañía de seguros'];
+export const ESTADOS_CIVILES = ['Soltero(a)', 'Casado(a)', 'Conviviente', 'Divorciado(a)', 'Viudo(a)'];
+// Situación educativa (Tabla 9 del T-Registro)
+export const SITUACIONES_EDUCATIVAS = [
+  'Sin educación formal', 'Primaria incompleta', 'Primaria completa', 'Secundaria incompleta', 'Secundaria completa',
+  'Educación especial', 'Técnica incompleta', 'Técnica completa', 'Superior pedagógica incompleta', 'Superior pedagógica completa',
+  'Superior tecnológica incompleta', 'Superior tecnológica completa', 'Universitaria incompleta', 'Universitaria completa',
+  'Grado de bachiller', 'Titulado', 'Maestría', 'Doctorado',
+];
+// Con estos niveles el T-Registro pide institución, carrera y año de egreso
+export const EDUCACION_CON_ESTUDIOS = [
+  'Técnica completa', 'Superior pedagógica completa', 'Superior tecnológica completa', 'Universitaria completa',
+  'Grado de bachiller', 'Titulado', 'Maestría', 'Doctorado',
+];
+export const VINCULOS_DERECHOHABIENTE = [
+  'Cónyuge', 'Concubino(a)', 'Hijo(a) menor de edad', 'Hijo(a) mayor de edad con discapacidad', 'Gestante',
+];
+// Motivo de baja (Tabla 17 del T-Registro)
+export const MOTIVOS_CESE = [
+  'Renuncia', 'Renuncia con incentivos', 'Despido o destitución', 'Cese colectivo', 'Jubilación', 'Invalidez absoluta permanente',
+  'Fallecimiento', 'Término de obra o servicio / vencimiento del contrato', 'Mutuo disenso', 'No superó el periodo de prueba',
+  'Suspensión de la pensión', 'Otros',
+];
 export const SISTEMAS_PENSION = ['ONP', 'AFP', 'Sin sistema'];
 export const AFPS = ['Habitat', 'Integra', 'Prima', 'Profuturo'];
 export const BANCOS = ['BCP', 'BBVA', 'Interbank', 'Scotiabank', 'Banco de la Nación', 'BanBif', 'Pichincha', 'Otro'];
@@ -99,8 +146,6 @@ export const ESTADOS_SOLICITUD = ['pendiente', 'aprobada', 'rechazada', 'anulada
 // Remuneración mínima vital (asignación familiar = 10 %) y aporte de EsSalud del empleador
 export const RMV = 1130;
 export const TASA_ESSALUD = 0.09;
-// Días de vacaciones por año completo de servicio (D. Leg. 713)
-export const DIAS_VACACIONES_ANIO = 30;
 
 export const catalogos = {
   plataformas: PLATAFORMAS_VENTA,
@@ -134,4 +179,20 @@ export const catalogos = {
   tiposDocumentoRrhh: TIPOS_DOCUMENTO_RRHH,
   tiposSolicitud: TIPOS_SOLICITUD,
   rmv: RMV,
+  contratosSinFin: CONTRATOS_SIN_FIN,
+  regimenesLaborales: REGIMENES_LABORALES,
+  categoriasOcupacionales: CATEGORIAS_OCUPACIONALES,
+  situacionesEspeciales: SITUACIONES_ESPECIALES,
+  jornadas: JORNADAS,
+  periodicidadesPago: PERIODICIDADES_PAGO,
+  tiposPago: TIPOS_PAGO,
+  regimenesSalud: REGIMENES_SALUD,
+  comisionesAfp: COMISIONES_AFP,
+  sctrSalud: SCTR_SALUD,
+  sctrPension: SCTR_PENSION,
+  estadosCiviles: ESTADOS_CIVILES,
+  situacionesEducativas: SITUACIONES_EDUCATIVAS,
+  educacionConEstudios: EDUCACION_CON_ESTUDIOS,
+  vinculosDerechohabiente: VINCULOS_DERECHOHABIENTE,
+  motivosCese: MOTIVOS_CESE,
 };
