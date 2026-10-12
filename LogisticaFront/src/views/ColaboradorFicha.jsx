@@ -53,7 +53,7 @@ export default function ColaboradorFicha() {
 
   const cargar = () => rrhhApi.colaborador(id).then((c) => {
     setOriginal(c);
-    setForm(Object.fromEntries(Object.entries(VACIO).map(([k, v]) => [k, c[k] == null ? v : typeof v === 'boolean' ? c[k] : String(c[k])])));
+    setForm(Object.fromEntries(Object.entries(VACIO).map(([k, v]) => [k, c[k] == null ? (c.por_completar && k === 'tipo_contrato' ? '' : v) : typeof v === 'boolean' ? c[k] : String(c[k])])));
   }).catch((e) => setError(mensajeError(e)));
 
   useEffect(() => {
@@ -165,6 +165,7 @@ export default function ColaboradorFicha() {
           <Link href="/rrhh/colaboradores">← Volver</Link>
         </div>
       </div>
+      {original?.por_completar && <p className="aviso">Ficha creada desde el usuario del sistema: revisa nombres y apellidos y completa el documento, el contrato, la fecha de ingreso real, el sueldo y la pensión. Hasta entonces no se controla su asistencia.</p>}
       {!nuevo && original.alertas?.length > 0 && (
         <div className="alerta">
           {original.alertas.map((a) => {
@@ -278,7 +279,7 @@ export default function ColaboradorFicha() {
         )}
         <label>Fecha de ingreso *<input type="date" required {...input('fecha_ingreso')} /></label>
         <label>Tipo de contrato *
-          <select required {...input('tipo_contrato')}>{lista('tiposContrato').map((t) => <option key={t}>{t}</option>)}</select>
+          <select required {...input('tipo_contrato')}><option value="">Elige…</option>{lista('tiposContrato').map((t) => <option key={t}>{t}</option>)}</select>
         </label>
         {form.tipo_contrato !== 'Plazo indeterminado' && (
           <label>Fin de contrato{!lista('contratosSinFin').includes(form.tipo_contrato) && ' *'}

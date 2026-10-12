@@ -101,6 +101,7 @@ export async function asistenciaDiaria({ desde, hasta, colaboradorIds = null, ar
        FROM colaboradores c LEFT JOIN rrhh_horarios h ON h.id = c.horario_id
        WHERE ($3::int[] IS NULL OR c.id = ANY($3)) AND ($4::text IS NULL OR c.area = $4)
          AND c.fecha_ingreso <= $2 AND (c.fecha_cese IS NULL OR c.fecha_cese >= $1)
+         AND NOT c.por_completar -- sin contrato ni documento todavía no se controla su asistencia
      ),
      marc AS (
        SELECT m.colaborador_id, (m.marcado_en AT TIME ZONE '${TZ}')::date AS fecha, MIN(m.marcado_en) AS primera,

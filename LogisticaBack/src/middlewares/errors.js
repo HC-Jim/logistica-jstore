@@ -15,7 +15,7 @@ export function notFound(req, _res, next) {
   next(new HttpError(404, `Ruta no encontrada: ${req.method} ${req.originalUrl}`));
 }
 
-export function errorHandler(err, _req, res, _next) {
+export function errorHandler(err, req, res, _next) {
   if (err instanceof HttpError) {
     return res.status(err.status).json({ error: err.message, details: err.details });
   }
@@ -27,5 +27,7 @@ export function errorHandler(err, _req, res, _next) {
     return res.status(status).json({ error: message });
   }
   console.error(err);
-  res.status(500).json({ error: 'Error interno del servidor' });
+  // al administrador se le muestra el detalle para poder diagnosticar sin entrar a los logs
+  const detalle = req.user?.roles?.includes('admin') ? err.message : undefined;
+  res.status(500).json({ error: detalle ? `Error interno del servidor: ${detalle}` : 'Error interno del servidor', codigo: err.code });
 }

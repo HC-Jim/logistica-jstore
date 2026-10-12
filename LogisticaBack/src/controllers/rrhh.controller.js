@@ -190,6 +190,8 @@ async function validarFicha(d, actual = null) {
   if (d.numero_documento) d.numero_documento = d.numero_documento.toUpperCase().replace(/\s/g, '');
   const tipoDoc = v('tipo_documento');
   const numDoc = v('numero_documento');
+  if (!numDoc) throw new HttpError(400, 'Falta el número de documento');
+  if (!v('tipo_contrato')) throw new HttpError(400, 'Elige el tipo de contrato');
   if (tipoDoc === 'DNI' && numDoc && !/^\d{8}$/.test(numDoc)) throw new HttpError(400, 'El DNI debe tener 8 dígitos');
   if (tipoDoc !== 'DNI' && numDoc && !/^[A-Z0-9]{6,12}$/.test(numDoc)) throw new HttpError(400, 'El documento debe tener de 6 a 12 letras o números');
   if (tipoDoc && tipoDoc !== 'DNI' && !v('pais_emisor')) throw new HttpError(400, 'Indica el país emisor del documento');
@@ -632,6 +634,7 @@ export const RrhhController = {
                     COUNT(*) FILTER (WHERE fecha_ingreso > $2::date - 365)::int AS ingresos_12m,
                     COUNT(*) FILTER (WHERE activo AND usuario_id IS NULL)::int AS sin_usuario,
                     COUNT(*) FILTER (WHERE activo AND horario_id IS NULL)::int AS sin_horario,
+                    COUNT(*) FILTER (WHERE activo AND por_completar)::int AS por_completar,
                     COALESCE(SUM(sueldo + CASE WHEN asignacion_familiar THEN $3 ELSE 0 END) FILTER (WHERE activo), 0) AS planilla
              FROM colaboradores`, [mes, fecha, RMV * 0.1]),
       query(`SELECT area AS nombre, COUNT(*)::int AS cantidad,

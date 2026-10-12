@@ -54,7 +54,7 @@ export default function Colaboradores() {
           <tbody>
             {lista.map((c) => (
               <tr key={c.id} className={c.activo ? '' : 'inactivo'}>
-                <td><Link href={`/rrhh/colaboradores/${c.id}`}><strong>{c.nombre_completo}</strong></Link>{esRrhh && <><br /><small>{c.tipo_documento} {c.numero_documento}</small></>}</td>
+                <td><Link href={`/rrhh/colaboradores/${c.id}`}><strong>{c.nombre_completo}</strong></Link>{c.por_completar && <> <span className="chip chip-alerta">Por completar</span></>}{esRrhh && <><br /><small>{c.tipo_documento} {c.numero_documento}</small></>}</td>
                 <td>{c.cargo}</td><td>{c.area}</td><td>{c.jefe_nombre ?? '—'}</td>
                 <td>{fechaCorta(c.fecha_ingreso)}</td>
                 <td>{c.tipo_contrato}{c.contrato_fin && <><br /><small>hasta {fechaCorta(c.contrato_fin)}</small></>}</td>

@@ -684,3 +684,69 @@ CREATE INDEX IF NOT EXISTS idx_rrhh_solicitudes_fechas ON rrhh_solicitudes(desde
 ALTER TABLE rrhh_documentos DROP CONSTRAINT IF EXISTS rrhh_documentos_solicitud_fk;
 ALTER TABLE rrhh_documentos ADD CONSTRAINT rrhh_documentos_solicitud_fk
   FOREIGN KEY (solicitud_id) REFERENCES rrhh_solicitudes(id) ON DELETE SET NULL;
+
+-- Fichas creadas a partir de los usuarios del sistema: quedan "por completar" (sin documento ni contrato)
+-- hasta que RRHH las llene. Mientras tanto no se les calcula asistencia.
+ALTER TABLE colaboradores ALTER COLUMN numero_documento DROP NOT NULL;
+ALTER TABLE colaboradores ALTER COLUMN tipo_contrato DROP NOT NULL;
+ALTER TABLE colaboradores ADD COLUMN IF NOT EXISTS por_completar BOOLEAN
+  GENERATED ALWAYS AS (numero_documento IS NULL OR tipo_contrato IS NULL) STORED;
+
+/** Crea la ficha de un usuario (si no tiene): nombre partido en nombres y apellidos, área y cargo según su perfil principal. */
+CREATE OR REPLACE FUNCTION rrhh_ficha_de_usuario(u usuarios) RETURNS void AS $$
+DECLARE
+  t text[] := regexp_split_to_array(btrim(u.nombre), '\s+');
+  n int := COALESCE(array_length(t, 1), 0);
+  v_nombres text;
+  v_paterno text := '';
+  v_materno text;
+  v_area text;
+  v_cargo text;
+BEGIN
+  IF n >= 4 THEN v_nombres := array_to_string(t[1:n - 2], ' '); v_paterno := t[n - 1]; v_materno := t[n];
+  ELSIF n = 3 THEN v_nombres := t[1]; v_paterno := t[2]; v_materno := t[3];
+  ELSIF n = 2 THEN v_nombres := t[1]; v_paterno := t[2];
+  ELSE v_nombres := COALESCE(NULLIF(btrim(u.nombre), ''), split_part(u.email, '@', 1));
+  END IF;
+  SELECT x.area, x.cargo INTO v_area, v_cargo FROM (VALUES
+    ('admin', 'Administración', 'Administrador'),
+    ('planificador', 'Logística', 'Administrador logístico'),
+    ('almacen', 'Almacén', 'Almacenero'),
+    ('repartidor', 'Logística', 'Conductor'),
+    ('auxiliar', 'Logística', 'Auxiliar logístico'),
+    ('vendedor', 'Comercial', 'Comercial'),
+    ('catalogo', 'Catálogo', 'Administrador de catálogo'),
+    ('rrhh', 'Recursos Humanos', 'Analista de RRHH'),
+    ('jefe', 'Otro', 'Jefe de área')
+  ) x(rol, area, cargo) WHERE x.rol = u.roles[1];
+  INSERT INTO colaboradores (usuario_id, nombres, apellido_paterno, apellido_materno, telefono, cargo, area, fecha_ingreso)
+  VALUES (u.id, left(v_nombres, 80), left(v_paterno, 60), left(v_materno, 60), left(u.telefono, 30),
+          COALESCE(v_cargo, 'Por definir'), COALESCE(v_area, 'Otro'), (u.creado_en AT TIME ZONE 'America/Lima')::date)
+  ON CONFLICT (usuario_id) DO NOTHING;
+END $$ LANGUAGE plpgsql;
+
+-- Cada usuario nuevo (o cuenta aprobada) aparece también en RRHH
+CREATE OR REPLACE FUNCTION usuarios_crear_ficha() RETURNS trigger AS $$
+BEGIN
+  IF NEW.pendiente OR NOT NEW.activo THEN RETURN NEW; END IF;
+  IF TG_OP = 'UPDATE' AND NOT OLD.pendiente THEN RETURN NEW; END IF;
+  PERFORM rrhh_ficha_de_usuario(NEW);
+  RETURN NEW;
+END $$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS usuarios_crear_ficha ON usuarios;
+CREATE TRIGGER usuarios_crear_ficha AFTER INSERT OR UPDATE OF pendiente ON usuarios
+  FOR EACH ROW EXECUTE FUNCTION usuarios_crear_ficha();
+
+-- Cambios de datos que se aplican una sola vez
+CREATE TABLE IF NOT EXISTS migraciones_datos (
+  clave        VARCHAR(60) PRIMARY KEY,
+  aplicada_en  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- Los usuarios activos que ya existían también pasan a RRHH (una sola vez: si luego se borra una ficha, no vuelve)
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM migraciones_datos WHERE clave = 'rrhh_fichas_de_usuarios') THEN
+    PERFORM rrhh_ficha_de_usuario(u) FROM usuarios u WHERE u.activo AND NOT u.pendiente ORDER BY u.id;
+    INSERT INTO migraciones_datos (clave) VALUES ('rrhh_fichas_de_usuarios');
+  END IF;
+END $$;

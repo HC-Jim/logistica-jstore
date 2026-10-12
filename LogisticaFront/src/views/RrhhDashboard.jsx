@@ -38,8 +38,9 @@ export default function RrhhDashboard() {
         <div className="tarjeta kpi"><small>Planilla mensual</small><strong>{soles(r.planilla)}</strong><small>+ EsSalud {soles(r.essalud)}</small></div>
       </div>
 
-      {(r.sin_usuario > 0 || r.sin_horario > 0) && (
+      {(r.sin_usuario > 0 || r.sin_horario > 0 || r.por_completar > 0) && (
         <p className="aviso">
+          {r.por_completar > 0 && <><Link href="/rrhh/colaboradores">{r.por_completar} ficha(s) por completar</Link> (creadas desde los usuarios del sistema): falta DNI, contrato y fecha de ingreso real; hasta entonces no se controla su asistencia. </>}
           {r.sin_horario > 0 && `${r.sin_horario} colaborador(es) sin horario: no se les calcula tardanza ni horas extra. `}
           {r.sin_usuario > 0 && `${r.sin_usuario} sin usuario del sistema: no pueden marcar ni pedir vacaciones desde Mi espacio.`}
         </p>
