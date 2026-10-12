@@ -333,3 +333,15 @@ tr.con-error { background: #fff5f5; }
 .mover-ruta { flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .vehiculo.libre { border-color: #718096; background: #f7fafc; }
 .foto-mini { display: block; font-size: 0.8rem; margin-top: 4px; }
+
+/* ---- Módulos ---- */
+.nav-modulo { color: #a0aec0; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; margin: 14px 12px 4px; }
+.sidebar nav a.menu-principal { color: #90cdf4; }
+.modulos { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; margin-top: 12px; }
+.modulo { display: flex; flex-direction: column; gap: 6px; color: inherit; text-decoration: none; padding: 20px; transition: transform .1s, box-shadow .1s; }
+a.modulo:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,.12); }
+.modulo h3 { margin: 0; }
+.modulo p { margin: 0; color: var(--suave); }
+.modulo small { color: var(--primario); }
+.modulo-icono { font-size: 2.2rem; }
+.modulo.deshabilitado { opacity: .6; }

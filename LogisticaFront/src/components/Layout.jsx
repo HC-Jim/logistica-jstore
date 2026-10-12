@@ -6,26 +6,11 @@ import { useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { CatalogosProvider } from '../context/CatalogosContext';
 import Campana from './Campana';
+import { activo, LINKS_GENERALES, MODULOS, pantallaActual } from './modulos';
 import { ROLES } from '../utils/format';
 
-// Menú y páginas permitidas por rol (el backend aplica los mismos permisos)
-const LINKS = [
-  { href: '/', label: 'Dashboard', roles: ['admin', 'planificador'] },
-  { href: '/monitoreo', label: 'Monitoreo', roles: ['admin', 'planificador', 'almacen', 'vendedor'] },
-  { href: '/pedidos', label: 'Pedidos', roles: ['admin', 'planificador', 'almacen', 'vendedor'] },
-  { href: '/rutas', label: 'Rutas', roles: ['admin', 'planificador'] },
-  { href: '/despacho', label: 'Despacho', roles: ['admin', 'planificador', 'almacen'] },
-  { href: '/vehiculos', label: 'Vehículos', roles: ['admin', 'planificador'] },
-  { href: '/ubicaciones', label: 'Ubicaciones', roles: ['admin', 'planificador', 'almacen', 'vendedor'] },
-  { href: '/productos', label: 'Productos', roles: ['admin', 'planificador', 'almacen', 'vendedor'] },
-  { href: '/reportes', label: 'Reportes', roles: ['admin', 'planificador'] },
-  { href: '/usuarios', label: 'Usuarios', roles: ['admin'] },
-];
-
-/** Página de inicio de cada rol. */
-export const INICIO = { admin: '/', planificador: '/', almacen: '/despacho', vendedor: '/pedidos' };
-
-const activo = (pathname, href) => (href === '/' ? pathname === '/' : pathname.startsWith(href));
+/** Página de inicio: el menú principal con los módulos. */
+export const INICIO = { admin: '/', planificador: '/', almacen: '/', vendedor: '/' };
 
 /** Estructura del panel: protege las rutas por sesión y rol y muestra el menú lateral. */
 export default function Layout({ children }) {
@@ -33,9 +18,12 @@ export default function Layout({ children }) {
   const pathname = usePathname();
   const router = useRouter();
 
-  const links = LINKS.filter((l) => usuario && l.roles.includes(usuario.rol));
-  const actual = LINKS.filter((l) => activo(pathname, l.href)).sort((a, b) => b.href.length - a.href.length)[0];
-  const permitido = usuario && (!actual || actual.roles.includes(usuario.rol));
+  // el menú lateral muestra las pantallas del módulo en el que se está
+  const actual = pantallaActual(pathname);
+  const modulo = MODULOS.find((m) => m.clave === actual?.modulo);
+  const permitido = usuario && (pathname === '/' || !actual || actual.roles.includes(usuario.rol));
+  const links = (modulo ? modulo.links : []).filter((l) => usuario && l.roles.includes(usuario.rol));
+  const generales = LINKS_GENERALES.filter((l) => usuario && l.roles.includes(usuario.rol));
 
   useEffect(() => {
     if (cargando) return;
@@ -64,7 +52,13 @@ export default function Layout({ children }) {
           <h1 className="logo">Logística<span>JStore</span></h1>
           <Campana />
           <nav>
+            <Link href="/" className={pathname === '/' ? 'active' : 'menu-principal'}>{pathname === '/' ? '☰ Menú principal' : '← Menú principal'}</Link>
+            {modulo && <p className="nav-modulo">{modulo.icono} {modulo.titulo}</p>}
             {links.map((l) => (
+              <Link key={l.href} href={l.href} className={actual?.href === l.href ? 'active' : ''}>{l.label}</Link>
+            ))}
+            {generales.length > 0 && <p className="nav-modulo">⚙️ Administración</p>}
+            {generales.map((l) => (
               <Link key={l.href} href={l.href} className={activo(pathname, l.href) ? 'active' : ''}>{l.label}</Link>
             ))}
           </nav>

@@ -1,1 +1,1 @@
-export { default } from '@/views/Dashboard';
+export { default } from '@/views/MenuPrincipal';
