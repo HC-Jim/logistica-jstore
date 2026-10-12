@@ -6,3 +6,6 @@ APK/
 
 # compilación de Next.js (también si se ejecuta desde la raíz)
 .next/
+
+# archivos de carga (SKU, combos, precios): datos internos, no se suben
+datos/
