@@ -27,7 +27,7 @@ export const UsuarioModel = {
   async crear({ nombre, email, passwordHash, roles, telefono, pendiente = false, claveVisible = null }) {
     const { rows } = await query(
       `INSERT INTO usuarios (nombre, email, password_hash, rol, roles, telefono, activo, pendiente, clave_visible)
-       VALUES ($1, $2, $3, $4[1], $4, $5, $6, $6::boolean IS FALSE, $7) RETURNING ${PUBLICO}`,
+       VALUES ($1, $2, $3, ($4::text[])[1], $4::text[], $5, $6, $6::boolean IS FALSE, $7) RETURNING ${PUBLICO}`,
       [nombre, email, passwordHash, roles, telefono ?? null, !pendiente, claveVisible]
     );
     return rows[0];
