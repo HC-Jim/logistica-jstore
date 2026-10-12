@@ -12,6 +12,7 @@ const PERFILES = [
   ['almacen', 'Almacén', 'Preparo los pedidos y registro observaciones'],
   ['repartidor', 'Conductor', 'Manejo el vehículo y entrego los pedidos (app móvil)'],
   ['auxiliar', 'Auxiliar logístico', 'Acompaño al conductor en la ruta (app móvil)'],
+  ['colaborador', 'Colaborador', 'Marco mi asistencia y pido vacaciones o permisos'],
 ];
 
 export default function Registro() {

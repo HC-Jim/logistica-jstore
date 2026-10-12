@@ -301,10 +301,10 @@ INSERT INTO vehiculos (nombre, tipo)
 SELECT v.nombre, v.tipo FROM (VALUES ('A pie', 'a_pie'), ('Transporte público', 'transporte_publico')) AS v(nombre, tipo)
 WHERE NOT EXISTS (SELECT 1 FROM vehiculos x WHERE x.tipo = v.tipo);
 
--- Varios perfiles por usuario (rol = perfil principal = roles[1]) y perfil Administrador de Catálogo
+-- Varios perfiles por usuario (rol = perfil principal = roles[1]), Administrador de Catálogo y perfiles de RRHH
 ALTER TABLE usuarios DROP CONSTRAINT IF EXISTS usuarios_rol_check;
 ALTER TABLE usuarios ADD CONSTRAINT usuarios_rol_check
-  CHECK (rol IN ('admin', 'vendedor', 'planificador', 'almacen', 'repartidor', 'auxiliar', 'catalogo'));
+  CHECK (rol IN ('admin', 'vendedor', 'planificador', 'almacen', 'repartidor', 'auxiliar', 'catalogo', 'rrhh', 'jefe', 'colaborador'));
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS roles TEXT[];
 -- Mantiene rol y roles en sincronía aunque se cree o edite un usuario solo con "rol"
 CREATE OR REPLACE FUNCTION usuarios_sincronizar_roles() RETURNS trigger AS $$
@@ -325,7 +325,7 @@ ALTER TABLE usuarios ALTER COLUMN roles SET NOT NULL;
 ALTER TABLE usuarios DROP CONSTRAINT IF EXISTS usuarios_roles_check;
 ALTER TABLE usuarios ADD CONSTRAINT usuarios_roles_check CHECK (
   cardinality(roles) > 0 AND rol = roles[1]
-  AND roles <@ ARRAY['admin', 'vendedor', 'planificador', 'almacen', 'repartidor', 'auxiliar', 'catalogo']::text[]
+  AND roles <@ ARRAY['admin', 'vendedor', 'planificador', 'almacen', 'repartidor', 'auxiliar', 'catalogo', 'rrhh', 'jefe', 'colaborador']::text[]
 );
 CREATE INDEX IF NOT EXISTS idx_usuarios_roles ON usuarios USING gin (roles);
 
@@ -461,3 +461,173 @@ SELECT * FROM (VALUES
   ('otras', 'Mayorista', 2, 3, 5.0), ('otras', 'Mayorista', 4, 9, 5.5), ('otras', 'Mayorista', 10, NULL, 6.0)
 ) AS v(grupo, tipo_cliente, desde, hasta, porcentaje)
 WHERE NOT EXISTS (SELECT 1 FROM descuentos_mayoristas);
+
+-- ============================================================
+-- Módulo Recursos Humanos: fichas, documentos, horarios, asistencia, vacaciones y permisos
+-- (las listas de valores se validan en src/config/catalogos.js)
+-- ============================================================
+
+-- Horarios de trabajo. dias: 1 = lunes … 7 = domingo
+CREATE TABLE IF NOT EXISTS rrhh_horarios (
+  id              SERIAL PRIMARY KEY,
+  nombre          VARCHAR(60) NOT NULL UNIQUE,
+  hora_entrada    TIME        NOT NULL,
+  hora_salida     TIME        NOT NULL,
+  tolerancia_min  SMALLINT    NOT NULL DEFAULT 5 CHECK (tolerancia_min BETWEEN 0 AND 120),
+  refrigerio_min  SMALLINT    NOT NULL DEFAULT 60 CHECK (refrigerio_min BETWEEN 0 AND 240),
+  dias            SMALLINT[]  NOT NULL DEFAULT '{1,2,3,4,5,6}' CHECK (dias <@ '{1,2,3,4,5,6,7}'::smallint[] AND cardinality(dias) > 0),
+  activo          BOOLEAN     NOT NULL DEFAULT true,
+  CHECK (hora_salida > hora_entrada)
+);
+INSERT INTO rrhh_horarios (nombre, hora_entrada, hora_salida, tolerancia_min, refrigerio_min, dias)
+SELECT * FROM (VALUES
+  ('Oficina L-V', '09:00'::time, '18:00'::time, 5, 60, '{1,2,3,4,5}'::smallint[]),
+  ('Almacén L-S', '08:00'::time, '17:00'::time, 5, 60, '{1,2,3,4,5,6}'::smallint[]),
+  ('Reparto L-S', '08:00'::time, '17:00'::time, 10, 60, '{1,2,3,4,5,6}'::smallint[])
+) AS v(nombre, hora_entrada, hora_salida, tolerancia_min, refrigerio_min, dias)
+WHERE NOT EXISTS (SELECT 1 FROM rrhh_horarios);
+
+-- Feriados nacionales (no cuentan como falta). Se agregan más desde la web.
+CREATE TABLE IF NOT EXISTS rrhh_feriados (
+  fecha   DATE        PRIMARY KEY,
+  nombre  VARCHAR(80) NOT NULL
+);
+INSERT INTO rrhh_feriados (fecha, nombre) VALUES
+  ('2026-01-01', 'Año Nuevo'), ('2026-04-02', 'Jueves Santo'), ('2026-04-03', 'Viernes Santo'),
+  ('2026-05-01', 'Día del Trabajo'), ('2026-06-07', 'Batalla de Arica y Día de la Bandera'),
+  ('2026-06-29', 'San Pedro y San Pablo'), ('2026-07-23', 'Día de la Fuerza Aérea del Perú'),
+  ('2026-07-28', 'Fiestas Patrias'), ('2026-07-29', 'Fiestas Patrias'), ('2026-08-06', 'Batalla de Junín'),
+  ('2026-08-30', 'Santa Rosa de Lima'), ('2026-10-08', 'Combate de Angamos'), ('2026-11-01', 'Todos los Santos'),
+  ('2026-12-08', 'Inmaculada Concepción'), ('2026-12-09', 'Batalla de Ayacucho'), ('2026-12-25', 'Navidad'),
+  ('2027-01-01', 'Año Nuevo'), ('2027-03-25', 'Jueves Santo'), ('2027-03-26', 'Viernes Santo'),
+  ('2027-05-01', 'Día del Trabajo'), ('2027-06-07', 'Batalla de Arica y Día de la Bandera'),
+  ('2027-06-29', 'San Pedro y San Pablo'), ('2027-07-23', 'Día de la Fuerza Aérea del Perú'),
+  ('2027-07-28', 'Fiestas Patrias'), ('2027-07-29', 'Fiestas Patrias'), ('2027-08-06', 'Batalla de Junín'),
+  ('2027-08-30', 'Santa Rosa de Lima'), ('2027-10-08', 'Combate de Angamos'), ('2027-11-01', 'Todos los Santos'),
+  ('2027-12-08', 'Inmaculada Concepción'), ('2027-12-09', 'Batalla de Ayacucho'), ('2027-12-25', 'Navidad')
+ON CONFLICT (fecha) DO NOTHING;
+
+-- Ficha del colaborador. Se vincula (opcionalmente) con su usuario del sistema.
+CREATE TABLE IF NOT EXISTS colaboradores (
+  id                       SERIAL PRIMARY KEY,
+  usuario_id               INTEGER      UNIQUE REFERENCES usuarios(id) ON DELETE SET NULL,
+  -- datos personales
+  nombres                  VARCHAR(80)  NOT NULL,
+  apellidos                VARCHAR(80)  NOT NULL,
+  tipo_documento           VARCHAR(10)  NOT NULL DEFAULT 'DNI',
+  numero_documento         VARCHAR(15)  NOT NULL,
+  fecha_nacimiento         DATE,
+  sexo                     CHAR(1)      CHECK (sexo IN ('M', 'F')),
+  estado_civil             VARCHAR(15),
+  telefono                 VARCHAR(30),
+  email_personal           VARCHAR(160),
+  direccion                VARCHAR(255),
+  ubigeo                   CHAR(6)      REFERENCES ubigeos(codigo),
+  emergencia_nombre        VARCHAR(120),
+  emergencia_parentesco    VARCHAR(40),
+  emergencia_telefono      VARCHAR(30),
+  hijos                    SMALLINT     NOT NULL DEFAULT 0 CHECK (hijos >= 0),
+  banco                    VARCHAR(30),
+  cuenta_sueldo            VARCHAR(30),
+  cci                      VARCHAR(25),
+  -- datos laborales
+  cargo                    VARCHAR(80)  NOT NULL,
+  area                     VARCHAR(40)  NOT NULL,
+  jefe_id                  INTEGER      REFERENCES colaboradores(id) ON DELETE SET NULL,
+  horario_id               INTEGER      REFERENCES rrhh_horarios(id) ON DELETE SET NULL,
+  fecha_ingreso            DATE         NOT NULL,
+  tipo_contrato            VARCHAR(30)  NOT NULL,
+  contrato_fin             DATE,
+  sueldo                   NUMERIC(10, 2) NOT NULL DEFAULT 0 CHECK (sueldo >= 0),
+  asignacion_familiar      BOOLEAN      NOT NULL DEFAULT false,
+  sistema_pension          VARCHAR(15)  NOT NULL DEFAULT 'ONP',
+  afp                      VARCHAR(20),
+  cuspp                    VARCHAR(15),
+  essalud                  BOOLEAN      NOT NULL DEFAULT true,
+  examen_medico_vence      DATE,
+  -- conductores
+  licencia_numero          VARCHAR(15),
+  licencia_categoria       VARCHAR(10),
+  licencia_vence           DATE,
+  sctr_vence               DATE,
+  record_conductor         TEXT,
+  -- vacaciones: días a sumar o restar al saldo calculado (p. ej. días gozados antes de usar el sistema)
+  vacaciones_ajuste        NUMERIC(5, 1) NOT NULL DEFAULT 0,
+  -- cese
+  fecha_cese               DATE,
+  motivo_cese              VARCHAR(120),
+  activo                   BOOLEAN      NOT NULL DEFAULT true,
+  observaciones            TEXT,
+  creado_en                TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  actualizado_en           TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  UNIQUE (tipo_documento, numero_documento),
+  CHECK (jefe_id IS DISTINCT FROM id),
+  CHECK (contrato_fin IS NULL OR contrato_fin >= fecha_ingreso),
+  CHECK (fecha_cese IS NULL OR fecha_cese >= fecha_ingreso)
+);
+CREATE INDEX IF NOT EXISTS idx_colaboradores_jefe ON colaboradores(jefe_id);
+CREATE INDEX IF NOT EXISTS idx_colaboradores_area ON colaboradores(area) WHERE activo;
+
+-- Documentos del colaborador (contrato, DNI, licencia, certificados…). El archivo se guarda en la base
+-- para que solo se pueda descargar con sesión y permiso (no hay enlaces públicos).
+CREATE TABLE IF NOT EXISTS rrhh_documentos (
+  id              SERIAL PRIMARY KEY,
+  colaborador_id  INTEGER      NOT NULL REFERENCES colaboradores(id) ON DELETE CASCADE,
+  solicitud_id    INTEGER,     -- certificado de un descanso médico o licencia (FK abajo)
+  tipo            VARCHAR(30)  NOT NULL,
+  nombre          VARCHAR(160) NOT NULL,
+  vence           DATE,
+  mime            VARCHAR(60)  NOT NULL,
+  tamano          INTEGER      NOT NULL,
+  contenido       BYTEA        NOT NULL,
+  subido_por      INTEGER      REFERENCES usuarios(id) ON DELETE SET NULL,
+  creado_en       TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_rrhh_documentos_colaborador ON rrhh_documentos(colaborador_id);
+CREATE INDEX IF NOT EXISTS idx_rrhh_documentos_vence ON rrhh_documentos(vence) WHERE vence IS NOT NULL;
+
+-- Marcaciones de asistencia: web, celular (con GPS), reloj biométrico (importado) o registro manual de RRHH.
+-- Conductores y auxiliares además marcan solos con el GPS del app de reparto (tabla posiciones).
+CREATE TABLE IF NOT EXISTS rrhh_marcaciones (
+  id              BIGSERIAL PRIMARY KEY,
+  colaborador_id  INTEGER      NOT NULL REFERENCES colaboradores(id) ON DELETE CASCADE,
+  tipo            VARCHAR(10)  NOT NULL CHECK (tipo IN ('entrada', 'salida', 'marca')),
+  marcado_en      TIMESTAMPTZ  NOT NULL,
+  origen          VARCHAR(12)  NOT NULL CHECK (origen IN ('web', 'app', 'biometrico', 'manual')),
+  lat             NUMERIC(10, 7) CHECK (lat BETWEEN -90 AND 90),
+  lng             NUMERIC(10, 7) CHECK (lng BETWEEN -180 AND 180),
+  precision_m     REAL,
+  distancia_m     INTEGER,     -- al almacén principal, para revisar marcaciones lejanas
+  nota            VARCHAR(255),
+  registrado_por  INTEGER      REFERENCES usuarios(id) ON DELETE SET NULL,
+  creado_en       TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  UNIQUE (colaborador_id, marcado_en)
+);
+CREATE INDEX IF NOT EXISTS idx_rrhh_marcaciones ON rrhh_marcaciones(colaborador_id, marcado_en);
+CREATE INDEX IF NOT EXISTS idx_rrhh_marcaciones_fecha ON rrhh_marcaciones(marcado_en);
+
+-- Vacaciones, permisos, descansos médicos y licencias (con o sin goce). Las aprueba el jefe o RRHH.
+CREATE TABLE IF NOT EXISTS rrhh_solicitudes (
+  id              SERIAL PRIMARY KEY,
+  colaborador_id  INTEGER      NOT NULL REFERENCES colaboradores(id) ON DELETE CASCADE,
+  tipo            VARCHAR(20)  NOT NULL CHECK (tipo IN ('vacaciones', 'permiso', 'descanso_medico', 'licencia')),
+  con_goce        BOOLEAN      NOT NULL DEFAULT true,
+  desde           DATE         NOT NULL,
+  hasta           DATE         NOT NULL,
+  dias            SMALLINT     GENERATED ALWAYS AS ((hasta - desde) + 1) STORED,
+  motivo          VARCHAR(500),
+  estado          VARCHAR(12)  NOT NULL DEFAULT 'pendiente'
+                  CHECK (estado IN ('pendiente', 'aprobada', 'rechazada', 'anulada')),
+  respuesta       VARCHAR(500),
+  resuelto_por    INTEGER      REFERENCES usuarios(id) ON DELETE SET NULL,
+  resuelto_en     TIMESTAMPTZ,
+  creado_por      INTEGER      REFERENCES usuarios(id) ON DELETE SET NULL,
+  creado_en       TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  CHECK (hasta >= desde),
+  CHECK (tipo <> 'vacaciones' OR con_goce)
+);
+CREATE INDEX IF NOT EXISTS idx_rrhh_solicitudes_colaborador ON rrhh_solicitudes(colaborador_id, desde);
+CREATE INDEX IF NOT EXISTS idx_rrhh_solicitudes_fechas ON rrhh_solicitudes(desde, hasta) WHERE estado IN ('pendiente', 'aprobada');
+ALTER TABLE rrhh_documentos DROP CONSTRAINT IF EXISTS rrhh_documentos_solicitud_fk;
+ALTER TABLE rrhh_documentos ADD CONSTRAINT rrhh_documentos_solicitud_fk
+  FOREIGN KEY (solicitud_id) REFERENCES rrhh_solicitudes(id) ON DELETE SET NULL;

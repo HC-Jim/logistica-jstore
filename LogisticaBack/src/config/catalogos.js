@@ -59,7 +59,8 @@ export const ESTADOS_PEDIDO = ['pendiente', 'ruteado', 'entregado', 'incidencia'
 
 // 'repartidor' es el Conductor de la ruta; 'auxiliar' es el Auxiliar logístico que lo acompaña
 // vendedor = Comercial · planificador = Administrador Logístico · catalogo = Administrador de Catálogo
-export const ROLES = ['admin', 'vendedor', 'planificador', 'almacen', 'repartidor', 'auxiliar', 'catalogo'];
+// rrhh = Administrador de RRHH · jefe = Jefe de área (aprueba a su equipo) · colaborador = solo su espacio de RRHH
+export const ROLES = ['admin', 'vendedor', 'planificador', 'almacen', 'repartidor', 'auxiliar', 'catalogo', 'rrhh', 'jefe', 'colaborador'];
 
 export const ESTADOS_RUTA = ['planificada', 'en_curso', 'finalizada'];
 
@@ -79,6 +80,27 @@ export const TIPOS_VEHICULO = ['auto', 'moto', 'bicicleta', 'furgoneta', 'a_pie'
 // Movilidades que pueden usar varias rutas el mismo día (no son un vehículo físico)
 export const MOVILIDAD_COMPARTIDA = ['a_pie', 'transporte_publico'];
 export const ESTADOS_PARADA = ['pendiente', 'completada', 'incidencia', 'cancelada'];
+
+// --- Módulo Recursos Humanos ---
+export const AREAS = ['Gerencia', 'Administración', 'Comercial', 'Logística', 'Almacén', 'Catálogo', 'Recursos Humanos', 'Otro'];
+export const TIPOS_DOCUMENTO_IDENTIDAD = ['DNI', 'CE', 'Pasaporte', 'PTP'];
+export const TIPOS_CONTRATO = ['Plazo indeterminado', 'Plazo fijo', 'Tiempo parcial', 'Prácticas', 'Locación de servicios'];
+export const SISTEMAS_PENSION = ['ONP', 'AFP', 'Sin sistema'];
+export const AFPS = ['Habitat', 'Integra', 'Prima', 'Profuturo'];
+export const BANCOS = ['BCP', 'BBVA', 'Interbank', 'Scotiabank', 'Banco de la Nación', 'BanBif', 'Pichincha', 'Otro'];
+export const CATEGORIAS_LICENCIA = ['A-I', 'A-IIa', 'A-IIb', 'A-IIIa', 'A-IIIb', 'A-IIIc', 'B-I', 'B-IIa', 'B-IIb', 'B-IIc'];
+export const TIPOS_DOCUMENTO_RRHH = [
+  'Contrato', 'Adenda', 'DNI', 'Licencia de conducir', 'Antecedentes', 'Examen médico', 'SCTR', 'CV',
+  'Certificado médico', 'Constancia', 'Otro',
+];
+// Solicitudes: vacaciones, permisos, descansos médicos y licencias (paternidad, fallecimiento…)
+export const TIPOS_SOLICITUD = ['vacaciones', 'permiso', 'descanso_medico', 'licencia'];
+export const ESTADOS_SOLICITUD = ['pendiente', 'aprobada', 'rechazada', 'anulada'];
+// Remuneración mínima vital (asignación familiar = 10 %) y aporte de EsSalud del empleador
+export const RMV = 1130;
+export const TASA_ESSALUD = 0.09;
+// Días de vacaciones por año completo de servicio (D. Leg. 713)
+export const DIAS_VACACIONES_ANIO = 30;
 
 export const catalogos = {
   plataformas: PLATAFORMAS_VENTA,
@@ -102,4 +124,14 @@ export const catalogos = {
   segmentosMarca: SEGMENTOS_MARCA,
   plataformasPrecio: PLATAFORMAS_PRECIO,
   tiposCliente: TIPOS_CLIENTE,
+  areas: AREAS,
+  tiposDocumentoIdentidad: TIPOS_DOCUMENTO_IDENTIDAD,
+  tiposContrato: TIPOS_CONTRATO,
+  sistemasPension: SISTEMAS_PENSION,
+  afps: AFPS,
+  bancos: BANCOS,
+  categoriasLicencia: CATEGORIAS_LICENCIA,
+  tiposDocumentoRrhh: TIPOS_DOCUMENTO_RRHH,
+  tiposSolicitud: TIPOS_SOLICITUD,
+  rmv: RMV,
 };

@@ -382,3 +382,31 @@ a.modulo:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,
 .grid-graficos { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 16px; margin-bottom: 16px; }
 td.baja { color: #2f855a; font-weight: 600; }
 td.sube { color: #c53030; font-weight: 600; }
+
+/* ---- Módulo Recursos Humanos ---- */
+.btn-marcar { font-size: 1.15rem; padding: 14px 24px; margin: 6px 0 10px; }
+.marcas-hoy { list-style: none; padding: 0; margin: 0 0 8px; line-height: 1.7; }
+.kpis-compactos { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.kpis-compactos .kpi { border: 1px solid var(--borde); border-radius: 8px; padding: 8px 10px; }
+.kpis-compactos .kpi strong { font-size: 1.3rem; }
+label.adjuntar { display: inline-flex; flex-direction: row; cursor: pointer; }
+.pendiente-texto { color: #b7791f; }
+.grilla-asistencia th, .grilla-asistencia td { padding: 3px 2px; text-align: center; font-size: 0.8rem; }
+.grilla-asistencia td:first-child, .grilla-asistencia th:first-child { text-align: left; padding-right: 8px; }
+.grilla-asistencia th.domingo { color: var(--peligro); }
+.dia-celda { min-width: 28px; height: 26px; padding: 0 3px; border-radius: 4px; color: #fff; font-size: 0.72rem; font-weight: 700; line-height: 26px; display: inline-block; text-align: center; }
+.dia-celda.mini { min-width: 22px; height: 18px; line-height: 18px; font-size: 0.65rem; }
+.dia-celda.elegida { outline: 3px solid var(--texto); outline-offset: 1px; }
+.calendario { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.calendario-cabecera { text-align: center; font-weight: 600; font-size: 0.85rem; color: var(--suave); }
+.calendario-dia { border: 1px solid var(--borde); border-radius: 6px; min-height: 96px; padding: 4px 6px; display: flex; flex-direction: column; gap: 2px; font-size: 0.8rem; min-width: 0; }
+.calendario-dia.fuera { opacity: .35; }
+.calendario-dia.feriado { background: #fff5f5; }
+.calendario-dia.hoy { border: 2px solid var(--primario); }
+.calendario-feriado { color: var(--peligro); }
+.calendario-ausencia { border-left: 3px solid; border-radius: 3px; padding: 1px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.calendario-ausencia.pendiente { border-style: dashed; border-width: 1px 1px 1px 3px; }
+@media (max-width: 700px) {
+  .calendario-dia { min-height: 60px; font-size: 0.7rem; }
+  .grid-graficos { grid-template-columns: 1fr; }
+}

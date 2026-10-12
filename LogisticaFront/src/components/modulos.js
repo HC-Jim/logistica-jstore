@@ -1,5 +1,8 @@
 // Módulos del sistema y sus pantallas. El backend aplica los mismos permisos por rol.
 
+// Cualquier usuario de la web (Mi espacio de RRHH)
+const TODOS = ['admin', 'vendedor', 'planificador', 'almacen', 'catalogo', 'rrhh', 'jefe', 'colaborador'];
+
 export const MODULOS = [
   {
     clave: 'logistica',
@@ -42,6 +45,22 @@ export const MODULOS = [
       { href: '/precios/lista', label: 'Lista de precios', roles: ['admin', 'planificador', 'vendedor', 'almacen', 'catalogo'] },
       { href: '/precios/descuentos', label: 'Descuentos mayoristas', roles: ['admin', 'planificador', 'vendedor', 'almacen', 'catalogo'] },
       { href: '/precios/reportes', label: 'Reportes', roles: ['admin', 'catalogo'] },
+    ],
+  },
+  {
+    clave: 'rrhh',
+    titulo: 'Recursos Humanos',
+    icono: '👥',
+    descripcion: 'Fichas del personal, documentos y vencimientos, asistencia, vacaciones, permisos y reportes.',
+    links: [
+      { href: '/rrhh/dashboard', label: 'Dashboard', roles: ['admin', 'rrhh'] },
+      { href: '/rrhh/mi-espacio', label: 'Mi espacio', roles: TODOS },
+      { href: '/rrhh/colaboradores', label: 'Colaboradores', roles: ['admin', 'rrhh', 'jefe'] },
+      { href: '/rrhh/asistencia', label: 'Asistencia', roles: ['admin', 'rrhh', 'jefe'] },
+      { href: '/rrhh/solicitudes', label: 'Vacaciones y permisos', roles: ['admin', 'rrhh', 'jefe'] },
+      { href: '/rrhh/calendario', label: 'Calendario del equipo', roles: ['admin', 'rrhh', 'jefe', 'planificador'] },
+      { href: '/rrhh/horarios', label: 'Horarios y feriados', roles: ['admin', 'rrhh'] },
+      { href: '/rrhh/reportes', label: 'Reportes', roles: ['admin', 'rrhh'] },
     ],
   },
 ];

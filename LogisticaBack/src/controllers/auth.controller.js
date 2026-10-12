@@ -18,7 +18,7 @@ const CAMPOS_USUARIO = {
 };
 
 // Perfiles que se pueden elegir al crear una cuenta (admin nunca)
-const PERFILES_REGISTRO = ['vendedor', 'planificador', 'almacen', 'repartidor', 'auxiliar', 'catalogo'];
+const PERFILES_REGISTRO = ['vendedor', 'planificador', 'almacen', 'repartidor', 'auxiliar', 'catalogo', 'colaborador'];
 
 /** Perfiles enviados como lista (roles) o, por compatibilidad, uno solo (rol). Sin repetir, en orden. */
 function leerRoles(body, { requerido }) {

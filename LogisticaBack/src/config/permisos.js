@@ -16,6 +16,10 @@ export const PERMISOS = {
   gestionarPrecios: ['admin', 'catalogo'],
   estadisticas: ['admin', 'planificador'],
   usuarios: ['admin'],
+  // Recursos Humanos: sueldos y documentos personales solo los ve RRHH
+  rrhh: ['admin', 'rrhh'],
+  rrhhEquipo: ['admin', 'rrhh', 'jefe'], // el jefe de área ve y aprueba solo a su equipo
+  calendarioEquipo: ['admin', 'rrhh', 'jefe', 'planificador'], // logística ve quién falta para armar las rutas
   appRepartidor: ['repartidor', 'auxiliar'], // conductor y auxiliar logístico
   // el chat lo usan logística y el equipo de la ruta (se valida que la ruta sea suya)
   chatRuta: ['admin', 'planificador', 'almacen', 'repartidor', 'auxiliar'],

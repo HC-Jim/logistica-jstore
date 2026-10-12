@@ -11,8 +11,12 @@ const ICONOS = {
   pedidos: '📦', bsale: '🧾', productos: '🏷️', variacion_precio: '💲', rutas: '🗺️',
   recorrido: '🛰️', flota: '🚚', incidencias: '⚠️', inversa: '↩️', usuarios: '👥',
   catalogo: '✅', combos: '🎁', cambios_precio: '📈', descuento_plataforma: '🏪',
+  personal: '🪪', vencimientos: '⏰', asistencia: '🕘', asistencia_resumen: '📊', solicitudes: '🏖️',
+  vacaciones: '🗓️', desempeno: '🏅', planilla: '💼',
 };
-const TITULOS = { logistica: 'Reportes de Logística', productos: 'Reportes de Productos', precios: 'Reportes de Precios' };
+const TITULOS = {
+  logistica: 'Reportes de Logística', productos: 'Reportes de Productos', precios: 'Reportes de Precios', rrhh: 'Reportes de RRHH',
+};
 const MAX_FILAS_PANTALLA = 1000; // el CSV siempre lleva todas
 
 /** Texto de una celda según el tipo de columna (en pantalla y en el CSV). */

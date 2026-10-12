@@ -32,6 +32,23 @@ function convertir(nombre, spec, valor) {
       if (!Number.isInteger(n) || n <= 0) throw new HttpError(400, `${nombre}: debe ser un entero positivo`);
       return n;
     }
+    case 'natural': { // entero que admite 0
+      const n = Number(valor);
+      if (!Number.isInteger(n) || n < 0) throw new HttpError(400, `${nombre}: debe ser un entero mayor o igual a 0`);
+      return n;
+    }
+    case 'decimal': { // admite negativos (ajustes)
+      const n = Number(valor);
+      if (Number.isNaN(n)) throw new HttpError(400, `${nombre}: número inválido`);
+      return Math.round(n * 100) / 100;
+    }
+    case 'hora':
+      if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(valor).slice(0, 5))) throw new HttpError(400, `${nombre}: hora inválida (HH:MM)`);
+      return String(valor).slice(0, 5);
+    case 'booleano':
+      if ([true, 'true', '1', 1].includes(valor)) return true;
+      if ([false, 'false', '0', 0].includes(valor)) return false;
+      throw new HttpError(400, `${nombre}: debe ser sí o no`);
     case 'coord': {
       const n = Number(valor);
       const lim = spec.max ?? 180;

@@ -111,6 +111,24 @@ El mismo chat que ve logística en la web (Rutas → Ruta N, y Monitoreo).
 - Solo el conductor y el auxiliar asignados a la ruta (y logística) pueden leer o escribir.
 - Recomendado: consultar cada 5–10 s con `despues=<id del último mensaje>` mientras el chat está abierto.
 
+## 7. Recursos Humanos (cualquier usuario con ficha de colaborador)
+
+Conductores y auxiliares **no necesitan marcar**: la primera y la última posición GPS del día cuentan como
+inicio y fin de turno. Estos endpoints sirven para pedir vacaciones o permisos desde el app (y para que marque
+quien no envía GPS).
+
+| Método | Ruta | Cuerpo / respuesta |
+|---|---|---|
+| `GET` | `/rrhh/mi` | `{ colaborador, vacaciones: { saldo, disponible, ganados, en_curso, gozados, programados, pendientes }, hoy: { marcaciones }, horario }` (`colaborador: null` si el usuario no tiene ficha) |
+| `POST` | `/rrhh/mi/marcar` | `{ lat, lng, precision, origen: "app" }` → alterna entrada/salida; `409` si marcó hace menos de 1 min |
+| `GET` | `/rrhh/mi/asistencia?mes=2026-10` | `{ dias: [{ fecha, estado, entrada, salida, minutos_tardanza, … }], resumen }` |
+| `GET` | `/rrhh/mi/solicitudes` | lista de sus solicitudes |
+| `POST` | `/rrhh/mi/solicitudes` | `{ tipo: "vacaciones"\|"permiso"\|"descanso_medico"\|"licencia", desde, hasta, con_goce, motivo }` |
+| `POST` | `/rrhh/mi/solicitudes/:id/anular` | solo si está `pendiente` |
+| `POST` | `/rrhh/mi/solicitudes/:id/documento?nombre=cert.jpg` | cuerpo: la imagen o PDF (`Content-Type: image/jpeg`, `application/pdf`…) |
+
+Notificaciones nuevas: `rrhh_solicitud_resuelta` (aprobada, rechazada o anulada), con `datos.solicitud_id`.
+
 ## Datos de la ruta
 
 Cada parada de pedido trae `categoria`: `venta`, `inversa` (logística inversa) o `encargo` (encargo logístico),

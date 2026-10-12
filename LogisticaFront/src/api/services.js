@@ -63,6 +63,58 @@ export const preciosApi = {
   guardarDescuentos: (grupo, tramos) => data(api.put('/precios/descuentos', { grupo, tramos })),
 };
 
+export const rrhhApi = {
+  dashboard: () => data(api.get('/rrhh/dashboard')),
+  opciones: () => data(api.get('/rrhh/opciones')),
+  colaboradores: (params) => data(api.get('/rrhh/colaboradores', { params })),
+  colaborador: (id) => data(api.get(`/rrhh/colaboradores/${id}`)),
+  crear: (body) => data(api.post('/rrhh/colaboradores', body)),
+  actualizar: (id, body) => data(api.put(`/rrhh/colaboradores/${id}`, body)),
+  subirDocumento: (id, archivo, params) => data(api.post(`/rrhh/colaboradores/${id}/documentos`, archivo, {
+    params, headers: { 'Content-Type': archivo.type },
+  })),
+  eliminarDocumento: (id) => data(api.delete(`/rrhh/documentos/${id}`)),
+  /** Abre el archivo en otra pestaña (se descarga con la sesión: no hay enlaces públicos). */
+  async verDocumento(id) {
+    const ventana = window.open('', '_blank'); // se abre antes de la descarga para que el navegador no la bloquee
+    try {
+      const r = await api.get(`/rrhh/documentos/${id}/archivo`, { responseType: 'blob' });
+      const url = URL.createObjectURL(r.data);
+      if (ventana) ventana.location.href = url; else window.location.href = url;
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (err) {
+      ventana?.close();
+      throw err;
+    }
+  },
+  vencimientos: (dias) => data(api.get('/rrhh/vencimientos', { params: { dias } })),
+  horarios: () => data(api.get('/rrhh/horarios')),
+  guardarHorario: (id, body) => data(id ? api.put(`/rrhh/horarios/${id}`, body) : api.post('/rrhh/horarios', body)),
+  feriados: (anio) => data(api.get('/rrhh/feriados', { params: { anio } })),
+  guardarFeriado: (body) => data(api.post('/rrhh/feriados', body)),
+  eliminarFeriado: (fecha) => data(api.delete(`/rrhh/feriados/${fecha}`)),
+  asistencia: (params) => data(api.get('/rrhh/asistencia', { params })),
+  marcaciones: (colaborador_id, fecha) => data(api.get('/rrhh/marcaciones', { params: { colaborador_id, fecha } })),
+  marcacionManual: (body) => data(api.post('/rrhh/marcaciones', body)),
+  eliminarMarcacion: (id) => data(api.delete(`/rrhh/marcaciones/${id}`)),
+  importarMarcaciones: (filas) => data(api.post('/rrhh/marcaciones/importar', { filas })),
+  solicitudes: (params) => data(api.get('/rrhh/solicitudes', { params })),
+  crearSolicitud: (body) => data(api.post('/rrhh/solicitudes', body)),
+  resolverSolicitud: (id, estado, respuesta) => data(api.post(`/rrhh/solicitudes/${id}/resolver`, { estado, respuesta })),
+  calendario: (mes) => data(api.get('/rrhh/calendario', { params: { mes } })),
+  ausentes: (fecha) => data(api.get('/rrhh/ausentes', { params: { fecha } })),
+  // mi espacio
+  mi: () => data(api.get('/rrhh/mi')),
+  marcar: (body) => data(api.post('/rrhh/mi/marcar', body)),
+  miAsistencia: (mes) => data(api.get('/rrhh/mi/asistencia', { params: { mes } })),
+  misSolicitudes: () => data(api.get('/rrhh/mi/solicitudes')),
+  solicitar: (body) => data(api.post('/rrhh/mi/solicitudes', body)),
+  anularMiSolicitud: (id) => data(api.post(`/rrhh/mi/solicitudes/${id}/anular`)),
+  adjuntarMiSolicitud: (id, archivo) => data(api.post(`/rrhh/mi/solicitudes/${id}/documento`, archivo, {
+    params: { nombre: archivo.name }, headers: { 'Content-Type': archivo.type },
+  })),
+};
+
 export const reportesApi = {
   listar: (modulo) => data(api.get('/reportes', { params: { modulo } })),
   ejecutar: (clave, params) => data(api.get(`/reportes/${clave}`, { params })),

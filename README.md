@@ -69,6 +69,34 @@ despacho, entregas, reprogramaciones, cierre).
 | **Almacén** | Ver pedidos y monitoreo, escribir *Observaciones de almacén*. |
 | **Repartidor** | Solo la app móvil: su ruta, marcar entregas/incidencias, enviar GPS. |
 | **Admin** | Todo + usuarios. |
+| **Administrador de RRHH** | Módulo Recursos Humanos completo: fichas, sueldos, documentos, asistencia, vacaciones, reportes. |
+| **Jefe de área** | Ve a su equipo (sin sueldos ni datos personales), su asistencia, y aprueba sus vacaciones y permisos. |
+| **Colaborador** | Solo *Mi espacio*: marcar asistencia, pedir vacaciones o permisos, ver su saldo y su asistencia. |
+
+Cualquier usuario con ficha de colaborador vinculada tiene *Mi espacio*, sea cual sea su perfil.
+
+## Recursos Humanos
+
+Menú *Recursos Humanos* (`/rrhh/...`):
+
+- **Colaboradores**: ficha con datos personales, contacto de emergencia, banco, cargo, área, jefe inmediato,
+  horario, contrato, sueldo, asignación familiar, AFP/ONP, EsSalud; para conductores licencia (categoría y
+  vencimiento), SCTR y récord. Se vincula opcionalmente con un usuario del sistema. **Documentos** (contrato, DNI,
+  licencia, antecedentes…) se guardan en la base y solo se descargan con sesión (no hay enlaces públicos).
+  **Alertas** de contratos, licencias, SCTR, exámenes médicos y documentos por vencer.
+- **Asistencia**: grilla mensual con faltas, tardanzas (pasada la tolerancia se cuentan desde la hora de entrada),
+  horas extra y ausencias. Fuentes: marcación web/celular con ubicación (*Mi espacio*), **GPS del app de reparto**
+  (primera y última posición del día de conductores y auxiliares), CSV del reloj biométrico y marcación manual de RRHH.
+- **Vacaciones y permisos**: solicitudes de vacaciones, permisos y licencias (con o sin goce) y descansos médicos
+  con certificado; las aprueba el jefe inmediato o RRHH. Saldo: 30 días por año (2,5 por mes) + ajuste − aprobados.
+- **Calendario del equipo**: quién falta cada día. En *Rutas* se avisa si el conductor o auxiliar asignado está
+  ausente ese día.
+- **Horarios y feriados** (feriados nacionales 2026–2027 precargados), **Dashboard** (personal, asistencia de hoy,
+  ausentismo, rotación, planilla por área, vencimientos, cumpleaños) y **Reportes** (padrón, vencimientos, asistencia,
+  vacaciones, desempeño de reparto, **datos para planilla** para el contador).
+
+La planilla (boletas, gratificaciones, CTS, PLAME) queda para una segunda etapa; por ahora se exporta el reporte
+*Datos para planilla*. La RMV y la tasa de EsSalud están en `LogisticaBack/src/config/catalogos.js`.
 
 Los permisos se definen en `LogisticaBack/src/config/permisos.js` y las listas de opciones
 (plataformas, tipos de pedido, agencias, medios de pago…) en `LogisticaBack/src/config/catalogos.js`.
@@ -100,6 +128,7 @@ LogisticaFront/src/
 
 `usuarios`, `ubigeos`, `productos` (SKU), `pedidos`, `pedido_items` (uno o más productos, con SKU, cantidad,
 precio y subtotal), `pedido_historial`, `rutas`, `ruta_paradas` (pedido o acción libre), `posiciones` (GPS).
+RRHH: `colaboradores`, `rrhh_documentos`, `rrhh_horarios`, `rrhh_feriados`, `rrhh_marcaciones`, `rrhh_solicitudes`.
 El **Código** del pedido es su `id`. Para continuar la numeración de la hoja actual (p. ej. desde 27200):
 
 ```sql

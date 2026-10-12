@@ -4,6 +4,7 @@ import { AuthController } from '../controllers/auth.controller.js';
 import { CatalogoController } from '../controllers/catalogo.controller.js';
 import { NotificacionController } from '../controllers/notificacion.controller.js';
 import { ReporteController } from '../controllers/reporte.controller.js';
+import { RrhhController as RH } from '../controllers/rrhh.controller.js';
 import { PrecioController } from '../controllers/precio.controller.js';
 import { PanelController } from '../controllers/panel.controller.js';
 import { PedidoController } from '../controllers/pedido.controller.js';
@@ -37,7 +38,7 @@ router.post('/ubicacion/resolver', CatalogoController.resolverUbicacion);
 
 // --- Usuarios ---
 // la lista (p. ej. ?rol=repartidor) la usa logística para asignar rutas
-router.get('/usuarios', rol('admin', 'planificador'), AuthController.listarUsuarios);
+router.get('/usuarios', rol('admin', 'planificador', 'rrhh'), AuthController.listarUsuarios);
 router.post('/usuarios', rol(...P.usuarios), AuthController.crearUsuario);
 router.put('/usuarios/:id', rol(...P.usuarios), AuthController.actualizarUsuario);
 router.post('/usuarios/:id/aprobar', rol(...P.usuarios), AuthController.aprobarUsuario);
@@ -120,11 +121,52 @@ router.get('/rutas/:id/recorrido', rol(...P.monitoreo), RutaController.recorrido
 router.get('/monitoreo', rol(...P.monitoreo), RutaController.monitoreo);
 
 // --- Reportes (exportables a Excel) ---
-router.get('/reportes', rol(...P.estadisticas, 'catalogo'), ReporteController.listar);
-router.get('/reportes/:clave', rol(...P.estadisticas, 'catalogo'), ReporteController.ejecutar);
+router.get('/reportes', rol(...P.estadisticas, 'catalogo', 'rrhh'), ReporteController.listar);
+router.get('/reportes/:clave', rol(...P.estadisticas, 'catalogo', 'rrhh'), ReporteController.ejecutar);
 
 // --- Estadísticas ---
 router.get('/estadisticas', rol(...P.estadisticas), CatalogoController.estadisticas);
+
+// --- Recursos Humanos ---
+const documento = express.raw({ type: ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'], limit: '4mb' });
+// Mi espacio: cada colaborador (web y app) ve y registra solo lo suyo
+router.get('/rrhh/mi', RH.mi);
+router.post('/rrhh/mi/marcar', RH.marcar);
+router.get('/rrhh/mi/asistencia', RH.miAsistencia);
+router.get('/rrhh/mi/solicitudes', RH.misSolicitudes);
+router.post('/rrhh/mi/solicitudes', RH.crearMiSolicitud);
+router.post('/rrhh/mi/solicitudes/:id/anular', RH.anularMiSolicitud);
+router.post('/rrhh/mi/solicitudes/:id/documento', documento, RH.adjuntarMiSolicitud);
+router.get('/rrhh/documentos/:id/archivo', RH.descargarDocumento); // valida dueño, jefe o RRHH
+
+router.get('/rrhh/dashboard', rol(...P.rrhh), RH.dashboard);
+router.get('/rrhh/opciones', rol(...P.rrhh), RH.opciones);
+router.get('/rrhh/vencimientos', rol(...P.rrhh), RH.vencimientos);
+router.get('/rrhh/colaboradores', rol(...P.rrhhEquipo), RH.listar);
+router.post('/rrhh/colaboradores', rol(...P.rrhh), RH.crear);
+router.get('/rrhh/colaboradores/:id', rol(...P.rrhhEquipo), RH.obtener);
+router.put('/rrhh/colaboradores/:id', rol(...P.rrhh), RH.actualizar);
+router.post('/rrhh/colaboradores/:id/documentos', rol(...P.rrhh), documento, RH.subirDocumento);
+router.delete('/rrhh/documentos/:id', rol(...P.rrhh), RH.eliminarDocumento);
+
+router.get('/rrhh/horarios', rol(...P.rrhhEquipo), RH.horarios);
+router.post('/rrhh/horarios', rol(...P.rrhh), RH.guardarHorario);
+router.put('/rrhh/horarios/:id', rol(...P.rrhh), RH.guardarHorario);
+router.get('/rrhh/feriados', rol(...P.calendarioEquipo), RH.feriados);
+router.post('/rrhh/feriados', rol(...P.rrhh), RH.guardarFeriado);
+router.delete('/rrhh/feriados/:fecha', rol(...P.rrhh), RH.eliminarFeriado);
+
+router.get('/rrhh/asistencia', rol(...P.rrhhEquipo), RH.asistencia);
+router.get('/rrhh/marcaciones', rol(...P.rrhhEquipo), RH.marcaciones);
+router.post('/rrhh/marcaciones', rol(...P.rrhh), RH.marcacionManual);
+router.post('/rrhh/marcaciones/importar', rol(...P.rrhh), RH.importarMarcaciones);
+router.delete('/rrhh/marcaciones/:id', rol(...P.rrhh), RH.eliminarMarcacion);
+
+router.get('/rrhh/solicitudes', rol(...P.rrhhEquipo), RH.solicitudes);
+router.post('/rrhh/solicitudes', rol(...P.rrhh), RH.crearSolicitud);
+router.post('/rrhh/solicitudes/:id/resolver', rol(...P.rrhhEquipo), RH.resolverSolicitud);
+router.get('/rrhh/calendario', rol(...P.calendarioEquipo), RH.calendario);
+router.get('/rrhh/ausentes', rol(...P.calendarioEquipo), RH.ausentes);
 
 // --- App del repartidor (Flutter) ---
 router.get('/repartidor/rutas', rol(...P.appRepartidor), RutaController.misRutas);

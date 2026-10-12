@@ -16,6 +16,9 @@ const DESCRIPCION_ROL = {
   repartidor: 'Conductor de la ruta: ve sus paradas y marca entregas en la app móvil.',
   auxiliar: 'Acompaña al conductor; ve la misma ruta en la app móvil.',
   catalogo: 'Crea y edita SKU, combos y precios.',
+  rrhh: 'Recursos Humanos: fichas, sueldos, documentos, asistencia, vacaciones y reportes.',
+  jefe: 'Aprueba vacaciones y permisos y ve la asistencia de su equipo (definido en la ficha de RRHH).',
+  colaborador: 'Solo su espacio de RRHH: marcar asistencia, pedir vacaciones o permisos y ver su saldo.',
 };
 
 /** Contraseña legible (sin 0/O, 1/l/I) de 10 caracteres. */

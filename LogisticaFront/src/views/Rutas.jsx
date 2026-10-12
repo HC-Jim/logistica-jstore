@@ -4,10 +4,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { mensajeError } from '../api/client';
-import { rutasApi, usuariosApi, vehiculosApi } from '../api/services';
+import { rrhhApi, rutasApi, usuariosApi, vehiculosApi } from '../api/services';
 import EstadoBadge from '../components/EstadoBadge';
 import { useCatalogos } from '../context/CatalogosContext';
-import { ESTADOS, ESTADOS_RUTA, fechaCorta, hoyISO, km, VEHICULOS } from '../utils/format';
+import { ESTADOS, ESTADOS_RUTA, fechaCorta, hoyISO, km, TIPOS_SOLICITUD, VEHICULOS } from '../utils/format';
 
 const VACIA = { vehiculo_id: '', repartidor_id: '', asistente_id: '' };
 
@@ -89,14 +89,14 @@ function RutaPorAbrir({ numero, vehiculos, conductores, auxiliares, ocupados, on
       <label>Conductor
         <select value={form.repartidor_id} onChange={set('repartidor_id')}>
           <option value="">— Asignar después —</option>
-          {conductores.map((u) => <option key={u.id} value={u.id}>{u.nombre}{ocupados.personas.has(u.id) ? ' (ya tiene ruta)' : ''}</option>)}
+          {conductores.map((u) => <option key={u.id} value={u.id}>{u.nombre}{ocupados.personas.has(u.id) ? ' (ya tiene ruta)' : ''}{ocupados.ausentes.has(u.id) ? ` — ${ocupados.ausentes.get(u.id)}` : ''}</option>)}
         </select>
       </label>
       <label>Auxiliar logístico
         <select value={form.asistente_id} onChange={set('asistente_id')}>
           <option value="">— Sin auxiliar —</option>
           {auxiliares.filter((u) => String(u.id) !== form.repartidor_id).map((u) => (
-            <option key={u.id} value={u.id}>{u.nombre}{ocupados.personas.has(u.id) ? ' (ya tiene ruta)' : ''}</option>
+            <option key={u.id} value={u.id}>{u.nombre}{ocupados.personas.has(u.id) ? ' (ya tiene ruta)' : ''}{ocupados.ausentes.has(u.id) ? ` — ${ocupados.ausentes.get(u.id)}` : ''}</option>
           ))}
         </select>
       </label>
@@ -116,6 +116,7 @@ export default function Rutas() {
   const [vehiculos, setVehiculos] = useState([]);
   const [conductores, setConductores] = useState([]);
   const [auxiliares, setAuxiliares] = useState([]);
+  const [ausentes, setAusentes] = useState([]); // vacaciones, descansos médicos… (módulo RRHH)
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -136,6 +137,7 @@ export default function Rutas() {
     }
   }, [fecha]);
   useEffect(() => { setExtra(0); cargar(); }, [cargar]);
+  useEffect(() => { rrhhApi.ausentes(fecha).then(setAusentes).catch(() => setAusentes([])); }, [fecha]);
 
   async function abrir(datos) {
     const ruta = await rutasApi.crear({ fecha, ...datos });
@@ -149,7 +151,11 @@ export default function Rutas() {
   const ocupados = {
     vehiculos: new Set(rutas.map((r) => r.vehiculo_id).filter(Boolean)),
     personas: new Set(rutas.flatMap((r) => [r.repartidor_id, r.asistente_id]).filter(Boolean)),
+    ausentes: new Map(ausentes.map((a) => [a.usuario_id, TIPOS_SOLICITUD[a.tipo]?.label.toLowerCase() ?? 'ausente'])),
   };
+  // rutas con un conductor o auxiliar que ese día no trabaja
+  const sinPersonal = rutas.flatMap((r) => [[r, r.repartidor_id, r.repartidor_nombre], [r, r.asistente_id, r.asistente_nombre]])
+    .filter(([, id]) => id && ocupados.ausentes.has(id));
   const pendientesDia = rutas.reduce((s, r) => s + r.pendientes, 0);
   const esPasado = fecha < hoyISO();
 
@@ -164,6 +170,13 @@ export default function Rutas() {
         </div>
       </div>
       {error && <p className="error">{error}</p>}
+      {sinPersonal.length > 0 && (
+        <div className="alerta">
+          {sinPersonal.map(([r, id, nombre]) => (
+            <div key={`${r.id}-${id}`}>⚠ Ruta {r.numero}: {nombre} no trabaja este día ({ocupados.ausentes.get(id)}). Asigna un reemplazo.</div>
+          ))}
+        </div>
+      )}
 
       {esPasado && (pendientesDia > 0 || sinRuta.length > 0) && (
         <p className="alerta">

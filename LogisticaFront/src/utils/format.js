@@ -38,7 +38,51 @@ export const ROLES = {
   repartidor: 'Conductor',
   auxiliar: 'Auxiliar logístico',
   catalogo: 'Administrador de Catálogo',
+  rrhh: 'Administrador de RRHH',
+  jefe: 'Jefe de área',
+  colaborador: 'Colaborador',
 };
+
+// --- Recursos Humanos ---
+export const TIPOS_SOLICITUD = {
+  vacaciones: { label: 'Vacaciones', icono: '🏖️', color: '#2b6cb0' },
+  permiso: { label: 'Permiso', icono: '🕑', color: '#805ad5' },
+  descanso_medico: { label: 'Descanso médico', icono: '🩺', color: '#c05621' },
+  licencia: { label: 'Licencia', icono: '📄', color: '#2c7a7b' },
+};
+
+export const ESTADOS_SOLICITUD = {
+  pendiente: { label: 'Pendiente', color: '#d69e2e' },
+  aprobada: { label: 'Aprobada', color: '#2f855a' },
+  rechazada: { label: 'Rechazada', color: '#c53030' },
+  anulada: { label: 'Anulada', color: '#718096' },
+};
+
+/** Estado de un día de asistencia. */
+export const ESTADOS_DIA = {
+  asistio: { label: 'Asistió', corto: '✓', color: '#2f855a' },
+  falta: { label: 'Falta', corto: 'F', color: '#c53030' },
+  sin_marcar: { label: 'Sin marcar', corto: '?', color: '#d69e2e' },
+  feriado: { label: 'Feriado', corto: 'Fer', color: '#718096' },
+  descanso: { label: 'Descanso', corto: '—', color: '#a0aec0' },
+  futuro: { label: '', corto: '', color: '#e2e8f0' },
+  vacaciones: { label: 'Vacaciones', corto: 'V', color: '#2b6cb0' },
+  permiso: { label: 'Permiso', corto: 'P', color: '#805ad5' },
+  descanso_medico: { label: 'Descanso médico', corto: 'DM', color: '#c05621' },
+  licencia: { label: 'Licencia', corto: 'L', color: '#2c7a7b' },
+};
+
+export const DIAS_SEMANA = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+
+/** Minutos → "2 h 05 min" */
+export const minutos = (m) => {
+  if (m == null) return '—';
+  const h = Math.floor(m / 60);
+  return h ? `${h} h ${String(m % 60).padStart(2, '0')} min` : `${m} min`;
+};
+
+/** Días que faltan para una fecha (negativo si ya pasó). */
+export const diasHasta = (iso) => Math.round((new Date(`${iso}T12:00:00Z`) - new Date(`${hoyISO()}T12:00:00Z`)) / 86400000);
 
 // Tres formas de registro
 export const CATEGORIAS = {
