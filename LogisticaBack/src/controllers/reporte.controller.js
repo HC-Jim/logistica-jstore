@@ -3,6 +3,8 @@ import { query } from '../config/db.js';
 import { leerCampos } from '../utils/campos.js';
 import { hoy } from '../utils/fecha.js';
 import { HttpError } from '../utils/http.js';
+import { tiene } from '../utils/roles.js';
+import { REPORTES_PRECIOS, REPORTES_PRODUCTOS } from './reportes-catalogo.js';
 
 /*
  * Reportes: cada uno devuelve { columnas, filas, resumen } y la web los muestra en una tabla
@@ -114,8 +116,8 @@ const REPORTES = {
   },
 
   productos: {
-    titulo: 'Productos',
-    descripcion: 'Unidades y montos vendidos por producto (ventas no canceladas).',
+    titulo: 'Ventas por producto',
+    descripcion: 'Unidades y montos vendidos por SKU en el periodo (ventas no canceladas).',
     async ejecutar(f) {
       const { rows } = await query(
         `SELECT i.sku, MAX(i.descripcion) AS descripcion, SUM(i.cantidad)::int AS unidades,
@@ -416,22 +418,38 @@ const REPORTES = {
   },
 };
 
-const ORDEN = ['pedidos', 'bsale', 'productos', 'variacion_precio', 'rutas', 'recorrido', 'flota', 'incidencias', 'inversa', 'usuarios'];
+Object.assign(REPORTES, REPORTES_PRODUCTOS, REPORTES_PRECIOS);
+
+/** Reportes de cada módulo y quién puede verlos. */
+const MODULOS = {
+  logistica: { roles: ['admin', 'planificador'], claves: ['pedidos', 'bsale', 'rutas', 'recorrido', 'flota', 'incidencias', 'inversa', 'usuarios'] },
+  productos: { roles: ['admin', 'catalogo'], claves: ['catalogo', 'productos', 'combos'] },
+  precios: { roles: ['admin', 'catalogo'], claves: ['cambios_precio', 'descuento_plataforma', 'variacion_precio'] },
+};
+const moduloDe = (clave) => Object.entries(MODULOS).find(([, m]) => m.claves.includes(clave));
 
 /** Primer día del mes actual (Lima). */
 const inicioDeMes = () => `${hoy().slice(0, 8)}01`;
 
 export const ReporteController = {
-  listar(_req, res) {
-    res.json(ORDEN.map((clave) => {
+  /** ?modulo=logistica|productos|precios */
+  async listar(req, res) {
+    const modulo = MODULOS[req.query.modulo ?? 'logistica'];
+    if (!modulo) throw new HttpError(400, 'Módulo inválido');
+    if (!tiene(req.user, ...modulo.roles)) throw new HttpError(403, 'No tienes permisos para estos reportes');
+    const { rows: plataformas } = await query('SELECT nombre FROM plataformas_precio ORDER BY orden');
+    res.json(modulo.claves.map((clave) => {
       const r = REPORTES[clave];
-      return { clave, titulo: r.titulo, descripcion: r.descripcion, filtros: r.filtros ?? [] };
+      const filtros = (r.filtros ?? []).map((f) => (f.opcionesDe === 'plataformas' ? { ...f, opciones: plataformas.map((p) => p.nombre) } : f));
+      return { clave, titulo: r.titulo, descripcion: r.descripcion, filtros, sinFechas: Boolean(r.sinFechas) };
     }));
   },
 
   async ejecutar(req, res) {
     const reporte = REPORTES[req.params.clave];
-    if (!reporte) throw new HttpError(404, 'Reporte no encontrado');
+    const modulo = moduloDe(req.params.clave);
+    if (!reporte || !modulo) throw new HttpError(404, 'Reporte no encontrado');
+    if (!tiene(req.user, ...modulo[1].roles)) throw new HttpError(403, 'No tienes permisos para este reporte');
     const fechas = leerCampos({ desde: req.query.desde || inicioDeMes(), hasta: req.query.hasta || hoy() },
       { desde: { tipo: 'fecha' }, hasta: { tipo: 'fecha' } });
     if (fechas.desde > fechas.hasta) throw new HttpError(400, 'La fecha "desde" es posterior a "hasta"');
@@ -440,7 +458,9 @@ export const ReporteController = {
     for (const filtro of reporte.filtros ?? []) {
       const v = req.query[filtro.clave];
       if (v == null || v === '') { extra[filtro.clave] = null; continue; }
-      if (filtro.opciones && !filtro.opciones.includes(v)) throw new HttpError(400, `${filtro.etiqueta}: valor inválido`);
+      const opciones = filtro.opcionesDe === 'plataformas'
+        ? (await query('SELECT nombre FROM plataformas_precio')).rows.map((p) => p.nombre) : filtro.opciones;
+      if (opciones && !opciones.includes(v)) throw new HttpError(400, `${filtro.etiqueta}: valor inválido`);
       extra[filtro.clave] = String(v);
     }
     const r = await reporte.ejecutar({ ...fechas, ...extra });

@@ -5,6 +5,7 @@ import { CatalogoController } from '../controllers/catalogo.controller.js';
 import { NotificacionController } from '../controllers/notificacion.controller.js';
 import { ReporteController } from '../controllers/reporte.controller.js';
 import { PrecioController } from '../controllers/precio.controller.js';
+import { PanelController } from '../controllers/panel.controller.js';
 import { PedidoController } from '../controllers/pedido.controller.js';
 import { ProductoController } from '../controllers/producto.controller.js';
 import { RutaController } from '../controllers/ruta.controller.js';
@@ -43,6 +44,10 @@ router.post('/usuarios/:id/aprobar', rol(...P.usuarios), AuthController.aprobarU
 router.delete('/usuarios/:id', rol(...P.usuarios), AuthController.rechazarUsuario);
 
 // --- Productos ---
+// --- Dashboards de Productos y Precios ---
+router.get('/productos/dashboard', rol(...P.verProductos), PanelController.productos);
+router.get('/precios/dashboard', rol(...P.verPrecios), PanelController.precios);
+
 // --- Precios ---
 router.get('/precios/plataformas', rol(...P.verPrecios), PrecioController.plataformas);
 router.get('/precios/vigentes', rol(...P.verPrecios), PrecioController.vigentes);
@@ -115,8 +120,8 @@ router.get('/rutas/:id/recorrido', rol(...P.monitoreo), RutaController.recorrido
 router.get('/monitoreo', rol(...P.monitoreo), RutaController.monitoreo);
 
 // --- Reportes (exportables a Excel) ---
-router.get('/reportes', rol(...P.estadisticas), ReporteController.listar);
-router.get('/reportes/:clave', rol(...P.estadisticas), ReporteController.ejecutar);
+router.get('/reportes', rol(...P.estadisticas, 'catalogo'), ReporteController.listar);
+router.get('/reportes/:clave', rol(...P.estadisticas, 'catalogo'), ReporteController.ejecutar);
 
 // --- Estadísticas ---
 router.get('/estadisticas', rol(...P.estadisticas), CatalogoController.estadisticas);

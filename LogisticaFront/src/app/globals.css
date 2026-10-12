@@ -372,3 +372,13 @@ a.modulo:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,
 .tachado { text-decoration: line-through; color: var(--suave); }
 .tramos { display: flex; flex-wrap: wrap; gap: 6px; }
 .tramo { border: 1px solid var(--borde); border-radius: 6px; padding: 4px 10px; display: flex; flex-direction: column; align-items: center; min-width: 90px; }
+
+/* ---- Dashboards de Productos y Precios ---- */
+.kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.kpi { display: flex; flex-direction: column; gap: 2px; text-decoration: none; color: inherit; }
+.kpi strong { font-size: 1.8rem; }
+.kpi small { color: var(--suave); }
+.kpi-alerta { border-left: 4px solid #dd6b20; }
+.grid-graficos { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 16px; margin-bottom: 16px; }
+td.baja { color: #2f855a; font-weight: 600; }
+td.sube { color: #c53030; font-weight: 600; }

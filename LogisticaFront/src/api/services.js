@@ -25,6 +25,7 @@ export const usuariosApi = {
 export const productosApi = {
   listar: (params) => data(api.get('/productos', { params })),
   obtener: (id) => data(api.get(`/productos/${id}`)),
+  dashboard: (dias) => data(api.get('/productos/dashboard', { params: { dias } })),
   proponerSku: (subcategoria_id, tipo) => data(api.get('/productos/proponer-sku', { params: { subcategoria_id, tipo } })),
   guardarComponentes: (id, componentes) => data(api.put(`/productos/${id}/componentes`, { componentes })),
   matriz: () => data(api.get('/productos/matriz')),
@@ -54,6 +55,7 @@ export const pedidosApi = {
 
 export const preciosApi = {
   plataformas: () => data(api.get('/precios/plataformas')),
+  dashboard: (dias) => data(api.get('/precios/dashboard', { params: { dias } })),
   vigentes: (params) => data(api.get('/precios/vigentes', { params })),
   historial: (productoId) => data(api.get(`/precios/producto/${productoId}`)),
   registrar: (body) => data(api.post('/precios', body)),
@@ -62,7 +64,7 @@ export const preciosApi = {
 };
 
 export const reportesApi = {
-  listar: () => data(api.get('/reportes')),
+  listar: (modulo) => data(api.get('/reportes', { params: { modulo } })),
   ejecutar: (clave, params) => data(api.get(`/reportes/${clave}`, { params })),
 };
 

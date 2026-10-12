@@ -23,10 +23,12 @@ export const MODULOS = [
     icono: '📦',
     descripcion: 'Catálogo de SKU, generador de SKU, combos, categorías y marcas.',
     links: [
+      { href: '/productos/dashboard', label: 'Dashboard', roles: ['admin', 'planificador', 'almacen', 'vendedor', 'catalogo'] },
       { href: '/productos', label: 'Catálogo de SKU', roles: ['admin', 'planificador', 'almacen', 'vendedor', 'catalogo'] },
       { href: '/productos/categorias', label: 'Categorías', roles: ['admin', 'catalogo', 'planificador', 'vendedor', 'almacen'] },
       { href: '/productos/marcas', label: 'Marcas', roles: ['admin', 'catalogo', 'planificador', 'vendedor', 'almacen'] },
       { href: '/productos/reclasificar', label: 'Reclasificar', roles: ['admin', 'catalogo'] },
+      { href: '/productos/reportes', label: 'Reportes', roles: ['admin', 'catalogo'] },
     ],
   },
   {
@@ -35,9 +37,11 @@ export const MODULOS = [
     icono: '💲',
     descripcion: 'Precios por plataforma e historial, consultor de precios y descuentos mayoristas.',
     links: [
+      { href: '/precios/dashboard', label: 'Dashboard', roles: ['admin', 'planificador', 'almacen', 'vendedor', 'catalogo'] },
       { href: '/precios', label: 'Consultar precio', roles: ['admin', 'planificador', 'vendedor', 'almacen', 'catalogo'] },
       { href: '/precios/lista', label: 'Lista de precios', roles: ['admin', 'planificador', 'vendedor', 'almacen', 'catalogo'] },
       { href: '/precios/descuentos', label: 'Descuentos mayoristas', roles: ['admin', 'planificador', 'vendedor', 'almacen', 'catalogo'] },
+      { href: '/precios/reportes', label: 'Reportes', roles: ['admin', 'catalogo'] },
     ],
   },
 ];

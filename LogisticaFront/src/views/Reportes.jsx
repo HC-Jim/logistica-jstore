@@ -10,7 +10,10 @@ import { duracion, fechaCorta, fechaHora, hoyISO, soles } from '../utils/format'
 const ICONOS = {
   pedidos: '📦', bsale: '🧾', productos: '🏷️', variacion_precio: '💲', rutas: '🗺️',
   recorrido: '🛰️', flota: '🚚', incidencias: '⚠️', inversa: '↩️', usuarios: '👥',
+  catalogo: '✅', combos: '🎁', cambios_precio: '📈', descuento_plataforma: '🏪',
 };
+const TITULOS = { logistica: 'Reportes de Logística', productos: 'Reportes de Productos', precios: 'Reportes de Precios' };
+const MAX_FILAS_PANTALLA = 1000; // el CSV siempre lleva todas
 
 /** Texto de una celda según el tipo de columna (en pantalla y en el CSV). */
 function formato(tipo, v) {
@@ -36,9 +39,9 @@ function valorCsv(tipo, v) {
 
 const inicioDeMes = () => `${hoyISO().slice(0, 8)}01`;
 
-export default function Reportes() {
+export default function Reportes({ modulo = 'logistica' }) {
   const [lista, setLista] = useState([]);
-  const [clave, setClave] = useState('pedidos');
+  const [clave, setClave] = useState(null);
   const [filtros, setFiltros] = useState({ desde: inicioDeMes(), hasta: hoyISO() });
   const [datos, setDatos] = useState(null);
   const [cargando, setCargando] = useState(false);
@@ -46,10 +49,13 @@ export default function Reportes() {
   const [orden, setOrden] = useState(null); // { clave, asc }
   const [busqueda, setBusqueda] = useState('');
 
-  useEffect(() => { reportesApi.listar().then(setLista).catch((e) => setError(mensajeError(e))); }, []);
+  useEffect(() => {
+    reportesApi.listar(modulo).then((l) => { setLista(l); setClave((c) => c ?? l[0]?.clave ?? null); }).catch((e) => setError(mensajeError(e)));
+  }, [modulo]);
   const reporte = lista.find((r) => r.clave === clave);
 
   useEffect(() => {
+    if (!clave) return;
     setCargando(true);
     setError('');
     const params = Object.fromEntries(Object.entries(filtros).filter(([, v]) => v !== '' && v != null));
@@ -93,7 +99,7 @@ export default function Reportes() {
 
   return (
     <>
-      <div className="encabezado"><h2>Reportes</h2></div>
+      <div className="encabezado"><h2>{TITULOS[modulo]}</h2></div>
       <div className="reportes">
         <nav className="tarjeta reportes-menu">
           {lista.map((r) => (
@@ -111,8 +117,12 @@ export default function Reportes() {
             </>
           )}
           <div className="fila filtros">
-            <label>Desde <input type="date" value={filtros.desde} max={filtros.hasta} onChange={(e) => setFiltros({ ...filtros, desde: e.target.value })} /></label>
-            <label>Hasta <input type="date" value={filtros.hasta} min={filtros.desde} onChange={(e) => setFiltros({ ...filtros, hasta: e.target.value })} /></label>
+            {!reporte?.sinFechas && (
+              <>
+                <label>Desde <input type="date" value={filtros.desde} max={filtros.hasta} onChange={(e) => setFiltros({ ...filtros, desde: e.target.value })} /></label>
+                <label>Hasta <input type="date" value={filtros.hasta} min={filtros.desde} onChange={(e) => setFiltros({ ...filtros, hasta: e.target.value })} /></label>
+              </>
+            )}
             {reporte?.filtros.map((f) => (f.check ? (
               <label key={f.clave} className="check">
                 <input type="checkbox" checked={filtros[f.clave] === '1'} onChange={(e) => setFiltros({ ...filtros, [f.clave]: e.target.checked ? '1' : '' })} /> {f.etiqueta}
@@ -152,7 +162,7 @@ export default function Reportes() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filas.map((f, i) => (
+                    {filas.slice(0, MAX_FILAS_PANTALLA).map((f, i) => (
                       <tr key={i}>
                         {datos.columnas.map((c) => (
                           <td key={c.clave} className={['monto', 'km', 'pct', 'entero'].includes(c.tipo) ? 'num' : ''}>
@@ -165,7 +175,7 @@ export default function Reportes() {
                   </tbody>
                 </table>
               </div>
-              <small>{filas.length} fila(s){busqueda && ` de ${datos.filas.length}`}</small>
+              <small>{filas.length} fila(s){busqueda && ` de ${datos.filas.length}`}{filas.length > MAX_FILAS_PANTALLA && ` · en pantalla se muestran las primeras ${MAX_FILAS_PANTALLA}; el Excel (CSV) incluye todas`}</small>
             </>
           )}
         </section>
