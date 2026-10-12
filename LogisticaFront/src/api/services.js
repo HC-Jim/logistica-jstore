@@ -28,6 +28,8 @@ export const productosApi = {
   proponerSku: (subcategoria_id, tipo) => data(api.get('/productos/proponer-sku', { params: { subcategoria_id, tipo } })),
   guardarComponentes: (id, componentes) => data(api.put(`/productos/${id}/componentes`, { componentes })),
   matriz: () => data(api.get('/productos/matriz')),
+  gruposAnteriores: () => data(api.get('/productos/reclasificar')),
+  reclasificar: (body) => data(api.post('/productos/reclasificar', body)),
   guardarCategoria: (id, body) => data(id ? api.put(`/productos/categorias/${id}`, body) : api.post('/productos/categorias', body)),
   guardarSubcategoria: (id, body) => data(id ? api.put(`/productos/subcategorias/${id}`, body) : api.post('/productos/subcategorias', body)),
   marcas: () => data(api.get('/productos/marcas')),
@@ -48,6 +50,15 @@ export const pedidosApi = {
   observaciones: (id, observaciones_almacen) => data(api.patch(`/pedidos/${id}/observaciones`, { observaciones_almacen })),
   importar: (filas, confirmar) => data(api.post('/pedidos/importar', { filas, confirmar })),
   plantilla: () => data(api.get('/pedidos/plantilla')),
+};
+
+export const preciosApi = {
+  plataformas: () => data(api.get('/precios/plataformas')),
+  vigentes: (params) => data(api.get('/precios/vigentes', { params })),
+  historial: (productoId) => data(api.get(`/precios/producto/${productoId}`)),
+  registrar: (body) => data(api.post('/precios', body)),
+  descuentos: () => data(api.get('/precios/descuentos')),
+  guardarDescuentos: (grupo, tramos) => data(api.put('/precios/descuentos', { grupo, tramos })),
 };
 
 export const reportesApi = {

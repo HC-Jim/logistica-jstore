@@ -4,6 +4,7 @@ import { AuthController } from '../controllers/auth.controller.js';
 import { CatalogoController } from '../controllers/catalogo.controller.js';
 import { NotificacionController } from '../controllers/notificacion.controller.js';
 import { ReporteController } from '../controllers/reporte.controller.js';
+import { PrecioController } from '../controllers/precio.controller.js';
 import { PedidoController } from '../controllers/pedido.controller.js';
 import { ProductoController } from '../controllers/producto.controller.js';
 import { RutaController } from '../controllers/ruta.controller.js';
@@ -42,7 +43,18 @@ router.post('/usuarios/:id/aprobar', rol(...P.usuarios), AuthController.aprobarU
 router.delete('/usuarios/:id', rol(...P.usuarios), AuthController.rechazarUsuario);
 
 // --- Productos ---
+// --- Precios ---
+router.get('/precios/plataformas', rol(...P.verPrecios), PrecioController.plataformas);
+router.get('/precios/vigentes', rol(...P.verPrecios), PrecioController.vigentes);
+router.get('/precios/descuentos', rol(...P.verPrecios), PrecioController.descuentos);
+router.put('/precios/descuentos', rol(...P.gestionarPrecios), PrecioController.guardarDescuentos);
+router.get('/precios/producto/:id', rol(...P.verPrecios), PrecioController.historial);
+router.post('/precios', rol(...P.gestionarPrecios), PrecioController.registrar);
+router.delete('/precios/:id', rol(...P.gestionarPrecios), PrecioController.eliminar);
+
 router.get('/productos', rol(...P.verProductos), ProductoController.listar);
+router.get('/productos/reclasificar', rol(...P.gestionarProductos), ProductoController.gruposAnteriores);
+router.post('/productos/reclasificar', rol(...P.gestionarProductos), ProductoController.reclasificar);
 router.get('/productos/matriz', rol(...P.verProductos), ProductoController.matriz);
 router.post('/productos/categorias', rol(...P.gestionarProductos), ProductoController.guardarCategoria);
 router.put('/productos/categorias/:id', rol(...P.gestionarProductos), ProductoController.guardarCategoria);

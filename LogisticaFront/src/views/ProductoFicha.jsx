@@ -13,8 +13,8 @@ import { tiene } from '../utils/roles';
 
 const VACIO = {
   categoria_id: '', subcategoria_id: '', tipo: 'Ítem único', sku: '', descripcion: '', marca_id: '', modelo: '',
-  estado_sourcing: 'Línea Regular', garantia_meses: '', peso_kg: '', largo_cm: '', ancho_cm: '', alto_cm: '', talla: '',
-  estado_verificacion: 'Pendiente', precio_normal: '', precio: '', link_info: '', activo: true,
+  estado_sourcing: '', garantia_meses: '', peso_kg: '', largo_cm: '', ancho_cm: '', alto_cm: '', talla: '',
+  estado_verificacion: '', precio_normal: '', precio: '', link_info: '', activo: true,
 };
 const NUMEROS = ['garantia_meses', 'peso_kg', 'largo_cm', 'ancho_cm', 'alto_cm', 'precio_normal', 'precio'];
 
@@ -171,7 +171,7 @@ export default function ProductoFicha() {
         </label>
         <label>Modelo<input maxLength={80} {...input('modelo')} /></label>
         <label>Estado de Sourcing
-          <select {...input('estado_sourcing')}>{(catalogos.estadosSourcing ?? []).map((t) => <option key={t}>{t}</option>)}</select>
+          <select {...input('estado_sourcing')}><option value="">—</option>{(catalogos.estadosSourcing ?? []).map((t) => <option key={t}>{t}</option>)}</select>
         </label>
         <label>Garantía (meses)<input type="number" min="0" step="1" placeholder="0 = sin garantía" {...input('garantia_meses')} /></label>
         <label>Talla<input maxLength={20} {...input('talla')} /></label>
@@ -184,7 +184,7 @@ export default function ProductoFicha() {
         <label>Alto (cm)<input type="number" min="0" step="0.01" {...input('alto_cm')} /></label>
         <div><small>Volumen (m³)</small><div><strong>{volumen != null ? volumen.toFixed(4) : '—'}</strong></div></div>
         <label>Estado de Verificación Física
-          <select {...input('estado_verificacion')}>{(catalogos.estadosVerificacion ?? []).map((t) => <option key={t}>{t}</option>)}</select>
+          <select {...input('estado_verificacion')}><option value="">—</option>{(catalogos.estadosVerificacion ?? []).map((t) => <option key={t}>{t}</option>)}</select>
         </label>
 
         <h3 className="ficha-seccion">Precios</h3>

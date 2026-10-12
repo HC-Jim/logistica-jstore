@@ -67,9 +67,12 @@ export const ESTADOS_RUTA = ['planificada', 'en_curso', 'finalizada'];
 export const RUTAS_POR_DEFECTO = 3;
 
 // --- Módulo Productos ---
-export const TIPOS_PRODUCTO = ['Ítem único', 'Variante', 'Combo'];
-export const ESTADOS_SOURCING = ['Línea Regular', 'Descontinuado'];
-export const ESTADOS_VERIFICACION = ['Pendiente', 'Medido y Verificado', 'Inactivo'];
+export const TIPOS_PRODUCTO = ['Ítem único', 'Variante', 'Combo', 'Servicio'];
+export const ESTADOS_SOURCING = ['En Evaluación', 'Comprado / En Tránsito', 'Línea Regular (Resurtible)', 'Descontinuado'];
+export const ESTADOS_VERIFICACION = ['Pendiente de Arribo', 'Recibido - Por Medir', 'Medido y Verificado', 'Inactivo'];
+// Plataformas donde se publica precio (módulo Precios); Efe solo queda en el historial
+export const PLATAFORMAS_PRECIO = ['Web', 'Coolbox', 'Diners', 'Yape', 'Falabella', 'Juntoz', 'Mercado L.', 'Rappi', 'Intercorp', 'Ripley', 'Shopstar', 'Claro'];
+export const TIPOS_CLIENTE = ['Común / Final', 'Empresa', 'Mayorista'];
 export const SEGMENTOS_MARCA = ['Core', 'Growth', 'Traffic', 'Profit', 'Volume'];
 
 export const TIPOS_VEHICULO = ['auto', 'moto', 'bicicleta', 'furgoneta', 'a_pie', 'transporte_publico', 'otro'];
@@ -97,4 +100,6 @@ export const catalogos = {
   estadosSourcing: ESTADOS_SOURCING,
   estadosVerificacion: ESTADOS_VERIFICACION,
   segmentosMarca: SEGMENTOS_MARCA,
+  plataformasPrecio: PLATAFORMAS_PRECIO,
+  tiposCliente: TIPOS_CLIENTE,
 };

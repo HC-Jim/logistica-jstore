@@ -45,7 +45,7 @@ async function siguienteAsignacion(db, prefijo) {
 
 export const ProductoModel = {
   /** Búsqueda por SKU o descripción, con filtros del catálogo. */
-  async listar({ q, soloActivos, categoriaId, subcategoriaId, marcaId, tipo, estadoSourcing, limite = 1000 } = {}) {
+  async listar({ q, soloActivos, categoriaId, subcategoriaId, marcaId, tipo, estadoSourcing, sinClasificar, limite = 1000 } = {}) {
     const cond = [];
     const params = [];
     const agregar = (sql, valor) => { params.push(valor); cond.push(sql.replaceAll('?', `$${params.length}`)); };
@@ -56,6 +56,7 @@ export const ProductoModel = {
     if (marcaId) agregar('p.marca_id = ?', marcaId);
     if (tipo) agregar('p.tipo = ?', tipo);
     if (estadoSourcing) agregar('p.estado_sourcing = ?', estadoSourcing);
+    if (sinClasificar) cond.push('p.subcategoria_id IS NULL');
     params.push(limite);
     const where = cond.length ? `WHERE ${cond.join(' AND ')}` : '';
     const { rows } = await query(`${SELECT_PRODUCTO} ${where} ORDER BY p.descripcion LIMIT $${params.length}`, params);
@@ -158,6 +159,32 @@ export const ProductoModel = {
         );
       }
     }).then(() => this.componentes(comboId));
+  },
+
+  /** Grupos por clasificación antigua (codificación anterior) y cuántos faltan ubicar en la matriz nueva. */
+  async gruposAnteriores() {
+    const { rows } = await query(
+      `SELECT categoria_anterior, subcategoria_anterior, COUNT(*)::int AS total,
+              COUNT(*) FILTER (WHERE subcategoria_id IS NULL)::int AS pendientes,
+              (array_agg(descripcion ORDER BY sku))[1:3] AS ejemplos,
+              MIN(subcategoria_id) FILTER (WHERE subcategoria_id IS NOT NULL) AS subcategoria_id
+       FROM productos WHERE categoria_anterior IS NOT NULL OR subcategoria_anterior IS NOT NULL
+       GROUP BY 1, 2 ORDER BY pendientes DESC, 1, 2`
+    );
+    return rows;
+  },
+
+  /** Asigna la subcategoría nueva a todos los productos de una clasificación antigua (el SKU no cambia). */
+  async reclasificar({ categoriaAnterior, subcategoriaAnterior, subcategoriaId }) {
+    const { rowCount } = await query(
+      `UPDATE productos SET subcategoria_id = $3, actualizado_en = now()
+       WHERE categoria_anterior IS NOT DISTINCT FROM $1 AND subcategoria_anterior IS NOT DISTINCT FROM $2`,
+      [categoriaAnterior ?? null, subcategoriaAnterior ?? null, subcategoriaId]
+    ).catch((err) => {
+      if (err.code === '23503') throw new HttpError(400, 'La subcategoría no existe');
+      throw err;
+    });
+    return rowCount;
   },
 
   /** Inserta o actualiza por SKU (carga simple por CSV: sku, descripcion, precio). */

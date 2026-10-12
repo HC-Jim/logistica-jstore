@@ -21,9 +21,7 @@ ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS pendiente BOOLEAN NOT NULL DEFAULT
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS clave_visible TEXT;
 
 -- Perfil "auxiliar" (auxiliar logístico); 'repartidor' es el conductor
-ALTER TABLE usuarios DROP CONSTRAINT IF EXISTS usuarios_rol_check;
-ALTER TABLE usuarios ADD CONSTRAINT usuarios_rol_check
-  CHECK (rol IN ('admin', 'vendedor', 'planificador', 'almacen', 'repartidor', 'auxiliar'));
+-- (la lista de perfiles permitidos se define más abajo, junto a "varios perfiles por usuario")
 
 -- Departamentos / provincias / distritos del Perú (se cargan desde db/ubigeo.json)
 CREATE TABLE IF NOT EXISTS ubigeos (
@@ -366,18 +364,18 @@ ON CONFLICT (nombre) DO NOTHING;
 ALTER TABLE productos ADD COLUMN IF NOT EXISTS subcategoria_id     INTEGER REFERENCES subcategorias(id) ON DELETE RESTRICT;
 ALTER TABLE productos ADD COLUMN IF NOT EXISTS tipo                VARCHAR(12) NOT NULL DEFAULT 'Ítem único';
 ALTER TABLE productos DROP CONSTRAINT IF EXISTS productos_tipo_check;
-ALTER TABLE productos ADD CONSTRAINT productos_tipo_check CHECK (tipo IN ('Ítem único', 'Variante', 'Combo'));
+ALTER TABLE productos ADD CONSTRAINT productos_tipo_check CHECK (tipo IN ('Ítem único', 'Variante', 'Combo', 'Servicio'));
 ALTER TABLE productos ADD COLUMN IF NOT EXISTS asignacion          SMALLINT CHECK (asignacion BETWEEN 1 AND 999);
 ALTER TABLE productos ADD COLUMN IF NOT EXISTS marca_id            INTEGER REFERENCES marcas(id) ON DELETE SET NULL;
 ALTER TABLE productos ADD COLUMN IF NOT EXISTS modelo              VARCHAR(80);
-ALTER TABLE productos ADD COLUMN IF NOT EXISTS estado_sourcing     VARCHAR(20) NOT NULL DEFAULT 'Línea Regular';
+ALTER TABLE productos ADD COLUMN IF NOT EXISTS estado_sourcing     VARCHAR(30);
 ALTER TABLE productos ADD COLUMN IF NOT EXISTS garantia_meses      SMALLINT CHECK (garantia_meses >= 0);   -- 0 = sin garantía
 ALTER TABLE productos ADD COLUMN IF NOT EXISTS peso_kg             NUMERIC(8, 3) CHECK (peso_kg >= 0);
 ALTER TABLE productos ADD COLUMN IF NOT EXISTS largo_cm            NUMERIC(8, 2) CHECK (largo_cm >= 0);
 ALTER TABLE productos ADD COLUMN IF NOT EXISTS ancho_cm            NUMERIC(8, 2) CHECK (ancho_cm >= 0);
 ALTER TABLE productos ADD COLUMN IF NOT EXISTS alto_cm             NUMERIC(8, 2) CHECK (alto_cm >= 0);
 ALTER TABLE productos ADD COLUMN IF NOT EXISTS talla               VARCHAR(20);
-ALTER TABLE productos ADD COLUMN IF NOT EXISTS estado_verificacion VARCHAR(30) NOT NULL DEFAULT 'Pendiente';
+ALTER TABLE productos ADD COLUMN IF NOT EXISTS estado_verificacion VARCHAR(30);
 ALTER TABLE productos ADD COLUMN IF NOT EXISTS precio_normal       NUMERIC(10, 2) CHECK (precio_normal >= 0);
 ALTER TABLE productos ADD COLUMN IF NOT EXISTS link_info           TEXT;
 CREATE INDEX IF NOT EXISTS idx_productos_subcategoria ON productos(subcategoria_id);
@@ -391,3 +389,75 @@ CREATE TABLE IF NOT EXISTS combo_componentes (
   PRIMARY KEY (combo_id, componente_id),
   CHECK (combo_id <> componente_id)
 );
+
+-- Valores reales del GENERADOR_SKU (los primeros por defecto no tenían respaldo en los datos)
+ALTER TABLE productos ALTER COLUMN estado_sourcing TYPE VARCHAR(30);
+ALTER TABLE productos ALTER COLUMN estado_sourcing DROP NOT NULL;
+ALTER TABLE productos ALTER COLUMN estado_sourcing DROP DEFAULT;
+ALTER TABLE productos ALTER COLUMN estado_verificacion DROP NOT NULL;
+ALTER TABLE productos ALTER COLUMN estado_verificacion DROP DEFAULT;
+UPDATE productos SET estado_sourcing = NULL WHERE estado_sourcing = 'Línea Regular';
+UPDATE productos SET estado_verificacion = NULL WHERE estado_verificacion = 'Pendiente';
+ALTER TABLE productos DROP CONSTRAINT IF EXISTS productos_sourcing_check;
+ALTER TABLE productos ADD CONSTRAINT productos_sourcing_check
+  CHECK (estado_sourcing IN ('En Evaluación', 'Comprado / En Tránsito', 'Línea Regular (Resurtible)', 'Descontinuado'));
+ALTER TABLE productos DROP CONSTRAINT IF EXISTS productos_verificacion_check;
+ALTER TABLE productos ADD CONSTRAINT productos_verificacion_check
+  CHECK (estado_verificacion IN ('Pendiente de Arribo', 'Recibido - Por Medir', 'Medido y Verificado', 'Inactivo'));
+-- Clasificación antigua (codificación anterior), para reclasificar en la matriz nueva
+ALTER TABLE productos ADD COLUMN IF NOT EXISTS categoria_anterior    VARCHAR(120);
+ALTER TABLE productos ADD COLUMN IF NOT EXISTS subcategoria_anterior VARCHAR(120);
+
+-- ============================================================
+-- Módulo Precios: plataformas, historial de precios y descuentos mayoristas
+-- ============================================================
+CREATE TABLE IF NOT EXISTS plataformas_precio (
+  id      SERIAL PRIMARY KEY,
+  nombre  VARCHAR(30) NOT NULL UNIQUE,
+  orden   SMALLINT    NOT NULL DEFAULT 0,
+  activo  BOOLEAN     NOT NULL DEFAULT true
+);
+INSERT INTO plataformas_precio (nombre, orden, activo) VALUES
+  ('Web', 1, true), ('Coolbox', 2, true), ('Diners', 3, true), ('Yape', 4, true), ('Falabella', 5, true),
+  ('Juntoz', 6, true), ('Mercado L.', 7, true), ('Rappi', 8, true), ('Intercorp', 9, true), ('Ripley', 10, true),
+  ('Shopstar', 11, true), ('Claro', 12, true), ('Efe', 99, false)
+ON CONFLICT (nombre) DO NOTHING;
+
+-- Cada cambio de precio de un SKU en una plataforma (el vigente es el de fecha más reciente)
+CREATE TABLE IF NOT EXISTS precios (
+  id             BIGSERIAL PRIMARY KEY,
+  producto_id    INTEGER        NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+  plataforma_id  INTEGER        NOT NULL REFERENCES plataformas_precio(id) ON DELETE RESTRICT,
+  fecha          DATE           NOT NULL,
+  precio         NUMERIC(10, 2) NOT NULL CHECK (precio >= 0),
+  precio_normal  NUMERIC(10, 2) CHECK (precio_normal >= 0),
+  creado_por     INTEGER        REFERENCES usuarios(id) ON DELETE SET NULL,
+  creado_en      TIMESTAMPTZ    NOT NULL DEFAULT now(),
+  UNIQUE (producto_id, plataforma_id, fecha)
+);
+CREATE INDEX IF NOT EXISTS idx_precios_vigente ON precios(producto_id, plataforma_id, fecha DESC);
+CREATE INDEX IF NOT EXISTS idx_precios_fecha ON precios(fecha);
+
+-- Descuento mayorista por grupo de marca (propias / otras), tipo de cliente y cantidad
+CREATE TABLE IF NOT EXISTS descuentos_mayoristas (
+  id            SERIAL PRIMARY KEY,
+  grupo         VARCHAR(10)  NOT NULL CHECK (grupo IN ('propias', 'otras')),
+  tipo_cliente  VARCHAR(20)  NOT NULL CHECK (tipo_cliente IN ('Común / Final', 'Empresa', 'Mayorista')),
+  desde         INTEGER      NOT NULL CHECK (desde >= 1),
+  hasta         INTEGER      CHECK (hasta IS NULL OR hasta >= desde),   -- NULL = en adelante
+  porcentaje    NUMERIC(5, 2) NOT NULL CHECK (porcentaje BETWEEN 0 AND 100),
+  UNIQUE (grupo, tipo_cliente, desde)
+);
+-- Tabla DESCUENTOS del Excel (solo la primera vez). "12 a 24" empieza en 12: 7 a 11 queda en el tramo anterior.
+INSERT INTO descuentos_mayoristas (grupo, tipo_cliente, desde, hasta, porcentaje)
+SELECT * FROM (VALUES
+  ('propias', 'Común / Final', 2, 3, 5.0), ('propias', 'Común / Final', 4, 6, 7.5), ('propias', 'Común / Final', 7, NULL, 10.0),
+  ('propias', 'Empresa', 2, 3, 7.0), ('propias', 'Empresa', 4, 6, 10.0), ('propias', 'Empresa', 7, 11, 13.0),
+  ('propias', 'Empresa', 12, 24, 14.5), ('propias', 'Empresa', 25, NULL, 16.0),
+  ('propias', 'Mayorista', 2, 3, 9.0), ('propias', 'Mayorista', 4, 6, 12.0), ('propias', 'Mayorista', 7, 11, 15.0),
+  ('propias', 'Mayorista', 12, 24, 18.0), ('propias', 'Mayorista', 25, NULL, 20.0),
+  ('otras', 'Común / Final', 2, 3, 3.0), ('otras', 'Común / Final', 4, 9, 3.5), ('otras', 'Común / Final', 10, NULL, 4.0),
+  ('otras', 'Empresa', 2, 3, 4.0), ('otras', 'Empresa', 4, 9, 4.5), ('otras', 'Empresa', 10, NULL, 5.0),
+  ('otras', 'Mayorista', 2, 3, 5.0), ('otras', 'Mayorista', 4, 9, 5.5), ('otras', 'Mayorista', 10, NULL, 6.0)
+) AS v(grupo, tipo_cliente, desde, hasta, porcentaje)
+WHERE NOT EXISTS (SELECT 1 FROM descuentos_mayoristas);

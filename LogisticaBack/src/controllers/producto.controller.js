@@ -52,7 +52,7 @@ export const ProductoController = {
       q: req.query.q,
       soloActivos: req.query.activos === 'true',
       categoriaId: f.categoria_id, subcategoriaId: f.subcategoria_id, marcaId: f.marca_id,
-      tipo: f.tipo, estadoSourcing: f.estado_sourcing,
+      tipo: f.tipo, estadoSourcing: f.estado_sourcing, sinClasificar: req.query.sin_clasificar === '1',
       limite: Math.min(Number(req.query.limite) || 1000, 5000),
     }));
   },
@@ -119,6 +119,22 @@ export const ProductoController = {
       throw new HttpError(400, `El archivo tiene ${errores.length} fila(s) con errores; no se importó nada`, errores.slice(0, 50));
     }
     res.json(await ProductoModel.importar([...porSku.values()]));
+  },
+
+  async gruposAnteriores(_req, res) {
+    res.json(await ProductoModel.gruposAnteriores());
+  },
+
+  /** { categoria_anterior, subcategoria_anterior, subcategoria_id } */
+  async reclasificar(req, res) {
+    const d = leerCampos(req.body, {
+      categoria_anterior: { tipo: 'texto', max: 120 }, subcategoria_anterior: { tipo: 'texto', max: 120 },
+      subcategoria_id: { tipo: 'entero', requerido: true },
+    }, { requeridos: true });
+    const actualizados = await ProductoModel.reclasificar({
+      categoriaAnterior: d.categoria_anterior, subcategoriaAnterior: d.subcategoria_anterior, subcategoriaId: d.subcategoria_id,
+    });
+    res.json({ actualizados });
   },
 
   // --- matriz de categorías y marcas ---

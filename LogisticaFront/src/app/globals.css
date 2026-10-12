@@ -362,3 +362,13 @@ a.modulo:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,
 .matriz-cat table { margin: 0 12px 12px; width: calc(100% - 24px); }
 .componentes td input { width: 90px; }
 .ficha-seccion { grid-column: 1 / -1; margin: 8px 0 0; padding-top: 8px; border-top: 1px solid var(--borde); }
+
+/* ---- Módulo Precios ---- */
+.precios-plataformas { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
+.precio-plataforma { border: 1px solid var(--borde); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; }
+.precio-plataforma strong { font-size: 1.2rem; }
+.precio-plataforma small { color: var(--suave); }
+.precio-plataforma.sin-precio { opacity: .55; }
+.tachado { text-decoration: line-through; color: var(--suave); }
+.tramos { display: flex; flex-wrap: wrap; gap: 6px; }
+.tramo { border: 1px solid var(--borde); border-radius: 6px; padding: 4px 10px; display: flex; flex-direction: column; align-items: center; min-width: 90px; }

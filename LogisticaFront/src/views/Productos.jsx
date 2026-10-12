@@ -27,7 +27,7 @@ function leerPrecio(valor) {
   return t === '' ? 0 : Number(t);
 }
 
-const FILTROS = { q: '', categoria_id: '', subcategoria_id: '', marca_id: '', tipo: '', estado_sourcing: '' };
+const FILTROS = { q: '', categoria_id: '', subcategoria_id: '', marca_id: '', tipo: '', estado_sourcing: '', sin_clasificar: '' };
 
 /** Catálogo de SKU con filtros (módulo Productos). */
 export default function Productos() {
@@ -181,6 +181,7 @@ export default function Productos() {
             <option value="">Todos los tipos</option>
             {(catalogos.tiposProducto ?? []).map((t) => <option key={t}>{t}</option>)}
           </select>
+          <label className="check"><input type="checkbox" checked={filtros.sin_clasificar === '1'} onChange={(e) => setFiltros({ ...filtros, sin_clasificar: e.target.checked ? '1' : '' })} /> Sin categoría nueva</label>
           <select {...f('estado_sourcing')}>
             <option value="">Todo sourcing</option>
             {(catalogos.estadosSourcing ?? []).map((t) => <option key={t}>{t}</option>)}
@@ -197,7 +198,7 @@ export default function Productos() {
                 <tr key={p.id} className={p.activo ? '' : 'inactivo'}>
                   <td><Link href={`/productos/${p.id}`}><strong>{p.sku}</strong></Link></td>
                   <td>{p.descripcion}{p.modelo && <small>{p.modelo}</small>}</td>
-                  <td>{p.categoria ?? <small className="error">sin categoría</small>}{p.subcategoria && <small>{p.subcategoria}</small>}</td>
+                  <td>{p.categoria ?? <><small className="error">sin categoría nueva</small>{p.categoria_anterior && <small>antes: {p.categoria_anterior} / {p.subcategoria_anterior}</small>}</>}{p.subcategoria && <small>{p.subcategoria}</small>}</td>
                   <td>{p.tipo}</td>
                   <td>{p.marca ?? '—'}</td>
                   <td>{p.estado_sourcing}</td>
