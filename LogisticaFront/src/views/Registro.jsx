@@ -6,8 +6,9 @@ import { mensajeError } from '../api/client';
 import { authApi } from '../api/services';
 
 const PERFILES = [
-  ['vendedor', 'Vendedor', 'Registro pedidos y gestiono mis ventas'],
-  ['planificador', 'Planificador / Logística', 'Armo las rutas y gestiono los pedidos'],
+  ['vendedor', 'Comercial', 'Registro ventas, consulto precios y gestiono mis pedidos'],
+  ['planificador', 'Administrador Logístico', 'Armo las rutas y gestiono los pedidos'],
+  ['catalogo', 'Administrador de Catálogo', 'Creo SKU, combos y actualizo precios'],
   ['almacen', 'Almacén', 'Preparo los pedidos y registro observaciones'],
   ['repartidor', 'Conductor', 'Manejo el vehículo y entrego los pedidos (app móvil)'],
   ['auxiliar', 'Auxiliar logístico', 'Acompaño al conductor en la ruta (app móvil)'],

@@ -11,6 +11,7 @@ import { useAuth } from '../context/AuthContext';
 import EstadoBadge from '../components/EstadoBadge';
 import { AjustarVista, LineaPuntos, Mapa, MarcadorNumero, Polilinea, Seguir } from '../components/maps';
 import { duracion, ESTADOS_PARADA, ESTADOS_RUTA, fechaHora, hace, hora, hoyISO, km, soles, VEHICULOS } from '../utils/format';
+import { soloComercial, tiene } from '../utils/roles';
 
 const COLORES = ['#2b6cb0', '#d53f8c', '#2f855a', '#dd6b20', '#6b46c1', '#00838f', '#b7791f', '#c53030'];
 const REFRESCO_SEG = 10;
@@ -102,9 +103,9 @@ export default function Monitoreo() {
   const [error, setError] = useState('');
   const [reordenando, setReordenando] = useState(false);
   const { usuario } = useAuth();
-  const gestiona = ['admin', 'planificador'].includes(usuario.rol); // reoptimizar, abrir ruta
-  const despacha = gestiona || usuario.rol === 'almacen'; // hoja de ruta y chat con el conductor
-  const puedeVerPedido = (p) => usuario.rol !== 'vendedor' || p.vendedor_id === usuario.id;
+  const gestiona = tiene(usuario, 'admin', 'planificador'); // reoptimizar, abrir ruta
+  const despacha = gestiona || tiene(usuario, 'almacen'); // hoja de ruta y chat con el conductor
+  const puedeVerPedido = (p) => !soloComercial(usuario) || p.vendedor_id === usuario.id;
   const [, setTick] = useState(0); // refresca los "hace N min"
 
   const cargar = useCallback(() => {

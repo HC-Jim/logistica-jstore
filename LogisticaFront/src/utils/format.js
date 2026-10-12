@@ -32,11 +32,12 @@ export const ESTADOS_PARADA = {
 
 export const ROLES = {
   admin: 'Administrador',
-  vendedor: 'Vendedor',
-  planificador: 'Planificador',
+  vendedor: 'Comercial',
+  planificador: 'Administrador Logístico',
   almacen: 'Almacén',
   repartidor: 'Conductor',
   auxiliar: 'Auxiliar logístico',
+  catalogo: 'Administrador de Catálogo',
 };
 
 // Tres formas de registro

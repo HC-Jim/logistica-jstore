@@ -43,6 +43,17 @@ router.delete('/usuarios/:id', rol(...P.usuarios), AuthController.rechazarUsuari
 
 // --- Productos ---
 router.get('/productos', rol(...P.verProductos), ProductoController.listar);
+router.get('/productos/matriz', rol(...P.verProductos), ProductoController.matriz);
+router.post('/productos/categorias', rol(...P.gestionarProductos), ProductoController.guardarCategoria);
+router.put('/productos/categorias/:id', rol(...P.gestionarProductos), ProductoController.guardarCategoria);
+router.post('/productos/subcategorias', rol(...P.gestionarProductos), ProductoController.guardarSubcategoria);
+router.put('/productos/subcategorias/:id', rol(...P.gestionarProductos), ProductoController.guardarSubcategoria);
+router.get('/productos/marcas', rol(...P.verProductos), ProductoController.marcas);
+router.post('/productos/marcas', rol(...P.gestionarProductos), ProductoController.guardarMarca);
+router.put('/productos/marcas/:id', rol(...P.gestionarProductos), ProductoController.guardarMarca);
+router.get('/productos/proponer-sku', rol(...P.gestionarProductos), ProductoController.proponerSku);
+router.get('/productos/:id', rol(...P.verProductos), ProductoController.obtener);
+router.put('/productos/:id/componentes', rol(...P.gestionarProductos), ProductoController.guardarComponentes);
 router.post('/productos/importar', rol(...P.gestionarProductos), ProductoController.importar);
 router.post('/productos', rol(...P.gestionarProductos), ProductoController.crear);
 router.put('/productos/:id', rol(...P.gestionarProductos), ProductoController.actualizar);

@@ -8,6 +8,7 @@ import UbigeoSelect from '../components/UbigeoSelect';
 import { useAuth } from '../context/AuthContext';
 import { useCatalogos } from '../context/CatalogosContext';
 import { TIPOS_UBICACION } from '../utils/format';
+import { tiene } from '../utils/roles';
 
 const VACIO = { id: null, nombre: '', tipo: 'almacen_externo', direccion: '', ubigeo: null, referencia: '', contacto: '', telefono: '', lat: null, lng: null, link: '' };
 
@@ -15,7 +16,7 @@ const VACIO = { id: null, nombre: '', tipo: 'almacen_externo', direccion: '', ub
 export default function Ubicaciones() {
   const { ubigeo } = useCatalogos();
   const { usuario } = useAuth();
-  const puedeEditar = ['admin', 'planificador'].includes(usuario.rol); // los demás solo agregan
+  const puedeEditar = tiene(usuario, 'admin', 'planificador'); // los demás solo agregan
   const [lista, setLista] = useState([]);
   const [form, setForm] = useState(VACIO);
   const [error, setError] = useState('');

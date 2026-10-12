@@ -58,12 +58,19 @@ export const MEDIOS_PAGO = [
 export const ESTADOS_PEDIDO = ['pendiente', 'ruteado', 'entregado', 'incidencia', 'cancelado'];
 
 // 'repartidor' es el Conductor de la ruta; 'auxiliar' es el Auxiliar logístico que lo acompaña
-export const ROLES = ['admin', 'vendedor', 'planificador', 'almacen', 'repartidor', 'auxiliar'];
+// vendedor = Comercial · planificador = Administrador Logístico · catalogo = Administrador de Catálogo
+export const ROLES = ['admin', 'vendedor', 'planificador', 'almacen', 'repartidor', 'auxiliar', 'catalogo'];
 
 export const ESTADOS_RUTA = ['planificada', 'en_curso', 'finalizada'];
 
 // Rutas que se muestran cada día (Ruta 1, 2, 3). Se pueden abrir más según la demanda.
 export const RUTAS_POR_DEFECTO = 3;
+
+// --- Módulo Productos ---
+export const TIPOS_PRODUCTO = ['Ítem único', 'Variante', 'Combo'];
+export const ESTADOS_SOURCING = ['Línea Regular', 'Descontinuado'];
+export const ESTADOS_VERIFICACION = ['Pendiente', 'Medido y Verificado', 'Inactivo'];
+export const SEGMENTOS_MARCA = ['Core', 'Growth', 'Traffic', 'Profit', 'Volume'];
 
 export const TIPOS_VEHICULO = ['auto', 'moto', 'bicicleta', 'furgoneta', 'a_pie', 'transporte_publico', 'otro'];
 // Movilidades que pueden usar varias rutas el mismo día (no son un vehículo físico)
@@ -86,4 +93,8 @@ export const catalogos = {
   roles: ROLES,
   rutasPorDefecto: RUTAS_POR_DEFECTO,
   tiposVehiculo: TIPOS_VEHICULO,
+  tiposProducto: TIPOS_PRODUCTO,
+  estadosSourcing: ESTADOS_SOURCING,
+  estadosVerificacion: ESTADOS_VERIFICACION,
+  segmentosMarca: SEGMENTOS_MARCA,
 };

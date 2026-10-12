@@ -1,20 +1,22 @@
 'use client';
 
+import Link from 'next/link';
 import Papa from 'papaparse';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { mensajeError } from '../api/client';
 import { productosApi } from '../api/services';
 import { useAuth } from '../context/AuthContext';
+import { useCatalogos } from '../context/CatalogosContext';
+import { descargarCsv } from '../utils/csv';
 import { soles } from '../utils/format';
-
-const VACIO = { id: null, sku: '', descripcion: '', precio: '', activo: true };
+import { tiene } from '../utils/roles';
 
 // Acepta encabezados con mayúsculas, tildes o nombres alternativos
 const normalizar = (t) => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
 const COLUMNAS = {
   sku: ['sku', 'codigo', 'cod', 'codigo sku'],
-  descripcion: ['descripcion', 'producto', 'nombre', 'detalle'],
-  precio: ['precio', 'precio unitario', 'precio venta', 'pvp'],
+  descripcion: ['descripcion', 'producto', 'nombre', 'detalle', 'nombre almacen'],
+  precio: ['precio', 'precio unitario', 'precio venta', 'pvp', 'web'],
 };
 
 /** "S/ 1,234.50" o "1234,5" → 1234.5 */
@@ -25,44 +27,61 @@ function leerPrecio(valor) {
   return t === '' ? 0 : Number(t);
 }
 
+const FILTROS = { q: '', categoria_id: '', subcategoria_id: '', marca_id: '', tipo: '', estado_sourcing: '' };
+
+/** Catálogo de SKU con filtros (módulo Productos). */
 export default function Productos() {
   const { usuario } = useAuth();
-  const puedeEditar = ['admin', 'planificador'].includes(usuario.rol);
+  const catalogos = useCatalogos().catalogos ?? {};
+  const puedeEditar = tiene(usuario, 'admin', 'catalogo');
   const [productos, setProductos] = useState([]);
-  const [buscar, setBuscar] = useState('');
-  const [form, setForm] = useState(VACIO);
+  const [matriz, setMatriz] = useState([]);
+  const [marcas, setMarcas] = useState([]);
+  const [filtros, setFiltros] = useState(FILTROS);
   const [vistaPrevia, setVistaPrevia] = useState(null);
   const [mensaje, setMensaje] = useState('');
   const [error, setError] = useState('');
   const archivo = useRef(null);
 
-  const cargar = () => productosApi.listar(buscar ? { q: buscar } : {}).then(setProductos).catch((e) => setError(mensajeError(e)));
+  useEffect(() => {
+    productosApi.matriz().then(setMatriz).catch(() => {});
+    productosApi.marcas().then(setMarcas).catch(() => {});
+  }, []);
+
+  const params = useMemo(() => Object.fromEntries(Object.entries(filtros).filter(([, v]) => v !== '')), [filtros]);
+  const cargar = () => productosApi.listar({ ...params, limite: 5000 }).then(setProductos).catch((e) => setError(mensajeError(e)));
   useEffect(() => {
     const t = setTimeout(cargar, 250);
     return () => clearTimeout(t);
-  }, [buscar]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [params]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function guardar(e) {
-    e.preventDefault();
-    setError('');
-    try {
-      const { id, ...body } = form;
-      if (id) await productosApi.actualizar(id, body);
-      else await productosApi.crear(body);
-      setForm(VACIO);
-      cargar();
-    } catch (err) {
-      setError(mensajeError(err));
-    }
+  const subcategorias = matriz.find((c) => String(c.id) === filtros.categoria_id)?.subcategorias ?? [];
+  const f = (campo) => ({ value: filtros[campo], onChange: (e) => setFiltros({ ...filtros, [campo]: e.target.value, ...(campo === 'categoria_id' ? { subcategoria_id: '' } : {}) }) });
+
+  function exportar() {
+    descargarCsv('catalogo-sku.csv', [
+      { titulo: 'Categoría', valor: (p) => p.categoria }, { titulo: 'Cód. Categoría', valor: (p) => p.cod_categoria },
+      { titulo: 'Subcategoría', valor: (p) => p.subcategoria }, { titulo: 'Cód. Subcategoría', valor: (p) => p.cod_subcategoria },
+      { titulo: 'Tipo', valor: (p) => p.tipo }, { titulo: 'Asignación', valor: (p) => p.asignacion },
+      { titulo: 'Nombre Almacén', valor: (p) => p.descripcion }, { titulo: 'SKU', valor: (p) => p.sku },
+      { titulo: 'Marca', valor: (p) => p.marca }, { titulo: 'Modelo', valor: (p) => p.modelo },
+      { titulo: 'Estado de Sourcing', valor: (p) => p.estado_sourcing },
+      { titulo: 'Garantía (meses)', valor: (p) => p.garantia_meses }, { titulo: 'Peso (kg)', valor: (p) => p.peso_kg },
+      { titulo: 'Largo (cm)', valor: (p) => p.largo_cm }, { titulo: 'Ancho (cm)', valor: (p) => p.ancho_cm },
+      { titulo: 'Alto (cm)', valor: (p) => p.alto_cm }, { titulo: 'Volumen (m³)', valor: (p) => p.volumen_m3 },
+      { titulo: 'Talla', valor: (p) => p.talla }, { titulo: 'Estado de Verificación', valor: (p) => p.estado_verificacion },
+      { titulo: 'Precio Normal', valor: (p) => p.precio_normal }, { titulo: 'Web', valor: (p) => p.precio },
+      { titulo: 'Link para Información', valor: (p) => p.link_info }, { titulo: 'Activo', valor: (p) => (p.activo ? 'Sí' : 'No') },
+    ], productos);
   }
 
   function leerArchivo(e) {
-    const f = e.target.files[0];
-    if (!f) return;
+    const archivoCsv = e.target.files[0];
+    if (!archivoCsv) return;
     setError('');
     setMensaje('');
     // Excel guarda "CSV" en Windows-1252; si las tildes llegan rotas, se vuelve a leer con esa codificación
-    const leer = (encoding) => Papa.parse(f, {
+    const leer = (encoding) => Papa.parse(archivoCsv, {
       header: true,
       skipEmptyLines: 'greedy',
       encoding,
@@ -104,13 +123,17 @@ export default function Productos() {
   return (
     <>
       <div className="encabezado">
-        <h2>Productos</h2>
-        {puedeEditar && (
-          <div className="fila">
-            <input ref={archivo} type="file" accept=".csv,text/csv" hidden onChange={leerArchivo} />
-            <button className="btn-sec" onClick={() => archivo.current.click()}>Importar CSV</button>
-          </div>
-        )}
+        <h2>Catálogo de SKU</h2>
+        <div className="fila">
+          <button className="btn-sec" onClick={exportar} disabled={!productos.length}>⬇ Excel (CSV)</button>
+          {puedeEditar && (
+            <>
+              <input ref={archivo} type="file" accept=".csv,text/csv" hidden onChange={leerArchivo} />
+              <button className="btn-sec" onClick={() => archivo.current.click()}>Importar CSV simple</button>
+              <Link className="btn" href="/productos/nuevo">+ Nuevo SKU</Link>
+            </>
+          )}
+        </div>
       </div>
       {mensaje && <p className="aviso">{mensaje}</p>}
       {error && <pre className="error">{error}</pre>}
@@ -118,14 +141,14 @@ export default function Productos() {
       {vistaPrevia && (
         <section className="tarjeta">
           <h3>Vista previa: {vistaPrevia.length} filas</h3>
-          <p>Se crean los SKU nuevos y se actualizan descripción y precio de los existentes.</p>
+          <p>Se crean los SKU nuevos y se actualizan nombre y precio Web de los existentes.</p>
           <div className="tabla-scroll alto-limitado">
             <table>
-              <thead><tr><th>SKU</th><th>Descripción</th><th>Precio</th></tr></thead>
+              <thead><tr><th>SKU</th><th>Nombre</th><th>Precio Web</th></tr></thead>
               <tbody>
-                {vistaPrevia.slice(0, 100).map((f, i) => (
-                  <tr key={i} className={!f.sku || !f.descripcion || Number.isNaN(f.precio) ? 'fila-error' : ''}>
-                    <td>{f.sku}</td><td>{f.descripcion}</td><td>{Number.isNaN(f.precio) ? '¿?' : soles(f.precio)}</td>
+                {vistaPrevia.slice(0, 100).map((x, i) => (
+                  <tr key={i} className={!x.sku || !x.descripcion || Number.isNaN(x.precio) ? 'fila-error' : ''}>
+                    <td>{x.sku}</td><td>{x.descripcion}</td><td>{Number.isNaN(x.precio) ? '¿?' : soles(x.precio)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -139,42 +162,54 @@ export default function Productos() {
         </section>
       )}
 
-      {puedeEditar && (
-        <form className="tarjeta form-grid" onSubmit={guardar}>
-          <h3 className="ancho">{form.id ? `Editar ${form.sku}` : 'Nuevo producto'}</h3>
-          <label>SKU *<input required value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} /></label>
-          <label className="ancho-2">Descripción *<input required value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} /></label>
-          <label>Precio (S/)<input type="number" min="0" step="0.01" value={form.precio} onChange={(e) => setForm({ ...form, precio: e.target.value })} /></label>
-          <label className="check"><input type="checkbox" checked={form.activo} onChange={(e) => setForm({ ...form, activo: e.target.checked })} /> Activo</label>
-          <div className="fila ancho">
-            <button>{form.id ? 'Actualizar' : 'Agregar'}</button>
-            {form.id && <button type="button" className="btn-sec" onClick={() => setForm(VACIO)}>Cancelar</button>}
-          </div>
-        </form>
-      )}
-
       <section className="tarjeta">
-        <input placeholder="Buscar por SKU o descripción…" value={buscar} onChange={(e) => setBuscar(e.target.value)} />
-        <p className="resumen-lista">{productos.length} producto(s)</p>
-        <table>
-          <thead><tr><th>SKU</th><th>Descripción</th><th>Precio</th><th>Estado</th>{puedeEditar && <th />}</tr></thead>
-          <tbody>
-            {productos.map((p) => (
-              <tr key={p.id} className={p.activo ? '' : 'inactivo'}>
-                <td><strong>{p.sku}</strong></td>
-                <td>{p.descripcion}</td>
-                <td>{soles(p.precio)}</td>
-                <td>{p.activo ? 'Activo' : 'Inactivo'}</td>
-                {puedeEditar && (
-                  <td className="acciones">
-                    <button className="btn-sec" onClick={() => { setForm({ ...p }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>Editar</button>
-                  </td>
-                )}
-              </tr>
-            ))}
-            {!productos.length && <tr><td colSpan={5}>No hay productos. Importa un CSV con columnas sku, descripcion, precio.</td></tr>}
-          </tbody>
-        </table>
+        <div className="fila filtros">
+          <input className="crece" placeholder="Buscar por SKU, nombre o modelo…" {...f('q')} />
+          <select {...f('categoria_id')}>
+            <option value="">Todas las categorías</option>
+            {matriz.map((c) => <option key={c.id} value={c.id}>{c.codigo} · {c.nombre}</option>)}
+          </select>
+          <select {...f('subcategoria_id')} disabled={!filtros.categoria_id}>
+            <option value="">Todas las subcategorías</option>
+            {subcategorias.map((s) => <option key={s.id} value={s.id}>{s.codigo} · {s.nombre}</option>)}
+          </select>
+          <select {...f('marca_id')}>
+            <option value="">Todas las marcas</option>
+            {marcas.map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+          </select>
+          <select {...f('tipo')}>
+            <option value="">Todos los tipos</option>
+            {(catalogos.tiposProducto ?? []).map((t) => <option key={t}>{t}</option>)}
+          </select>
+          <select {...f('estado_sourcing')}>
+            <option value="">Todo sourcing</option>
+            {(catalogos.estadosSourcing ?? []).map((t) => <option key={t}>{t}</option>)}
+          </select>
+        </div>
+        <p className="resumen-lista">{productos.length} SKU</p>
+        <div className="tabla-scroll">
+          <table>
+            <thead>
+              <tr><th>SKU</th><th>Nombre Almacén</th><th>Categoría / Subcategoría</th><th>Tipo</th><th>Marca</th><th>Sourcing</th><th>P. Normal</th><th>Web</th><th>Estado</th></tr>
+            </thead>
+            <tbody>
+              {productos.map((p) => (
+                <tr key={p.id} className={p.activo ? '' : 'inactivo'}>
+                  <td><Link href={`/productos/${p.id}`}><strong>{p.sku}</strong></Link></td>
+                  <td>{p.descripcion}{p.modelo && <small>{p.modelo}</small>}</td>
+                  <td>{p.categoria ?? <small className="error">sin categoría</small>}{p.subcategoria && <small>{p.subcategoria}</small>}</td>
+                  <td>{p.tipo}</td>
+                  <td>{p.marca ?? '—'}</td>
+                  <td>{p.estado_sourcing}</td>
+                  <td>{p.precio_normal != null ? soles(p.precio_normal) : '—'}</td>
+                  <td>{soles(p.precio)}</td>
+                  <td>{p.activo ? 'Activo' : 'Inactivo'}</td>
+                </tr>
+              ))}
+              {!productos.length && <tr><td colSpan={9}>No hay productos con estos filtros.</td></tr>}
+            </tbody>
+          </table>
+        </div>
       </section>
     </>
   );

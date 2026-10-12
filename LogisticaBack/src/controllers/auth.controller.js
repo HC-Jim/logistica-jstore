@@ -7,21 +7,36 @@ import { UsuarioModel } from '../models/usuario.model.js';
 import { notificar, usuariosConRol } from '../services/notificaciones.service.js';
 import { leerCampos } from '../utils/campos.js';
 import { HttpError, idParam, requerir } from '../utils/http.js';
+import { rolesDe, tiene } from '../utils/roles.js';
 
 const CAMPOS_USUARIO = {
   nombre: { tipo: 'texto', max: 120, requerido: true },
   email: { tipo: 'texto', max: 160, requerido: true },
   password: { tipo: 'texto', max: 100 },
-  rol: { tipo: 'enum', lista: ROLES, requerido: true },
+  rol: { tipo: 'enum', lista: ROLES },
   telefono: { tipo: 'texto', max: 30 },
 };
 
 // Perfiles que se pueden elegir al crear una cuenta (admin nunca)
-const PERFILES_REGISTRO = ['vendedor', 'planificador', 'almacen', 'repartidor', 'auxiliar'];
+const PERFILES_REGISTRO = ['vendedor', 'planificador', 'almacen', 'repartidor', 'auxiliar', 'catalogo'];
+
+/** Perfiles enviados como lista (roles) o, por compatibilidad, uno solo (rol). Sin repetir, en orden. */
+function leerRoles(body, { requerido }) {
+  const lista = Array.isArray(body?.roles) ? body.roles : body?.rol ? [body.rol] : null;
+  if (!lista) {
+    if (requerido) throw new HttpError(400, 'Elige al menos un perfil');
+    return undefined;
+  }
+  const roles = [...new Set(lista.map(String))];
+  const invalidos = roles.filter((r) => !ROLES.includes(r));
+  if (invalidos.length) throw new HttpError(400, `Perfil inválido: ${invalidos.join(', ')}`);
+  if (!roles.length) throw new HttpError(400, 'Elige al menos un perfil');
+  return roles;
+}
 
 function firmarToken(usuario) {
   return jwt.sign(
-    { id: usuario.id, nombre: usuario.nombre, email: usuario.email, rol: usuario.rol },
+    { id: usuario.id, nombre: usuario.nombre, email: usuario.email, rol: usuario.rol, roles: rolesDe(usuario) },
     env.jwtSecret,
     { expiresIn: env.jwtExpiresIn }
   );
@@ -55,12 +70,13 @@ export const AuthController = {
   /** Registro público: la cuenta queda pendiente hasta que un admin la aprueba. */
   async registro(req, res) {
     const d = leerCampos(req.body, CAMPOS_USUARIO, { requeridos: true });
-    if (!PERFILES_REGISTRO.includes(d.rol)) throw new HttpError(400, 'Perfil no permitido');
+    if (!d.rol || !PERFILES_REGISTRO.includes(d.rol)) throw new HttpError(400, 'Perfil no permitido');
     if (!d.password) throw new HttpError(400, 'La contraseña es requerida');
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email)) throw new HttpError(400, 'Correo inválido');
     const email = d.email.toLowerCase();
     if (await UsuarioModel.buscarPorEmail(email)) throw new HttpError(409, 'Ya existe una cuenta con ese correo');
-    await UsuarioModel.crear({ ...d, email, passwordHash: await hashPassword(d.password), pendiente: true });
+    await UsuarioModel.crear({
+      roles: [d.rol], ...d, email, passwordHash: await hashPassword(d.password), pendiente: true });
     await notificar(await usuariosConRol(['admin']), {
       tipo: 'cuenta_pendiente',
       titulo: 'Nueva solicitud de cuenta',
@@ -87,7 +103,7 @@ export const AuthController = {
     res.json(await UsuarioModel.listar({
       rol: req.query.rol,
       soloActivos: req.query.activos === 'true',
-      conClave: req.user.rol === 'admin', // el planificador solo necesita la lista de conductores
+      conClave: tiene(req.user, 'admin'), // el administrador logístico solo necesita la lista de conductores
     }));
   },
 
@@ -96,6 +112,7 @@ export const AuthController = {
     if (!d.password) throw new HttpError(400, 'La contraseña es requerida');
     const usuario = await UsuarioModel.crear({
       ...d,
+      roles: leerRoles(req.body, { requerido: true }),
       email: d.email.toLowerCase(),
       passwordHash: await hashPassword(d.password),
       claveVisible: d.password,
@@ -105,12 +122,14 @@ export const AuthController = {
 
   async actualizarUsuario(req, res) {
     const d = leerCampos(req.body, CAMPOS_USUARIO);
+    const roles = leerRoles(req.body, { requerido: false });
     const id = idParam(req.params.id);
-    if (id === req.user.id && (req.body.activo === false || (d.rol && d.rol !== 'admin'))) {
-      throw new HttpError(400, 'No puedes desactivarte ni quitarte el rol de administrador');
+    if (id === req.user.id && (req.body.activo === false || (roles && !roles.includes('admin')))) {
+      throw new HttpError(400, 'No puedes desactivarte ni quitarte el perfil de administrador');
     }
     const usuario = await UsuarioModel.actualizar(id, {
       ...d,
+      roles,
       email: d.email?.toLowerCase(),
       activo: typeof req.body.activo === 'boolean' ? req.body.activo : undefined,
       passwordHash: d.password ? await hashPassword(d.password) : undefined,

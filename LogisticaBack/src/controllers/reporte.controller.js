@@ -382,7 +382,7 @@ const REPORTES = {
     descripcion: 'Actividad de cada cuenta en el periodo: ventas registradas, rutas y entregas.',
     async ejecutar(f) {
       const { rows } = await query(
-        `SELECT u.id, u.nombre, u.email, u.rol, u.activo, u.creado_en, u.ultimo_acceso,
+        `SELECT u.id, u.nombre, u.email, array_to_string(u.roles, ', ') AS rol, u.activo, u.creado_en, u.ultimo_acceso,
                 (SELECT COUNT(*) FROM pedidos p WHERE p.vendedor_id = u.id AND p.fecha_entrega BETWEEN $1 AND $2)::int AS pedidos,
                 (SELECT COALESCE(SUM(p.total_pedido), 0) FROM pedidos p
                   WHERE p.vendedor_id = u.id AND p.categoria = 'venta' AND p.estado <> 'cancelado' AND p.fecha_entrega BETWEEN $1 AND $2) AS monto,
@@ -395,7 +395,7 @@ const REPORTES = {
                 (SELECT COUNT(*) FROM pedido_historial h WHERE h.usuario_id = u.id
                   AND (h.creado_en AT TIME ZONE 'America/Lima')::date BETWEEN $1 AND $2)::int AS cambios
          FROM usuarios u WHERE NOT u.pendiente
-         ORDER BY u.activo DESC, u.rol, u.nombre`,
+         ORDER BY u.activo DESC, u.nombre`,
         [f.desde, f.hasta]
       );
       return {

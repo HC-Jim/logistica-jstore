@@ -7,10 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { CatalogosProvider } from '../context/CatalogosContext';
 import Campana from './Campana';
 import { activo, LINKS_GENERALES, MODULOS, pantallaActual } from './modulos';
-import { ROLES } from '../utils/format';
-
-/** Página de inicio: el menú principal con los módulos. */
-export const INICIO = { admin: '/', planificador: '/', almacen: '/', vendedor: '/' };
+import { nombresRoles, soloApp, tiene } from '../utils/roles';
 
 /** Estructura del panel: protege las rutas por sesión y rol y muestra el menú lateral. */
 export default function Layout({ children }) {
@@ -21,18 +18,18 @@ export default function Layout({ children }) {
   // el menú lateral muestra las pantallas del módulo en el que se está
   const actual = pantallaActual(pathname);
   const modulo = MODULOS.find((m) => m.clave === actual?.modulo);
-  const permitido = usuario && (pathname === '/' || !actual || actual.roles.includes(usuario.rol));
-  const links = (modulo ? modulo.links : []).filter((l) => usuario && l.roles.includes(usuario.rol));
-  const generales = LINKS_GENERALES.filter((l) => usuario && l.roles.includes(usuario.rol));
+  const permitido = usuario && (pathname === '/' || !actual || tiene(usuario, ...actual.roles));
+  const links = (modulo ? modulo.links : []).filter((l) => usuario && tiene(usuario, ...l.roles));
+  const generales = LINKS_GENERALES.filter((l) => usuario && tiene(usuario, ...l.roles));
 
   useEffect(() => {
     if (cargando) return;
     if (!usuario) router.replace('/login');
-    else if (!permitido && INICIO[usuario.rol]) router.replace(INICIO[usuario.rol]);
+    else if (!permitido) router.replace('/');
   }, [cargando, usuario, permitido, router]);
 
   if (!usuario) return <p className="centrado">Cargando…</p>;
-  if (['repartidor', 'auxiliar'].includes(usuario.rol)) {
+  if (soloApp(usuario)) {
     return (
       <div className="login">
         <div className="tarjeta">
@@ -63,7 +60,7 @@ export default function Layout({ children }) {
             ))}
           </nav>
           <div className="sidebar-usuario">
-            <small>{usuario.nombre}<br />{ROLES[usuario.rol]}</small>
+            <small>{usuario.nombre}<br />{nombresRoles(usuario)}</small>
             <button className="btn-link" onClick={logout}>Cerrar sesión</button>
           </div>
         </aside>

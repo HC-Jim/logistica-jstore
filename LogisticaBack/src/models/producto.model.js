@@ -1,52 +1,166 @@
-import { query } from '../config/db.js';
+import { query, withTransaction } from '../config/db.js';
+import { HttpError } from '../utils/http.js';
+
+// Ficha del producto con su categoría, subcategoría y marca
+const SELECT_PRODUCTO = `
+  SELECT p.*, s.codigo AS cod_subcategoria, s.nombre AS subcategoria, c.id AS categoria_id, c.codigo AS cod_categoria,
+         c.nombre AS categoria, m.nombre AS marca, m.propia AS marca_propia, m.segmento AS marca_segmento,
+         CASE WHEN p.largo_cm > 0 AND p.ancho_cm > 0 AND p.alto_cm > 0
+              THEN ROUND(p.largo_cm * p.ancho_cm * p.alto_cm / 1000000, 4) END AS volumen_m3
+  FROM productos p
+  LEFT JOIN subcategorias s ON s.id = p.subcategoria_id
+  LEFT JOIN categorias c    ON c.id = s.categoria_id
+  LEFT JOIN marcas m        ON m.id = p.marca_id`;
+
+// Campos de la ficha que se guardan tal cual
+export const CAMPOS_FICHA = [
+  'sku', 'descripcion', 'precio', 'subcategoria_id', 'tipo', 'asignacion', 'marca_id', 'modelo', 'estado_sourcing',
+  'garantia_meses', 'peso_kg', 'largo_cm', 'ancho_cm', 'alto_cm', 'talla', 'estado_verificacion', 'precio_normal',
+  'link_info', 'activo',
+];
+
+/** Prefijo del SKU: categoría (2) + subcategoría (2) y, si es combo, un "2". */
+async function prefijoSku(db, subcategoriaId, tipo) {
+  const { rows: [s] } = await db.query(
+    `SELECT c.codigo AS cat, s.codigo AS sub FROM subcategorias s JOIN categorias c ON c.id = s.categoria_id WHERE s.id = $1`,
+    [subcategoriaId]
+  );
+  if (!s) throw new HttpError(400, 'La subcategoría no existe');
+  return `${s.cat}${s.sub}${tipo === 'Combo' ? '2' : ''}`;
+}
+
+/**
+ * Siguiente asignación libre para un prefijo. Mira todos los SKU que ya empiezan así (también los
+ * de la codificación antigua) para no repetir nunca un SKU.
+ */
+async function siguienteAsignacion(db, prefijo) {
+  const { rows: [{ n }] } = await db.query(
+    `SELECT COALESCE(MAX(substring(sku FROM length($1) + 1)::int), 0) + 1 AS n
+     FROM productos WHERE sku ~ ('^' || $1 || '[0-9]{3}$')`,
+    [prefijo]
+  );
+  if (n > 999) throw new HttpError(409, `La subcategoría ya usa las 999 asignaciones del prefijo ${prefijo}`);
+  return n;
+}
 
 export const ProductoModel = {
-  /** Búsqueda por SKU o descripción (para el selector del formulario). */
-  async listar({ q, soloActivos, limite = 1000 } = {}) {
+  /** Búsqueda por SKU o descripción, con filtros del catálogo. */
+  async listar({ q, soloActivos, categoriaId, subcategoriaId, marcaId, tipo, estadoSourcing, limite = 1000 } = {}) {
     const cond = [];
     const params = [];
-    if (q) {
-      params.push(`%${q}%`);
-      cond.push(`(sku ILIKE $${params.length} OR descripcion ILIKE $${params.length})`);
-    }
-    if (soloActivos) cond.push('activo');
+    const agregar = (sql, valor) => { params.push(valor); cond.push(sql.replaceAll('?', `$${params.length}`)); };
+    if (q) agregar('(p.sku ILIKE ? OR p.descripcion ILIKE ? OR p.modelo ILIKE ?)', `%${q}%`);
+    if (soloActivos) cond.push('p.activo');
+    if (categoriaId) agregar('c.id = ?', categoriaId);
+    if (subcategoriaId) agregar('p.subcategoria_id = ?', subcategoriaId);
+    if (marcaId) agregar('p.marca_id = ?', marcaId);
+    if (tipo) agregar('p.tipo = ?', tipo);
+    if (estadoSourcing) agregar('p.estado_sourcing = ?', estadoSourcing);
     params.push(limite);
     const where = cond.length ? `WHERE ${cond.join(' AND ')}` : '';
-    const { rows } = await query(
-      `SELECT * FROM productos ${where} ORDER BY descripcion LIMIT $${params.length}`,
-      params
-    );
+    const { rows } = await query(`${SELECT_PRODUCTO} ${where} ORDER BY p.descripcion LIMIT $${params.length}`, params);
     return rows;
   },
 
   async obtener(id) {
-    const { rows } = await query('SELECT * FROM productos WHERE id = $1', [id]);
-    return rows[0] ?? null;
+    const { rows: [p] } = await query(`${SELECT_PRODUCTO} WHERE p.id = $1`, [id]);
+    if (!p) return null;
+    if (p.tipo === 'Combo') p.componentes = await this.componentes(id);
+    return p;
   },
 
-  async crear({ sku, descripcion, precio, activo = true }) {
-    const { rows } = await query(
-      `INSERT INTO productos (sku, descripcion, precio, activo) VALUES ($1, $2, $3, $4) RETURNING *`,
-      [sku, descripcion, precio ?? 0, activo]
-    );
-    return rows[0];
+  /** SKU que se asignaría (sin guardarlo) para mostrarlo en el formulario. */
+  async proponerSku(subcategoriaId, tipo) {
+    const prefijo = await prefijoSku({ query }, subcategoriaId, tipo);
+    const asignacion = await siguienteAsignacion({ query }, prefijo);
+    return { prefijo, asignacion, sku: `${prefijo}${String(asignacion).padStart(3, '0')}` };
   },
 
-  async actualizar(id, { sku, descripcion, precio, activo }) {
+  /**
+   * Crea el producto. Si no se indica SKU, se genera con la regla categoría + subcategoría
+   * (+ "2" si es combo) + asignación correlativa, bloqueando el prefijo para no duplicar.
+   */
+  async crear(datos) {
+    return withTransaction(async (client) => {
+      const fila = { ...datos };
+      if (!fila.sku) {
+        if (!fila.subcategoria_id) throw new HttpError(400, 'Elige la subcategoría para generar el SKU');
+        const prefijo = await prefijoSku(client, fila.subcategoria_id, fila.tipo);
+        await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`sku:${prefijo}`]);
+        fila.asignacion = await siguienteAsignacion(client, prefijo);
+        fila.sku = `${prefijo}${String(fila.asignacion).padStart(3, '0')}`;
+      }
+      const cols = CAMPOS_FICHA.filter((c) => fila[c] !== undefined);
+      const { rows: [{ id }] } = await client.query(
+        `INSERT INTO productos (${cols.join(', ')}) VALUES (${cols.map((_, i) => `$${i + 1}`).join(', ')}) RETURNING id`,
+        cols.map((c) => fila[c])
+      ).catch((err) => {
+        if (err.code === '23505') throw new HttpError(409, `Ya existe el SKU ${fila.sku}`);
+        throw err;
+      });
+      return id;
+    }).then((id) => this.obtener(id));
+  },
+
+  /** Actualiza solo los campos enviados. */
+  async actualizar(id, datos) {
+    const cols = CAMPOS_FICHA.filter((c) => datos[c] !== undefined);
+    if (!cols.length) return this.obtener(id);
     const { rows } = await query(
-      `UPDATE productos SET sku = $1, descripcion = $2, precio = $3, activo = $4, actualizado_en = now()
-       WHERE id = $5 RETURNING *`,
-      [sku, descripcion, precio ?? 0, activo ?? true, id]
-    );
-    return rows[0] ?? null;
+      `UPDATE productos SET ${cols.map((c, i) => `${c} = $${i + 1}`).join(', ')}, actualizado_en = now()
+       WHERE id = $${cols.length + 1} RETURNING id`,
+      [...cols.map((c) => datos[c]), id]
+    ).catch((err) => {
+      if (err.code === '23505') throw new HttpError(409, `Ya existe el SKU ${datos.sku}`);
+      throw err;
+    });
+    return rows[0] ? this.obtener(id) : null;
   },
 
   async eliminar(id) {
-    const { rowCount } = await query('DELETE FROM productos WHERE id = $1', [id]);
+    const { rowCount } = await query('DELETE FROM productos WHERE id = $1', [id]).catch((err) => {
+      if (err.code === '23503') throw new HttpError(409, 'El producto ya se usó en pedidos o combos: desactívalo en vez de eliminarlo');
+      throw err;
+    });
     return rowCount > 0;
   },
 
-  /** Inserta o actualiza por SKU. Devuelve cuántos se crearon y cuántos se actualizaron. */
+  // --- combos ---
+
+  async componentes(comboId) {
+    const { rows } = await query(
+      `SELECT cc.componente_id, cc.cantidad, cc.precio, p.sku, p.descripcion, p.precio AS precio_web, p.activo
+       FROM combo_componentes cc JOIN productos p ON p.id = cc.componente_id
+       WHERE cc.combo_id = $1 ORDER BY p.descripcion`,
+      [comboId]
+    );
+    return rows;
+  },
+
+  /** Reemplaza los componentes del combo. [{ componente_id, cantidad, precio }] */
+  async guardarComponentes(comboId, componentes) {
+    return withTransaction(async (client) => {
+      const { rows: [combo] } = await client.query('SELECT tipo FROM productos WHERE id = $1 FOR UPDATE', [comboId]);
+      if (!combo) throw new HttpError(404, 'Producto no encontrado');
+      if (combo.tipo !== 'Combo') throw new HttpError(400, 'Solo los productos de tipo Combo tienen componentes');
+      const ids = componentes.map((c) => c.componente_id);
+      if (new Set(ids).size !== ids.length) throw new HttpError(400, 'Hay componentes repetidos');
+      if (ids.includes(comboId)) throw new HttpError(400, 'Un combo no puede contenerse a sí mismo');
+      const { rows: existen } = await client.query('SELECT id, tipo FROM productos WHERE id = ANY($1::int[])', [ids]);
+      if (existen.length !== ids.length) throw new HttpError(400, 'Algún componente no existe');
+      if (existen.some((p) => p.tipo === 'Combo')) throw new HttpError(400, 'Un combo no puede tener otro combo como componente');
+      await client.query('DELETE FROM combo_componentes WHERE combo_id = $1', [comboId]);
+      if (componentes.length) {
+        await client.query(
+          `INSERT INTO combo_componentes (combo_id, componente_id, cantidad, precio)
+           SELECT $1, * FROM unnest($2::int[], $3::int[], $4::numeric[])`,
+          [comboId, ids, componentes.map((c) => c.cantidad), componentes.map((c) => c.precio ?? null)]
+        );
+      }
+    }).then(() => this.componentes(comboId));
+  },
+
+  /** Inserta o actualiza por SKU (carga simple por CSV: sku, descripcion, precio). */
   async importar(filas) {
     const { rows } = await query(
       `INSERT INTO productos (sku, descripcion, precio)
@@ -58,5 +172,65 @@ export const ProductoModel = {
     );
     const creados = rows.filter((r) => r.insertado).length;
     return { creados, actualizados: rows.length - creados };
+  },
+};
+
+// --- matriz de categorías y marcas ---
+
+export const CatalogoProductosModel = {
+  async matriz() {
+    const { rows } = await query(
+      `SELECT c.id, c.codigo, c.nombre, c.activo,
+              COALESCE(json_agg(json_build_object('id', s.id, 'codigo', s.codigo, 'nombre', s.nombre, 'activo', s.activo,
+                                                  'productos', (SELECT COUNT(*) FROM productos p WHERE p.subcategoria_id = s.id))
+                       ORDER BY s.codigo) FILTER (WHERE s.id IS NOT NULL), '[]') AS subcategorias
+       FROM categorias c LEFT JOIN subcategorias s ON s.categoria_id = c.id
+       GROUP BY c.id ORDER BY c.codigo`
+    );
+    return rows;
+  },
+
+  async guardarCategoria({ id, codigo, nombre, activo }) {
+    const sql = id
+      ? ['UPDATE categorias SET codigo = COALESCE($1, codigo), nombre = COALESCE($2, nombre), activo = COALESCE($3, activo) WHERE id = $4 RETURNING *', [codigo, nombre, activo, id]]
+      : ['INSERT INTO categorias (codigo, nombre) VALUES ($1, $2) RETURNING *', [codigo, nombre]];
+    const { rows: [c] } = await query(...sql).catch((err) => {
+      if (err.code === '23505') throw new HttpError(409, `Ya existe una categoría con el código ${codigo}`);
+      throw err;
+    });
+    if (!c) throw new HttpError(404, 'Categoría no encontrada');
+    return c;
+  },
+
+  async guardarSubcategoria({ id, categoria_id: categoriaId, codigo, nombre, activo }) {
+    const sql = id
+      ? ['UPDATE subcategorias SET codigo = COALESCE($1, codigo), nombre = COALESCE($2, nombre), activo = COALESCE($3, activo) WHERE id = $4 RETURNING *', [codigo, nombre, activo, id]]
+      : ['INSERT INTO subcategorias (categoria_id, codigo, nombre) VALUES ($1, $2, $3) RETURNING *', [categoriaId, codigo, nombre]];
+    const { rows: [s] } = await query(...sql).catch((err) => {
+      if (err.code === '23505') throw new HttpError(409, `Esa categoría ya tiene la subcategoría ${codigo}`);
+      if (err.code === '23503') throw new HttpError(400, 'La categoría no existe');
+      throw err;
+    });
+    if (!s) throw new HttpError(404, 'Subcategoría no encontrada');
+    return s;
+  },
+
+  async marcas() {
+    const { rows } = await query(
+      `SELECT m.*, (SELECT COUNT(*) FROM productos p WHERE p.marca_id = m.id)::int AS productos FROM marcas m ORDER BY m.nombre`
+    );
+    return rows;
+  },
+
+  async guardarMarca({ id, nombre, propia, segmento, activo }) {
+    const sql = id
+      ? ['UPDATE marcas SET nombre = COALESCE($1, nombre), propia = COALESCE($2, propia), segmento = $3, activo = COALESCE($4, activo) WHERE id = $5 RETURNING *', [nombre, propia, segmento ?? null, activo, id]]
+      : ['INSERT INTO marcas (nombre, propia, segmento) VALUES ($1, COALESCE($2, false), $3) RETURNING *', [nombre, propia, segmento ?? null]];
+    const { rows: [m] } = await query(...sql).catch((err) => {
+      if (err.code === '23505') throw new HttpError(409, `Ya existe la marca ${nombre}`);
+      throw err;
+    });
+    if (!m) throw new HttpError(404, 'Marca no encontrada');
+    return m;
   },
 };

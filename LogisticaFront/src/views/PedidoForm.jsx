@@ -11,6 +11,7 @@ import UbigeoSelect from '../components/UbigeoSelect';
 import { useAuth } from '../context/AuthContext';
 import { useCatalogos } from '../context/CatalogosContext';
 import { CATEGORIAS, hoyISO, soles } from '../utils/format';
+import { soloComercial } from '../utils/roles';
 
 // Debe coincidir con CAMPOS_VENDEDOR del backend (src/config/permisos.js)
 const CAMPOS_VENDEDOR = new Set([
@@ -42,7 +43,7 @@ export default function PedidoForm({ categoria: categoriaNueva = 'venta' }) {
   const router = useRouter();
   const { usuario } = useAuth();
   const { catalogos, ubigeo, listo } = useCatalogos();
-  const esVendedor = usuario.rol === 'vendedor';
+  const esVendedor = soloComercial(usuario);
   const editando = Boolean(id);
 
   const [categoria, setCategoria] = useState(categoriaNueva);

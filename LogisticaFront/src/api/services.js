@@ -24,6 +24,14 @@ export const usuariosApi = {
 
 export const productosApi = {
   listar: (params) => data(api.get('/productos', { params })),
+  obtener: (id) => data(api.get(`/productos/${id}`)),
+  proponerSku: (subcategoria_id, tipo) => data(api.get('/productos/proponer-sku', { params: { subcategoria_id, tipo } })),
+  guardarComponentes: (id, componentes) => data(api.put(`/productos/${id}/componentes`, { componentes })),
+  matriz: () => data(api.get('/productos/matriz')),
+  guardarCategoria: (id, body) => data(id ? api.put(`/productos/categorias/${id}`, body) : api.post('/productos/categorias', body)),
+  guardarSubcategoria: (id, body) => data(id ? api.put(`/productos/subcategorias/${id}`, body) : api.post('/productos/subcategorias', body)),
+  marcas: () => data(api.get('/productos/marcas')),
+  guardarMarca: (id, body) => data(id ? api.put(`/productos/marcas/${id}`, body) : api.post('/productos/marcas', body)),
   crear: (body) => data(api.post('/productos', body)),
   actualizar: (id, body) => data(api.put(`/productos/${id}`, body)),
   eliminar: (id) => data(api.delete(`/productos/${id}`)),

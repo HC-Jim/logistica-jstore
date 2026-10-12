@@ -2,6 +2,7 @@ import { query, withTransaction } from '../config/db.js';
 import { env } from '../config/env.js';
 import { registrarRuta } from '../models/historial.js';
 import { HttpError } from '../utils/http.js';
+import { soloEquipoRuta } from '../utils/roles.js';
 import { modoViaje, trazarRestante } from './rutas.service.js';
 
 /** Si el conductor se aleja más que esto del camino calculado, se recalcula (p. ej. desvío por tráfico o cierre). */
@@ -174,7 +175,7 @@ export async function reoptimizar(rutaId, pos, usuario) {
       [nuevoOrden]
     );
     await registrarRuta(client, rutaId, usuario.id, 'paradas_reordenadas', {
-      origen: usuario.rol === 'repartidor' || usuario.rol === 'auxiliar' ? 'app' : 'web',
+      origen: soloEquipoRuta(usuario) ? 'app' : 'web',
       orden: ordenadas.map((p) => p.titulo),
     });
     const clave = ordenadas.map((p) => p.id).join(',');

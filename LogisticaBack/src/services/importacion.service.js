@@ -3,6 +3,7 @@ import {
 } from '../config/catalogos.js';
 import { query } from '../config/db.js';
 import { coordenadasDeUrl } from './ubicacion.service.js';
+import { soloComercial } from '../utils/roles.js';
 
 /*
  * Carga masiva de ventas desde un CSV: una fila por producto. Las filas con el mismo
@@ -129,7 +130,7 @@ export async function analizarFilas(filasCrudas, usuario) {
   const [{ rows: productos }, { rows: ubigeos }, { rows: vendedores }] = await Promise.all([
     query('SELECT id, sku, precio, activo FROM productos'),
     query('SELECT codigo, departamento, provincia, distrito FROM ubigeos'),
-    query("SELECT id, email FROM usuarios WHERE activo AND NOT pendiente AND rol IN ('vendedor', 'admin', 'planificador')"),
+    query("SELECT id, email FROM usuarios WHERE activo AND NOT pendiente AND roles && ARRAY['vendedor', 'admin', 'planificador']"),
   ]);
   const porSku = new Map(productos.map((p) => [normalizar(p.sku), p]));
   const porUbigeo = new Map(ubigeos.map((u) => [`${normalizar(u.departamento)}|${normalizar(u.provincia)}|${normalizar(u.distrito)}`, u.codigo]));
@@ -173,7 +174,7 @@ export async function analizarFilas(filasCrudas, usuario) {
 
     // vendedor: el vendedor siempre registra a su nombre; logística puede indicarlo por correo
     let vendedorId = usuario.id;
-    if (c.vendedor && usuario.rol !== 'vendedor') {
+    if (c.vendedor && !soloComercial(usuario)) {
       vendedorId = porEmail.get(normalizar(c.vendedor));
       if (!vendedorId) err.push(`Vendedor "${c.vendedor}" no existe o está inactivo`);
     }

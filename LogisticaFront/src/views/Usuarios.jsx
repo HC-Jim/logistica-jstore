@@ -4,16 +4,18 @@ import { useEffect, useState } from 'react';
 import { mensajeError } from '../api/client';
 import { usuariosApi } from '../api/services';
 import { ROLES } from '../utils/format';
+import { nombresRoles, rolesDe } from '../utils/roles';
 
-const VACIO = { id: null, nombre: '', email: '', telefono: '', rol: 'vendedor', password: '' };
+const VACIO = { id: null, nombre: '', email: '', telefono: '', roles: ['vendedor'], password: '' };
 
 const DESCRIPCION_ROL = {
   admin: 'Acceso total, incluida la gestión de usuarios.',
-  vendedor: 'Registra pedidos y solo ve y edita sus propias ventas.',
+  vendedor: 'Registra ventas, ve y edita solo las suyas y consulta precios.',
   planificador: 'Gestiona todos los pedidos, arma las rutas y ve el monitoreo.',
   almacen: 'Ve pedidos y monitoreo; escribe observaciones de almacén.',
   repartidor: 'Conductor de la ruta: ve sus paradas y marca entregas en la app móvil.',
   auxiliar: 'Acompaña al conductor; ve la misma ruta en la app móvil.',
+  catalogo: 'Crea y edita SKU, combos y precios.',
 };
 
 /** Contraseña legible (sin 0/O, 1/l/I) de 10 caracteres. */
@@ -39,16 +41,17 @@ export default function Usuarios() {
     e.preventDefault();
     setError('');
     try {
-      const { id, ...body } = form;
+      const { id, rol: _principal, ...body } = form;
       if (!body.password) delete body.password;
+      if (!body.roles?.length) throw new Error('Elige al menos un perfil');
       const u = id ? await usuariosApi.actualizar(id, body) : await usuariosApi.crear(body);
-      if (body.password) setCredenciales({ nombre: u.nombre, email: u.email, rol: u.rol, password: body.password });
+      if (body.password) setCredenciales({ nombre: u.nombre, email: u.email, roles: u.roles, password: body.password });
       setCopiado(false);
       setForm(VACIO);
       setVerClave(false);
       cargar();
     } catch (err) {
-      setError(mensajeError(err));
+      setError(err instanceof Error && !err.response ? err.message : mensajeError(err));
     }
   }
 
@@ -68,14 +71,19 @@ export default function Usuarios() {
 
   async function copiar() {
     const c = credenciales;
-    const app = ['repartidor', 'auxiliar'].includes(c.rol) ? 'App móvil de Logística JStore' : window.location.origin;
+    const app = c.roles.every((r) => ['repartidor', 'auxiliar'].includes(r)) ? 'App móvil de Logística JStore' : window.location.origin;
     await navigator.clipboard.writeText(`Hola ${c.nombre}, tu acceso a Logística JStore:\n${app}\nCorreo: ${c.email}\nContraseña: ${c.password}`);
     setCopiado(true);
   }
 
   const campo = (nombre, props = {}) => ({ value: form[nombre] ?? '', onChange: (e) => setForm({ ...form, [nombre]: e.target.value }), ...props });
   const pendientes = usuarios.filter((u) => u.pendiente);
-  const visibles = usuarios.filter((u) => !u.pendiente && (!filtroRol || u.rol === filtroRol));
+  const visibles = usuarios.filter((u) => !u.pendiente && (!filtroRol || rolesDe(u).includes(filtroRol)));
+  /** Marca o desmarca un perfil (el primero marcado es el principal). */
+  const alternarRol = (r) => setForm((f) => {
+    const actuales = rolesDe(f);
+    return { ...f, roles: actuales.includes(r) ? actuales.filter((x) => x !== r) : [...actuales, r] };
+  });
 
   async function decidir(u, aprobar) {
     if (!aprobar && !confirm(`¿Rechazar y eliminar la solicitud de ${u.nombre}?`)) return;
@@ -103,7 +111,7 @@ export default function Usuarios() {
                 <tr key={u.id}>
                   <td>{u.nombre}</td><td>{u.email}</td>
                   <td>
-                    <select value={u.rol} onChange={async (e) => { await usuariosApi.actualizar(u.id, { rol: e.target.value }); cargar(); }}>
+                    <select value={u.rol} onChange={async (e) => { await usuariosApi.actualizar(u.id, { roles: [e.target.value] }); cargar(); }}>
                       {Object.entries(ROLES).filter(([k]) => k !== 'admin').map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                     </select>
                   </td>
@@ -127,7 +135,7 @@ export default function Usuarios() {
           <dl>
             <dt>Correo</dt><dd><code>{credenciales.email}</code></dd>
             <dt>Contraseña</dt><dd><code>{credenciales.password}</code></dd>
-            <dt>Perfil</dt><dd>{ROLES[credenciales.rol]}</dd>
+            <dt>Perfiles</dt><dd>{nombresRoles(credenciales)}</dd>
           </dl>
           <div className="fila">
             <button onClick={copiar}>{copiado ? 'Copiado ✔' : 'Copiar mensaje para enviar'}</button>
@@ -141,10 +149,15 @@ export default function Usuarios() {
         <label>Nombre *<input required maxLength={120} {...campo('nombre')} /></label>
         <label>Correo *<input type="email" required maxLength={160} {...campo('email')} /></label>
         <label>Teléfono<input maxLength={30} {...campo('telefono')} /></label>
-        <label>Perfil *
-          <select {...campo('rol')}>{Object.entries(ROLES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
-          <small>{DESCRIPCION_ROL[form.rol]}</small>
-        </label>
+        <fieldset className="ancho perfiles">
+          <legend>Perfiles * <small>(puede tener varios: por ejemplo Comercial y Almacén si apoya en despacho)</small></legend>
+          {Object.entries(ROLES).map(([k, v]) => (
+            <label key={k} className={`check perfil-opcion ${rolesDe(form).includes(k) ? 'elegido' : ''}`}>
+              <input type="checkbox" checked={rolesDe(form).includes(k)} onChange={() => alternarRol(k)} />
+              <span><strong>{v}</strong><small>{DESCRIPCION_ROL[k]}</small></span>
+            </label>
+          ))}
+        </fieldset>
         <label>
           {form.id ? 'Nueva contraseña (déjala vacía para no cambiarla)' : 'Contraseña *'}
           <div className="fila sin-envolver">
@@ -172,13 +185,13 @@ export default function Usuarios() {
           </select>
         </div>
         <table>
-          <thead><tr><th>Nombre</th><th>Correo</th><th>Contraseña</th><th>Perfil</th><th>Teléfono</th><th>Estado</th><th /></tr></thead>
+          <thead><tr><th>Nombre</th><th>Correo</th><th>Contraseña</th><th>Perfiles</th><th>Teléfono</th><th>Estado</th><th /></tr></thead>
           <tbody>
             {visibles.map((u) => (
               <tr key={u.id} className={u.activo ? '' : 'inactivo'}>
                 <td>{u.nombre}</td><td>{u.email}</td>
                 <td>{u.clave_visible ? <code className="clave">{u.clave_visible}</code> : <small title="La eligió el propio usuario o se creó antes de este cambio. Usa «Nueva contraseña» para asignar una visible.">no visible</small>}</td>
-                <td>{ROLES[u.rol]}</td><td>{u.telefono}</td>
+                <td>{nombresRoles(u)}</td><td>{u.telefono}</td>
                 <td>{u.activo ? 'Activo' : 'Inactivo'}</td>
                 <td className="acciones">
                   <button className="btn-sec" onClick={() => { setForm({ ...VACIO, ...u, telefono: u.telefono ?? '', password: '' }); setVerClave(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>Editar</button>

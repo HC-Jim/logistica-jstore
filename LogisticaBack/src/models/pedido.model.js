@@ -2,6 +2,7 @@ import { query, withTransaction } from '../config/db.js';
 import { PLATAFORMA_ENCARGO, PLATAFORMA_INVERSA, TIPOS_POR_CATEGORIA } from '../config/catalogos.js';
 import { CAMPOS_VENDEDOR, ESTADOS_EDITABLES } from '../config/permisos.js';
 import { HttpError } from '../utils/http.js';
+import { soloAlmacen, soloComercial } from '../utils/roles.js';
 import { registrarRuta } from './historial.js';
 
 const PLATAFORMA_FIJA = { inversa: PLATAFORMA_INVERSA, encargo: PLATAFORMA_ENCARGO };
@@ -70,7 +71,7 @@ async function quitarDeRuta(client, pedidoId, usuarioId, motivo) {
 async function bloquear(client, id, usuario) {
   const { rows: [pedido] } = await client.query('SELECT * FROM pedidos WHERE id = $1 FOR UPDATE', [id]);
   if (!pedido) throw new HttpError(404, 'Pedido no encontrado');
-  if (usuario.rol === 'vendedor' && pedido.vendedor_id !== usuario.id) {
+  if (soloComercial(usuario) && pedido.vendedor_id !== usuario.id) {
     throw new HttpError(403, 'Solo puedes modificar tus propias ventas');
   }
   return pedido;
@@ -212,7 +213,7 @@ export const PedidoModel = {
       if (!ESTADOS_EDITABLES.includes(actual.estado)) {
         throw new HttpError(409, `No se puede editar un pedido ${actual.estado}`);
       }
-      if (usuario.rol === 'almacen' && actual.categoria !== 'encargo') {
+      if (soloAlmacen(usuario) && actual.categoria !== 'encargo') {
         throw new HttpError(403, 'Almacén solo puede editar encargos logísticos');
       }
       // la categoría no cambia; su plataforma y sus tipos están fijados
@@ -226,7 +227,7 @@ export const PedidoModel = {
           .filter(([campo, valor]) => !iguales(actual[campo], valor))
           .map(([campo, valor]) => [campo, [actual[campo], valor]])
       );
-      if (usuario.rol === 'vendedor') {
+      if (soloComercial(usuario)) {
         const prohibidos = Object.keys(cambios).filter((c) => !CAMPOS_VENDEDOR.has(c));
         if (prohibidos.length) throw new HttpError(403, `No puedes modificar: ${prohibidos.join(', ')}`);
         if (items) throw new HttpError(403, 'No puedes modificar los productos del pedido');

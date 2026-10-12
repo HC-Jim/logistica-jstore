@@ -21,9 +21,11 @@ export const MODULOS = [
     clave: 'productos',
     titulo: 'Productos',
     icono: '📦',
-    descripcion: 'Catálogo de SKU, categorías y subcategorías, generador de SKU y combos.',
+    descripcion: 'Catálogo de SKU, generador de SKU, combos, categorías y marcas.',
     links: [
-      { href: '/productos', label: 'Catálogo', roles: ['admin', 'planificador', 'almacen', 'vendedor'] },
+      { href: '/productos', label: 'Catálogo de SKU', roles: ['admin', 'planificador', 'almacen', 'vendedor', 'catalogo'] },
+      { href: '/productos/categorias', label: 'Categorías', roles: ['admin', 'catalogo', 'planificador', 'vendedor', 'almacen'] },
+      { href: '/productos/marcas', label: 'Marcas', roles: ['admin', 'catalogo', 'planificador', 'vendedor', 'almacen'] },
     ],
   },
   {
@@ -50,7 +52,7 @@ export function pantallaActual(pathname) {
   return TODOS_LOS_LINKS.filter((l) => activo(pathname, l.href)).sort((a, b) => b.href.length - a.href.length)[0] ?? null;
 }
 
-/** Módulos que el rol puede abrir (con al menos una pantalla permitida). */
-export const modulosDe = (rol) => MODULOS
-  .map((m) => ({ ...m, links: m.links.filter((l) => l.roles.includes(rol)) }))
+/** Módulos que el usuario puede abrir. `puede(roles)` dice si tiene alguno de esos perfiles. */
+export const modulosDe = (puede) => MODULOS
+  .map((m) => ({ ...m, links: m.links.filter((l) => puede(l.roles)) }))
   .filter((m) => m.proximamente || m.links.length);

@@ -39,7 +39,9 @@ class ApiClient {
   Future<Map<String, dynamic>> login(String email, String password) async {
     final r = await post('/auth/login', {'email': email.trim(), 'password': password}) as Map<String, dynamic>;
     final u = r['usuario'] as Map<String, dynamic>;
-    if (!['repartidor', 'auxiliar'].contains(u['rol'])) {
+    // puede tener varios perfiles: basta con que uno sea Conductor o Auxiliar
+    final perfiles = ((u['roles'] as List?) ?? [u['rol']]).map((r) => '$r');
+    if (!perfiles.any((r) => r == 'repartidor' || r == 'auxiliar')) {
       throw ApiException(403, 'Esta app es para conductores y auxiliares. Usa la web de Logística JStore.');
     }
     _token = r['token'] as String;

@@ -1,0 +1,762 @@
+[
+ {
+  "codigo": "90",
+  "nombre": "Servicios y Operaciones Especiales",
+  "subcategorias": [
+   {
+    "codigo": "01",
+    "nombre": "Servicio de transporte"
+   },
+   {
+    "codigo": "02",
+    "nombre": "Servicio de soporte"
+   }
+  ]
+ },
+ {
+  "codigo": "10",
+  "nombre": "Audio",
+  "subcategorias": [
+   {
+    "codigo": "01",
+    "nombre": "Combos de audio"
+   },
+   {
+    "codigo": "02",
+    "nombre": "Accesorios de audio"
+   },
+   {
+    "codigo": "03",
+    "nombre": "Audífonos"
+   },
+   {
+    "codigo": "04",
+    "nombre": "Barras de sonido"
+   },
+   {
+    "codigo": "05",
+    "nombre": "Cables y adaptadores de audio"
+   },
+   {
+    "codigo": "06",
+    "nombre": "Micrófonos"
+   },
+   {
+    "codigo": "07",
+    "nombre": "Parlantes Bluetooth"
+   },
+   {
+    "codigo": "08",
+    "nombre": "Parlantes Smart"
+   }
+  ]
+ },
+ {
+  "codigo": "11",
+  "nombre": "Celulares y Accesorios",
+  "subcategorias": [
+   {
+    "codigo": "01",
+    "nombre": "Combos móviles"
+   },
+   {
+    "codigo": "02",
+    "nombre": "Accesorios móviles varios"
+   },
+   {
+    "codigo": "03",
+    "nombre": "Adaptadores"
+   },
+   {
+    "codigo": "04",
+    "nombre": "Cables"
+   },
+   {
+    "codigo": "05",
+    "nombre": "Cargadores"
+   },
+   {
+    "codigo": "06",
+    "nombre": "Power banks"
+   },
+   {
+    "codigo": "07",
+    "nombre": "Protectores y fundas"
+   },
+   {
+    "codigo": "08",
+    "nombre": "Soportes para celular"
+   }
+  ]
+ },
+ {
+  "codigo": "12",
+  "nombre": "Cámaras de Seguridad",
+  "subcategorias": [
+   {
+    "codigo": "01",
+    "nombre": "Combos cámaras"
+   },
+   {
+    "codigo": "02",
+    "nombre": "Accesorios para cámaras"
+   },
+   {
+    "codigo": "03",
+    "nombre": "Cámaras 360°"
+   },
+   {
+    "codigo": "04",
+    "nombre": "Cámaras de seguridad exterior"
+   },
+   {
+    "codigo": "05",
+    "nombre": "Cámaras de seguridad interior"
+   },
+   {
+    "codigo": "06",
+    "nombre": "Cámaras inteligentes"
+   },
+   {
+    "codigo": "07",
+    "nombre": "Kits de seguridad"
+   },
+   {
+    "codigo": "08",
+    "nombre": "Sensores y alarmas"
+   }
+  ]
+ },
+ {
+  "codigo": "13",
+  "nombre": "Cómputo y Tecnología",
+  "subcategorias": [
+   {
+    "codigo": "01",
+    "nombre": "Combos cómputo"
+   },
+   {
+    "codigo": "02",
+    "nombre": "Accesorios de cómputo"
+   },
+   {
+    "codigo": "03",
+    "nombre": "Adaptadores y hubs"
+   },
+   {
+    "codigo": "04",
+    "nombre": "Almacenamiento"
+   },
+   {
+    "codigo": "05",
+    "nombre": "Cables tecnológicos"
+   },
+   {
+    "codigo": "06",
+    "nombre": "Componentes de cómputo"
+   },
+   {
+    "codigo": "07",
+    "nombre": "Conectividad"
+   },
+   {
+    "codigo": "08",
+    "nombre": "Drones y gadgets tecnológicos"
+   },
+   {
+    "codigo": "09",
+    "nombre": "Monitores y pantallas"
+   },
+   {
+    "codigo": "10",
+    "nombre": "Teclados y mouse"
+   }
+  ]
+ },
+ {
+  "codigo": "14",
+  "nombre": "Smart Home",
+  "subcategorias": [
+   {
+    "codigo": "01",
+    "nombre": "Combos smart"
+   },
+   {
+    "codigo": "02",
+    "nombre": "Asistentes de voz"
+   },
+   {
+    "codigo": "03",
+    "nombre": "Domótica"
+   },
+   {
+    "codigo": "04",
+    "nombre": "Enchufes y sensores smart"
+   },
+   {
+    "codigo": "05",
+    "nombre": "Gadgets inteligentes"
+   },
+   {
+    "codigo": "06",
+    "nombre": "Iluminación inteligente"
+   },
+   {
+    "codigo": "07",
+    "nombre": "Pantallas inteligentes"
+   }
+  ]
+ },
+ {
+  "codigo": "15",
+  "nombre": "TV, Video y Proyección",
+  "subcategorias": [
+   {
+    "codigo": "01",
+    "nombre": "Combos de proyección"
+   },
+   {
+    "codigo": "02",
+    "nombre": "Accesorios de proyección"
+   },
+   {
+    "codigo": "03",
+    "nombre": "Cables HDMI y AV"
+   },
+   {
+    "codigo": "04",
+    "nombre": "Controles remotos"
+   },
+   {
+    "codigo": "05",
+    "nombre": "Convertidores a Smart TV"
+   },
+   {
+    "codigo": "06",
+    "nombre": "Ecrans y pantallas para proyector"
+   },
+   {
+    "codigo": "07",
+    "nombre": "Proyectores"
+   },
+   {
+    "codigo": "08",
+    "nombre": "Soportes para TV y proyector"
+   },
+   {
+    "codigo": "09",
+    "nombre": "Streaming TV"
+   }
+  ]
+ },
+ {
+  "codigo": "16",
+  "nombre": "Fotografía & Creación",
+  "subcategorias": [
+   {
+    "codigo": "01",
+    "nombre": "Combos fotografía e impresión"
+   },
+   {
+    "codigo": "02",
+    "nombre": "Accesorios de fotografía"
+   },
+   {
+    "codigo": "03",
+    "nombre": "Álbumes y complementos"
+   },
+   {
+    "codigo": "04",
+    "nombre": "Cámaras instantáneas"
+   },
+   {
+    "codigo": "05",
+    "nombre": "Impresoras fotográficas"
+   },
+   {
+    "codigo": "06",
+    "nombre": "Papel fotográfico"
+   }
+  ]
+ },
+ {
+  "codigo": "17",
+  "nombre": "Oficina y Ergonomía",
+  "subcategorias": [
+   {
+    "codigo": "01",
+    "nombre": "Combos oficina"
+   },
+   {
+    "codigo": "02",
+    "nombre": "Accesorios de escritorio"
+   },
+   {
+    "codigo": "03",
+    "nombre": "Cojines ergonómicos"
+   },
+   {
+    "codigo": "04",
+    "nombre": "Cojines para auto"
+   },
+   {
+    "codigo": "05",
+    "nombre": "Equipos para presentación"
+   },
+   {
+    "codigo": "06",
+    "nombre": "Escritorios"
+   },
+   {
+    "codigo": "07",
+    "nombre": "Mochilas, maletines y portalaptop"
+   },
+   {
+    "codigo": "08",
+    "nombre": "Organizadores de oficina"
+   },
+   {
+    "codigo": "09",
+    "nombre": "Repuestos para sillas"
+   },
+   {
+    "codigo": "10",
+    "nombre": "Sillas de oficina"
+   },
+   {
+    "codigo": "11",
+    "nombre": "Sillas ergonómicas"
+   },
+   {
+    "codigo": "12",
+    "nombre": "Soportes y elevadores"
+   }
+  ]
+ },
+ {
+  "codigo": "18",
+  "nombre": "Hogar y Electrohogar",
+  "subcategorias": [
+   {
+    "codigo": "01",
+    "nombre": "Combos hogar"
+   },
+   {
+    "codigo": "02",
+    "nombre": "Bar y coctelería"
+   },
+   {
+    "codigo": "03",
+    "nombre": "Climatización y ventilación"
+   },
+   {
+    "codigo": "04",
+    "nombre": "Cocina práctica"
+   },
+   {
+    "codigo": "05",
+    "nombre": "Conservación y termos"
+   },
+   {
+    "codigo": "06",
+    "nombre": "Electrohogar"
+   },
+   {
+    "codigo": "07",
+    "nombre": "Iluminación para hogar"
+   },
+   {
+    "codigo": "08",
+    "nombre": "Limpieza del hogar"
+   },
+   {
+    "codigo": "09",
+    "nombre": "Organizadores para hogar"
+   },
+   {
+    "codigo": "10",
+    "nombre": "Productos funcionales para casa"
+   },
+   {
+    "codigo": "11",
+    "nombre": "Seguridad y hogar funcional"
+   }
+  ]
+ },
+ {
+  "codigo": "19",
+  "nombre": "Parrillas, Jardín y Exteriores",
+  "subcategorias": [
+   {
+    "codigo": "01",
+    "nombre": "Combos parrilleros"
+   },
+   {
+    "codigo": "02",
+    "nombre": "Accesorios parrilleros"
+   },
+   {
+    "codigo": "03",
+    "nombre": "Ahumadores"
+   },
+   {
+    "codigo": "04",
+    "nombre": "Camping"
+   },
+   {
+    "codigo": "05",
+    "nombre": "Conservadoras y coolers outdoor"
+   },
+   {
+    "codigo": "06",
+    "nombre": "Herramientas de exterior"
+   },
+   {
+    "codigo": "07",
+    "nombre": "Jardinería"
+   },
+   {
+    "codigo": "08",
+    "nombre": "Parrillas a carbón"
+   },
+   {
+    "codigo": "09",
+    "nombre": "Parrillas eléctricas"
+   },
+   {
+    "codigo": "10",
+    "nombre": "Terraza y patio"
+   }
+  ]
+ },
+ {
+  "codigo": "20",
+  "nombre": "Muebles y Confort",
+  "subcategorias": [
+   {
+    "codigo": "01",
+    "nombre": "Combos confort"
+   },
+   {
+    "codigo": "02",
+    "nombre": "Complementos para sala"
+   },
+   {
+    "codigo": "03",
+    "nombre": "Descanso y confort"
+   },
+   {
+    "codigo": "04",
+    "nombre": "Muebles auxiliares"
+   },
+   {
+    "codigo": "05",
+    "nombre": "Organizadores voluminosos"
+   },
+   {
+    "codigo": "06",
+    "nombre": "Productos voluminosos para hogar"
+   },
+   {
+    "codigo": "07",
+    "nombre": "Puffs y beanbags"
+   }
+  ]
+ },
+ {
+  "codigo": "21",
+  "nombre": "Salud, Belleza y Cuidado Personal",
+  "subcategorias": [
+   {
+    "codigo": "01",
+    "nombre": "Combos salud"
+   },
+   {
+    "codigo": "02",
+    "nombre": "Belleza"
+   },
+   {
+    "codigo": "03",
+    "nombre": "Cuidado personal"
+   },
+   {
+    "codigo": "04",
+    "nombre": "Masajeadores"
+   },
+   {
+    "codigo": "05",
+    "nombre": "Bienestar"
+   },
+   {
+    "codigo": "06",
+    "nombre": "Productos íntimos"
+   },
+   {
+    "codigo": "07",
+    "nombre": "Accesorios íntimos"
+   },
+   {
+    "codigo": "08",
+    "nombre": "Higiene personal"
+   },
+   {
+    "codigo": "09",
+    "nombre": "Relax y autocuidado"
+   }
+  ]
+ },
+ {
+  "codigo": "22",
+  "nombre": "Juguetes, Disfraces y Temporada",
+  "subcategorias": [
+   {
+    "codigo": "01",
+    "nombre": "Combos temporada"
+   },
+   {
+    "codigo": "02",
+    "nombre": "Accesorios de fiesta"
+   },
+   {
+    "codigo": "03",
+    "nombre": "Artículos coleccionables"
+   },
+   {
+    "codigo": "04",
+    "nombre": "Decoración temática"
+   },
+   {
+    "codigo": "05",
+    "nombre": "Disfraces"
+   },
+   {
+    "codigo": "06",
+    "nombre": "Disfraces inflables"
+   },
+   {
+    "codigo": "07",
+    "nombre": "Fiestas Patrias"
+   },
+   {
+    "codigo": "08",
+    "nombre": "Juguetes"
+   },
+   {
+    "codigo": "09",
+    "nombre": "Máscaras"
+   },
+   {
+    "codigo": "10",
+    "nombre": "Navidad"
+   },
+   {
+    "codigo": "11",
+    "nombre": "Regalos de temporada"
+   }
+  ]
+ },
+ {
+  "codigo": "23",
+  "nombre": "Deportes, Movilidad y Outdoor",
+  "subcategorias": [
+   {
+    "codigo": "01",
+    "nombre": "Combos deportivos"
+   },
+   {
+    "codigo": "02",
+    "nombre": "Accesorios deportivos"
+   },
+   {
+    "codigo": "03",
+    "nombre": "Accesorios para motos"
+   },
+   {
+    "codigo": "04",
+    "nombre": "Bicicletas y accesorios"
+   },
+   {
+    "codigo": "05",
+    "nombre": "Coolers, termos y conservación outdoor"
+   },
+   {
+    "codigo": "06",
+    "nombre": "Fitness"
+   },
+   {
+    "codigo": "07",
+    "nombre": "Lluvia y protección outdoor"
+   },
+   {
+    "codigo": "08",
+    "nombre": "Mochilas y bolsos outdoor"
+   },
+   {
+    "codigo": "09",
+    "nombre": "Movilidad urbana"
+   },
+   {
+    "codigo": "10",
+    "nombre": "Outdoor deportivo"
+   },
+   {
+    "codigo": "11",
+    "nombre": "Playa, camping y outdoor"
+   },
+   {
+    "codigo": "12",
+    "nombre": "Protección y seguridad deportiva"
+   }
+  ]
+ },
+ {
+  "codigo": "24",
+  "nombre": "Mascotas",
+  "subcategorias": [
+   {
+    "codigo": "01",
+    "nombre": "Combos mascotas"
+   },
+   {
+    "codigo": "02",
+    "nombre": "Accesorios para mascotas"
+   },
+   {
+    "codigo": "03",
+    "nombre": "Camas y confort"
+   },
+   {
+    "codigo": "04",
+    "nombre": "Gatos"
+   },
+   {
+    "codigo": "05",
+    "nombre": "Higiene para mascotas"
+   },
+   {
+    "codigo": "06",
+    "nombre": "Juguetes para mascotas"
+   },
+   {
+    "codigo": "07",
+    "nombre": "Perros"
+   },
+   {
+    "codigo": "08",
+    "nombre": "Transporte para mascotas"
+   }
+  ]
+ },
+ {
+  "codigo": "25",
+  "nombre": "Ferretería, Herramientas y Medición",
+  "subcategorias": [
+   {
+    "codigo": "01",
+    "nombre": "Combos ferretería"
+   },
+   {
+    "codigo": "02",
+    "nombre": "Accesorios y consumibles de ferretería"
+   },
+   {
+    "codigo": "03",
+    "nombre": "Adhesivos, selladores y espumas"
+   },
+   {
+    "codigo": "04",
+    "nombre": "Automotriz y mantenimiento vehicular"
+   },
+   {
+    "codigo": "05",
+    "nombre": "Cocina utilitaria y pesaje"
+   },
+   {
+    "codigo": "06",
+    "nombre": "Escaleras y acceso"
+   },
+   {
+    "codigo": "07",
+    "nombre": "Herramientas eléctricas"
+   },
+   {
+    "codigo": "08",
+    "nombre": "Herramientas manuales"
+   },
+   {
+    "codigo": "09",
+    "nombre": "Iluminación portátil y linternas"
+   },
+   {
+    "codigo": "10",
+    "nombre": "Infladores y aire"
+   },
+   {
+    "codigo": "11",
+    "nombre": "Jardín y riego"
+   },
+   {
+    "codigo": "12",
+    "nombre": "Limpieza y presión"
+   },
+   {
+    "codigo": "13",
+    "nombre": "Medición y precisión"
+   },
+   {
+    "codigo": "14",
+    "nombre": "Organización y almacenamiento"
+   },
+   {
+    "codigo": "15",
+    "nombre": "Seguridad y Candados"
+   }
+  ]
+ },
+ {
+  "codigo": "26",
+  "nombre": "Repuestos, Complementos y Consumibles",
+  "subcategorias": [
+   {
+    "codigo": "01",
+    "nombre": "Accesorios de mantenimiento"
+   },
+   {
+    "codigo": "02",
+    "nombre": "Cables de reposición"
+   },
+   {
+    "codigo": "03",
+    "nombre": "Consumibles"
+   },
+   {
+    "codigo": "04",
+    "nombre": "Controles remotos"
+   },
+   {
+    "codigo": "05",
+    "nombre": "Fuentes y cargadores"
+   },
+   {
+    "codigo": "06",
+    "nombre": "Manuales, kits y piezas menores"
+   },
+   {
+    "codigo": "07",
+    "nombre": "Papel fotográfico"
+   },
+   {
+    "codigo": "08",
+    "nombre": "Repuestos de parrillas"
+   },
+   {
+    "codigo": "09",
+    "nombre": "Repuestos de sillas"
+   },
+   {
+    "codigo": "10",
+    "nombre": "Focos de iluminación fotográfica"
+   }
+  ]
+ }
+]

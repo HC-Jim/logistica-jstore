@@ -24,6 +24,21 @@ try {
     console.log(`Ubigeos cargados: ${filas.length}`);
   }
 
+  // Matriz de categorías: agrega las que falten (no pisa cambios hechos desde la web)
+  const matriz = JSON.parse(await leer('./matriz_categorias.json'));
+  for (const c of matriz) {
+    const { rows: [cat] } = await pool.query(
+      `INSERT INTO categorias (codigo, nombre) VALUES ($1, $2)
+       ON CONFLICT (codigo) DO UPDATE SET codigo = EXCLUDED.codigo RETURNING id`,
+      [c.codigo, c.nombre]
+    );
+    await pool.query(
+      `INSERT INTO subcategorias (categoria_id, codigo, nombre)
+       SELECT $1, * FROM unnest($2::text[], $3::text[]) ON CONFLICT (categoria_id, codigo) DO NOTHING`,
+      [cat.id, c.subcategorias.map((s) => s.codigo), c.subcategorias.map((s) => s.nombre)]
+    );
+  }
+
   const { ADMIN_EMAIL, ADMIN_PASSWORD, ADMIN_NOMBRE = 'Administrador' } = process.env;
   if (ADMIN_EMAIL && ADMIN_PASSWORD) {
     const hash = await bcrypt.hash(ADMIN_PASSWORD, 10);

@@ -81,16 +81,17 @@ async function bloquearRuta(client, id) {
 /** El conductor (opcional al abrir la ruta) debe ser Conductor; el auxiliar, Auxiliar logístico o Conductor. */
 async function validarRepartidores(client, [conductorId, auxiliarId]) {
   const { rows } = await client.query(
-    'SELECT id, rol FROM usuarios WHERE id = ANY($1::int[]) AND activo',
+    'SELECT id, roles FROM usuarios WHERE id = ANY($1::int[]) AND activo',
     [[conductorId, auxiliarId].filter(Boolean)]
   );
-  const rol = new Map(rows.map((u) => [u.id, u.rol]));
-  if (conductorId && rol.get(conductorId) !== 'repartidor') {
+  const perfiles = new Map(rows.map((u) => [u.id, u.roles]));
+  const es = (id, ...r) => (perfiles.get(id) ?? []).some((x) => r.includes(x));
+  if (conductorId && !es(conductorId, 'repartidor')) {
     throw new HttpError(400, 'El conductor debe ser un usuario activo con perfil Conductor');
   }
   if (auxiliarId) {
     if (auxiliarId === conductorId) throw new HttpError(400, 'El conductor y el auxiliar deben ser personas distintas');
-    if (!['auxiliar', 'repartidor'].includes(rol.get(auxiliarId))) {
+    if (!es(auxiliarId, 'auxiliar', 'repartidor')) {
       throw new HttpError(400, 'El auxiliar debe ser un usuario activo con perfil Auxiliar logístico o Conductor');
     }
   }
@@ -523,14 +524,14 @@ export const RutaModel = {
   /** Última posición de cada conductor y auxiliar activo (para verlos aunque no tengan ruta). */
   async posicionesEquipo() {
     const { rows } = await query(
-      `SELECT u.id AS usuario_id, u.nombre, u.rol, x.lat, x.lng, x.velocidad, x.registrado_en, x.ruta_id
+      `SELECT u.id AS usuario_id, u.nombre, (CASE WHEN 'repartidor' = ANY(u.roles) THEN 'repartidor' ELSE 'auxiliar' END) AS rol, x.lat, x.lng, x.velocidad, x.registrado_en, x.ruta_id
        FROM usuarios u
        JOIN LATERAL (
          SELECT lat, lng, velocidad, registrado_en, ruta_id FROM posiciones
          WHERE usuario_id = u.id AND registrado_en > now() - interval '12 hours'
          ORDER BY registrado_en DESC LIMIT 1
        ) x ON true
-       WHERE u.activo AND u.rol IN ('repartidor', 'auxiliar')
+       WHERE u.activo AND u.roles && ARRAY['repartidor', 'auxiliar']
        ORDER BY u.nombre`
     );
     return rows;

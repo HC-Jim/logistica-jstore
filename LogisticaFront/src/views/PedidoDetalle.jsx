@@ -11,6 +11,7 @@ import EstadoBadge from '../components/EstadoBadge';
 import { Mapa } from '../components/maps';
 import { useAuth } from '../context/AuthContext';
 import { CATEGORIAS, fechaCorta, fechaHora, hoyISO, soles } from '../utils/format';
+import { tiene } from '../utils/roles';
 
 const EDITABLE = ['pendiente', 'ruteado', 'incidencia'];
 
@@ -57,10 +58,9 @@ export default function PedidoDetalle() {
   if (error) return <p className="error">{error}</p>;
   if (!pedido) return <p>Cargando…</p>;
 
-  const rol = usuario.rol;
-  const logistica = ['admin', 'planificador'].includes(rol);
+  const logistica = tiene(usuario, 'admin', 'planificador');
   const editable = EDITABLE.includes(pedido.estado);
-  const puedeEditar = editable && (logistica || (rol === 'vendedor' && pedido.vendedor_id === usuario.id));
+  const puedeEditar = editable && (logistica || (tiene(usuario, 'vendedor') && pedido.vendedor_id === usuario.id));
   const ubicacion = pedido.lat != null ? { lat: pedido.lat, lng: pedido.lng } : null;
 
   const abrir = (config) => setDialogo(config);
@@ -106,7 +106,7 @@ export default function PedidoDetalle() {
           {logistica && editable && (
             <button className="btn-peligro" onClick={() => estado('cancelado', 'Cancelar pedido', true)}>Cancelar</button>
           )}
-          {['admin', 'planificador', 'almacen'].includes(rol) && <button className="btn-sec" onClick={observar}>Obs. almacén</button>}
+          {tiene(usuario, 'admin', 'planificador', 'almacen') && <button className="btn-sec" onClick={observar}>Obs. almacén</button>}
           <Link href="/pedidos">← Volver</Link>
         </div>
       </div>

@@ -302,3 +302,92 @@ ALTER TABLE vehiculos ADD CONSTRAINT vehiculos_tipo_check
 INSERT INTO vehiculos (nombre, tipo)
 SELECT v.nombre, v.tipo FROM (VALUES ('A pie', 'a_pie'), ('Transporte público', 'transporte_publico')) AS v(nombre, tipo)
 WHERE NOT EXISTS (SELECT 1 FROM vehiculos x WHERE x.tipo = v.tipo);
+
+-- Varios perfiles por usuario (rol = perfil principal = roles[1]) y perfil Administrador de Catálogo
+ALTER TABLE usuarios DROP CONSTRAINT IF EXISTS usuarios_rol_check;
+ALTER TABLE usuarios ADD CONSTRAINT usuarios_rol_check
+  CHECK (rol IN ('admin', 'vendedor', 'planificador', 'almacen', 'repartidor', 'auxiliar', 'catalogo'));
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS roles TEXT[];
+-- Mantiene rol y roles en sincronía aunque se cree o edite un usuario solo con "rol"
+CREATE OR REPLACE FUNCTION usuarios_sincronizar_roles() RETURNS trigger AS $$
+BEGIN
+  IF NEW.roles IS NULL OR cardinality(NEW.roles) = 0 THEN
+    NEW.roles := ARRAY[NEW.rol];
+  ELSIF TG_OP = 'UPDATE' AND NEW.rol IS DISTINCT FROM OLD.rol AND NEW.roles = OLD.roles THEN
+    NEW.roles := ARRAY[NEW.rol]; -- solo cambiaron el perfil principal: pasa a ser el único
+  ELSE
+    NEW.rol := NEW.roles[1];
+  END IF;
+  RETURN NEW;
+END $$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS usuarios_roles ON usuarios;
+CREATE TRIGGER usuarios_roles BEFORE INSERT OR UPDATE ON usuarios FOR EACH ROW EXECUTE FUNCTION usuarios_sincronizar_roles();
+UPDATE usuarios SET roles = ARRAY[rol] WHERE roles IS NULL OR cardinality(roles) = 0;
+ALTER TABLE usuarios ALTER COLUMN roles SET NOT NULL;
+ALTER TABLE usuarios DROP CONSTRAINT IF EXISTS usuarios_roles_check;
+ALTER TABLE usuarios ADD CONSTRAINT usuarios_roles_check CHECK (
+  cardinality(roles) > 0 AND rol = roles[1]
+  AND roles <@ ARRAY['admin', 'vendedor', 'planificador', 'almacen', 'repartidor', 'auxiliar', 'catalogo']::text[]
+);
+CREATE INDEX IF NOT EXISTS idx_usuarios_roles ON usuarios USING gin (roles);
+
+-- ============================================================
+-- Módulo Productos: matriz de categorías, marcas, ficha del SKU y combos
+-- ============================================================
+CREATE TABLE IF NOT EXISTS categorias (
+  id      SERIAL PRIMARY KEY,
+  codigo  VARCHAR(2)   NOT NULL UNIQUE CHECK (codigo ~ '^[0-9]{2}$'),
+  nombre  VARCHAR(120) NOT NULL,
+  activo  BOOLEAN      NOT NULL DEFAULT true
+);
+CREATE TABLE IF NOT EXISTS subcategorias (
+  id            SERIAL PRIMARY KEY,
+  categoria_id  INTEGER      NOT NULL REFERENCES categorias(id) ON DELETE RESTRICT,
+  codigo        VARCHAR(2)   NOT NULL CHECK (codigo ~ '^[0-9]{2}$'),
+  nombre        VARCHAR(120) NOT NULL,
+  activo        BOOLEAN      NOT NULL DEFAULT true,
+  UNIQUE (categoria_id, codigo)
+);
+
+-- Marcas: propias (descuento mayorista propio) y segmento del portafolio (Core, Growth, Traffic, Profit, Volume)
+CREATE TABLE IF NOT EXISTS marcas (
+  id        SERIAL PRIMARY KEY,
+  nombre    VARCHAR(60) NOT NULL UNIQUE,
+  propia    BOOLEAN     NOT NULL DEFAULT false,
+  segmento  VARCHAR(10) CHECK (segmento IN ('Core', 'Growth', 'Traffic', 'Profit', 'Volume')),
+  activo    BOOLEAN     NOT NULL DEFAULT true
+);
+INSERT INTO marcas (nombre, propia, segmento) VALUES
+  ('Evox', true, 'Core'), ('Vibra+', true, 'Growth'), ('Festify', false, 'Growth'), ('Nacional', false, 'Traffic'),
+  ('Importado', true, 'Profit'), ('Herracom', false, 'Volume'), ('Greenwon', true, NULL)
+ON CONFLICT (nombre) DO NOTHING;
+
+-- Ficha completa del SKU (columnas del GENERADOR_SKU). "descripcion" es el Nombre Almacén y "precio" el precio Web.
+ALTER TABLE productos ADD COLUMN IF NOT EXISTS subcategoria_id     INTEGER REFERENCES subcategorias(id) ON DELETE RESTRICT;
+ALTER TABLE productos ADD COLUMN IF NOT EXISTS tipo                VARCHAR(12) NOT NULL DEFAULT 'Ítem único';
+ALTER TABLE productos DROP CONSTRAINT IF EXISTS productos_tipo_check;
+ALTER TABLE productos ADD CONSTRAINT productos_tipo_check CHECK (tipo IN ('Ítem único', 'Variante', 'Combo'));
+ALTER TABLE productos ADD COLUMN IF NOT EXISTS asignacion          SMALLINT CHECK (asignacion BETWEEN 1 AND 999);
+ALTER TABLE productos ADD COLUMN IF NOT EXISTS marca_id            INTEGER REFERENCES marcas(id) ON DELETE SET NULL;
+ALTER TABLE productos ADD COLUMN IF NOT EXISTS modelo              VARCHAR(80);
+ALTER TABLE productos ADD COLUMN IF NOT EXISTS estado_sourcing     VARCHAR(20) NOT NULL DEFAULT 'Línea Regular';
+ALTER TABLE productos ADD COLUMN IF NOT EXISTS garantia_meses      SMALLINT CHECK (garantia_meses >= 0);   -- 0 = sin garantía
+ALTER TABLE productos ADD COLUMN IF NOT EXISTS peso_kg             NUMERIC(8, 3) CHECK (peso_kg >= 0);
+ALTER TABLE productos ADD COLUMN IF NOT EXISTS largo_cm            NUMERIC(8, 2) CHECK (largo_cm >= 0);
+ALTER TABLE productos ADD COLUMN IF NOT EXISTS ancho_cm            NUMERIC(8, 2) CHECK (ancho_cm >= 0);
+ALTER TABLE productos ADD COLUMN IF NOT EXISTS alto_cm             NUMERIC(8, 2) CHECK (alto_cm >= 0);
+ALTER TABLE productos ADD COLUMN IF NOT EXISTS talla               VARCHAR(20);
+ALTER TABLE productos ADD COLUMN IF NOT EXISTS estado_verificacion VARCHAR(30) NOT NULL DEFAULT 'Pendiente';
+ALTER TABLE productos ADD COLUMN IF NOT EXISTS precio_normal       NUMERIC(10, 2) CHECK (precio_normal >= 0);
+ALTER TABLE productos ADD COLUMN IF NOT EXISTS link_info           TEXT;
+CREATE INDEX IF NOT EXISTS idx_productos_subcategoria ON productos(subcategoria_id);
+
+-- Componentes de cada combo (el combo también es un producto del catálogo)
+CREATE TABLE IF NOT EXISTS combo_componentes (
+  combo_id       INTEGER        NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+  componente_id  INTEGER        NOT NULL REFERENCES productos(id) ON DELETE RESTRICT,
+  cantidad       INTEGER        NOT NULL DEFAULT 1 CHECK (cantidad > 0),
+  precio         NUMERIC(10, 2) CHECK (precio >= 0),   -- parte del precio del combo que corresponde a este componente
+  PRIMARY KEY (combo_id, componente_id),
+  CHECK (combo_id <> componente_id)
+);

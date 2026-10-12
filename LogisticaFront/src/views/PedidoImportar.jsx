@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext';
 import { useCatalogos } from '../context/CatalogosContext';
 import { descargarCsv } from '../utils/csv';
 import { fechaCorta } from '../utils/format';
+import { soloComercial } from '../utils/roles';
 
 const EJEMPLO = [
   { grupo: 'P1', plataforma: 'Mercado Libre', numero_pedido: '2000123', documento_bsale: 'BA01-300', tipo: 'Delivery', fecha_entrega: '15/10/2026', cliente: 'Ana Torres', telefono: '987654321', distrito: 'Miraflores', direccion: 'Av. Larco 123', referencia: 'Frente al parque', ubicacion: '-12.1219, -77.0297', sku: 'SKU-1', cantidad: '2', cobrar: 'Cobrar Total', medio_pago: 'Efectivo' },
@@ -99,7 +100,7 @@ export default function PedidoImportar() {
           <li><code>precio</code> es opcional: si se deja vacío se usa el del catálogo. <code>total</code> vacío = productos + envío.</li>
           <li>Distrito: basta el nombre si es de Lima o Callao (Surco, SJL, SMP…). Para provincias, llena también departamento y provincia.</li>
           <li><code>ubicacion</code>: coordenadas (<code>-12.12, -77.03</code>) o link de Google Maps.</li>
-          {usuario.rol !== 'vendedor' && <li><code>vendedor</code>: correo del vendedor (vacío = tú).</li>}
+          {!soloComercial(usuario) && <li><code>vendedor</code>: correo del vendedor (vacío = tú).</li>}
           <li>Solo se aceptan valores de las listas del sistema (sin importar mayúsculas ni tildes):
             <details>
               <summary>ver listas permitidas</summary>

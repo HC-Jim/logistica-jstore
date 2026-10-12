@@ -8,14 +8,15 @@ import EstadoBadge from '../components/EstadoBadge';
 import { useAuth } from '../context/AuthContext';
 import { useCatalogos } from '../context/CatalogosContext';
 import { CATEGORIAS, ESTADOS, fechaCorta, soles } from '../utils/format';
+import { soloComercial, tiene } from '../utils/roles';
 
 const FILTROS = { categoria: '', desde: '', hasta: '', estado: '', plataforma: '', tipo_pedido: '', vendedor_id: '', buscar: '' };
 
 export default function Pedidos() {
   const { usuario } = useAuth();
   const { catalogos } = useCatalogos();
-  const puedeCrear = ['admin', 'planificador', 'vendedor'].includes(usuario.rol);
-  const puedeEncargo = ['admin', 'planificador', 'almacen'].includes(usuario.rol);
+  const puedeCrear = tiene(usuario, 'admin', 'planificador', 'vendedor');
+  const puedeEncargo = tiene(usuario, 'admin', 'planificador', 'almacen');
   const [pedidos, setPedidos] = useState([]);
   const [vendedores, setVendedores] = useState([]);
   const [filtros, setFiltros] = useState(FILTROS);
@@ -23,10 +24,10 @@ export default function Pedidos() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (['admin', 'planificador'].includes(usuario.rol)) {
+    if (tiene(usuario, 'admin', 'planificador')) {
       usuariosApi.listar({ rol: 'vendedor,admin,planificador' }).then(setVendedores).catch(() => {});
     }
-  }, [usuario.rol]);
+  }, [usuario]);
 
   useEffect(() => {
     const params = Object.fromEntries(Object.entries(filtros).filter(([, v]) => v));
@@ -46,7 +47,7 @@ export default function Pedidos() {
   return (
     <>
       <div className="encabezado">
-        <h2>{usuario.rol === 'vendedor' ? 'Mis ventas' : 'Pedidos'}</h2>
+        <h2>{soloComercial(usuario) ? 'Mis ventas' : 'Pedidos'}</h2>
         <div className="fila">
           {puedeCrear && <Link className="btn-sec" href="/pedidos/importar">⬆ Importar CSV</Link>}
           {puedeCrear && <Link className="btn" href="/pedidos/nuevo">+ Nuevo pedido</Link>}
@@ -57,7 +58,7 @@ export default function Pedidos() {
 
       <div className="pestanas">
         <button className={!filtros.categoria ? 'activa' : ''} onClick={() => setFiltros({ ...filtros, categoria: '', tipo_pedido: '' })}>Todos</button>
-        {Object.entries(CATEGORIAS).filter(([k]) => k !== 'encargo' || usuario.rol !== 'vendedor').map(([k, c]) => (
+        {Object.entries(CATEGORIAS).filter(([k]) => k !== 'encargo' || !soloComercial(usuario)).map(([k, c]) => (
           <button key={k} className={filtros.categoria === k ? 'activa' : ''} style={{ borderBottomColor: c.color }}
             onClick={() => setFiltros({ ...filtros, categoria: k, tipo_pedido: '' })}>{c.icono} {c.label}</button>
         ))}

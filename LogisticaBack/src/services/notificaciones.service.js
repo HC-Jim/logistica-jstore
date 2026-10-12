@@ -114,6 +114,6 @@ export async function notificar(usuarioIds, aviso, { excepto } = {}) {
 
 /** Usuarios activos con alguno de esos roles (p. ej. logística para avisos de incidencias). */
 export async function usuariosConRol(roles) {
-  const { rows } = await query('SELECT id FROM usuarios WHERE activo AND rol = ANY($1::text[])', [roles]);
+  const { rows } = await query('SELECT id FROM usuarios WHERE activo AND roles && $1::text[]', [roles]);
   return rows.map((r) => r.id);
 }

@@ -345,3 +345,20 @@ a.modulo:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,
 .modulo small { color: var(--primario); }
 .modulo-icono { font-size: 2.2rem; }
 .modulo.deshabilitado { opacity: .6; }
+
+/* ---- Varios perfiles por usuario ---- */
+.perfiles { border: 1px solid var(--borde); border-radius: 8px; padding: 10px; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; }
+.perfiles legend { padding: 0 6px; font-weight: 600; }
+.perfil-opcion { align-items: flex-start; border: 1px solid var(--borde); border-radius: 6px; padding: 8px; cursor: pointer; }
+.perfil-opcion span { display: flex; flex-direction: column; }
+.perfil-opcion small { color: var(--suave); }
+.perfil-opcion.elegido { border-color: var(--primario); background: #ebf8ff; }
+
+/* ---- Módulo Productos ---- */
+.sku-propuesto { font-family: ui-monospace, monospace; font-size: 1.3rem; font-weight: 700; color: var(--primario); }
+.matriz-cat { border: 1px solid var(--borde); border-radius: 8px; margin-bottom: 10px; }
+.matriz-cat > summary { padding: 10px 12px; cursor: pointer; display: flex; gap: 10px; align-items: center; }
+.matriz-cat > summary code, .matriz-cat td code { font-weight: 700; }
+.matriz-cat table { margin: 0 12px 12px; width: calc(100% - 24px); }
+.componentes td input { width: 90px; }
+.ficha-seccion { grid-column: 1 / -1; margin: 8px 0 0; padding-top: 8px; border-top: 1px solid var(--borde); }

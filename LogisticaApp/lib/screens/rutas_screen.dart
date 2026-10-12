@@ -115,7 +115,7 @@ class _RutasScreenState extends State<RutasScreen> {
           PopupMenuButton<String>(
             onSelected: (_) => _salir(),
             itemBuilder: (_) => [
-              PopupMenuItem(enabled: false, child: Text('$nombre · ${api.usuario?['rol'] == 'auxiliar' ? 'Auxiliar' : 'Conductor'}')),
+              PopupMenuItem(enabled: false, child: Text('$nombre · ${((api.usuario?['roles'] as List?) ?? [api.usuario?['rol']]).contains('repartidor') ? 'Conductor' : 'Auxiliar'}')),
               const PopupMenuItem(value: 'salir', child: Text('Cerrar sesión')),
             ],
           ),

@@ -7,6 +7,7 @@ import { actualizarRestante, reoptimizar, verificarLlegada } from '../services/s
 import { leerCampos } from '../utils/campos.js';
 import { hoy } from '../utils/fecha.js';
 import { HttpError, idParam } from '../utils/http.js';
+import { soloEquipoRuta } from '../utils/roles.js';
 import { env } from '../config/env.js';
 import { notificar, usuariosConRol } from '../services/notificaciones.service.js';
 
@@ -48,7 +49,7 @@ const CAMPOS_RUTA = {
 async function rutaConAcceso(req) {
   const ruta = await RutaModel.obtener(idParam(req.params.id));
   if (!ruta) throw new HttpError(404, 'Ruta no encontrada');
-  const esEquipo = ['repartidor', 'auxiliar'].includes(req.user.rol);
+  const esEquipo = soloEquipoRuta(req.user);
   if (esEquipo && ![ruta.repartidor_id, ruta.asistente_id].includes(req.user.id)) {
     throw new HttpError(403, 'Esta ruta no es tuya');
   }
@@ -144,7 +145,7 @@ export const RutaController = {
     const { texto } = leerCampos(req.body, { texto: { tipo: 'texto', max: 2000, requerido: true } }, { requeridos: true });
     const id = await RutaModel.enviarMensaje(ruta.id, { texto, usuario: req.user });
     // Del equipo de la ruta → logística (y el compañero); de logística → equipo de la ruta
-    const delEquipo = ['repartidor', 'auxiliar'].includes(req.user.rol);
+    const delEquipo = soloEquipoRuta(req.user);
     const destinos = delEquipo ? [...(await usuariosConRol(['admin', 'planificador'])), ...equipo(ruta)] : equipo(ruta);
     await notificar(destinos, {
       tipo: 'mensaje',

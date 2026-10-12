@@ -10,8 +10,10 @@ export const PERMISOS = {
   gestionarRutas: ['admin', 'planificador'],
   despacho: ['admin', 'planificador', 'almacen'], // hoja de ruta y entrega de pedidos al conductor
   monitoreo: ['admin', 'planificador', 'almacen', 'vendedor'], // todos los usuarios de la web
-  verProductos: ['admin', 'planificador', 'vendedor', 'almacen'],
-  gestionarProductos: ['admin', 'planificador'],
+  verProductos: ['admin', 'planificador', 'vendedor', 'almacen', 'catalogo'],
+  gestionarProductos: ['admin', 'catalogo'], // Administrador de Catálogo: SKU, combos y precios
+  verPrecios: ['admin', 'planificador', 'vendedor', 'almacen', 'catalogo'], // Comercial consulta para vender
+  gestionarPrecios: ['admin', 'catalogo'],
   estadisticas: ['admin', 'planificador'],
   usuarios: ['admin'],
   appRepartidor: ['repartidor', 'auxiliar'], // conductor y auxiliar logístico

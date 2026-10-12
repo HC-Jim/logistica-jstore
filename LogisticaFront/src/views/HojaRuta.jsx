@@ -8,6 +8,7 @@ import { rutasApi } from '../api/services';
 import EstadoBadge from '../components/EstadoBadge';
 import { useAuth } from '../context/AuthContext';
 import { CATEGORIAS, ESTADOS, ESTADOS_RUTA, fechaCorta, fechaHora, soles, VEHICULOS } from '../utils/format';
+import { tiene } from '../utils/roles';
 
 const cobra = (p) => p.cobrar && p.cobrar !== 'No Cobrar';
 const RECOJOS = ['Recojo S.T', 'Recojo de suministros'];
@@ -112,7 +113,7 @@ export default function HojaRuta() {
   const aCobrar = pedidos.filter(cobra).reduce((s, p) => s + Number(p.total_pedido), 0);
   const v = VEHICULOS[ruta.vehiculo_tipo];
   const editable = ruta.estado !== 'finalizada';
-  const puedePlanificar = ['admin', 'planificador'].includes(usuario.rol);
+  const puedePlanificar = tiene(usuario, 'admin', 'planificador');
 
   return (
     <div className="hoja-ruta">

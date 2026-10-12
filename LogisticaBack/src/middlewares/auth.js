@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 import { HttpError } from '../utils/http.js';
+import { tiene } from '../utils/roles.js';
 
 export function requireAuth(req, _res, next) {
   const header = req.headers.authorization || '';
@@ -14,6 +15,6 @@ export function requireAuth(req, _res, next) {
 }
 
 export const requireRol = (...roles) => (req, _res, next) => {
-  if (!roles.includes(req.user?.rol)) throw new HttpError(403, 'No tienes permisos');
+  if (!tiene(req.user, ...roles)) throw new HttpError(403, 'No tienes permisos');
   next();
 };

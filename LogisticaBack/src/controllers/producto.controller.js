@@ -1,8 +1,30 @@
-import { ProductoModel } from '../models/producto.model.js';
+import { ESTADOS_SOURCING, ESTADOS_VERIFICACION, SEGMENTOS_MARCA, TIPOS_PRODUCTO } from '../config/catalogos.js';
+import { CatalogoProductosModel, ProductoModel } from '../models/producto.model.js';
 import { leerCampos } from '../utils/campos.js';
 import { HttpError, idParam } from '../utils/http.js';
 
+/** Ficha del SKU: solo valores de las listas del sistema. */
 const CAMPOS = {
+  sku: { tipo: 'texto', max: 60 },                           // vacío al crear = se genera
+  descripcion: { tipo: 'texto', max: 255, requerido: true }, // Nombre Almacén
+  precio: { tipo: 'monto' },                                 // precio Web
+  subcategoria_id: { tipo: 'entero' },
+  tipo: { tipo: 'enum', lista: TIPOS_PRODUCTO },
+  marca_id: { tipo: 'entero' },
+  modelo: { tipo: 'texto', max: 80 },
+  estado_sourcing: { tipo: 'enum', lista: ESTADOS_SOURCING },
+  garantia_meses: { tipo: 'monto' },                         // 0 = sin garantía (se valida entero abajo)
+  peso_kg: { tipo: 'monto' },
+  largo_cm: { tipo: 'monto' },
+  ancho_cm: { tipo: 'monto' },
+  alto_cm: { tipo: 'monto' },
+  talla: { tipo: 'texto', max: 20 },
+  estado_verificacion: { tipo: 'enum', lista: ESTADOS_VERIFICACION },
+  precio_normal: { tipo: 'monto' },
+  link_info: { tipo: 'texto', max: 1000 },
+};
+
+const CAMPOS_CSV = {
   sku: { tipo: 'texto', max: 60, requerido: true },
   descripcion: { tipo: 'texto', max: 255, requerido: true },
   precio: { tipo: 'monto' },
@@ -10,23 +32,54 @@ const CAMPOS = {
 
 const MAX_IMPORTAR = 10000;
 
+function leerFicha(body, { creando }) {
+  const d = leerCampos(body, CAMPOS, { requeridos: creando });
+  if (d.garantia_meses != null && !Number.isInteger(d.garantia_meses)) throw new HttpError(400, 'Garantía: meses enteros (0 = sin garantía)');
+  if (d.link_info && !/^https?:\/\//i.test(d.link_info)) throw new HttpError(400, 'El link para información debe empezar con http:// o https://');
+  if ('activo' in (body ?? {})) d.activo = body.activo !== false;
+  return d;
+}
+
+const booleano = (v) => (typeof v === 'boolean' ? v : undefined);
+
 export const ProductoController = {
   async listar(req, res) {
+    const f = leerCampos(req.query, {
+      categoria_id: { tipo: 'entero' }, subcategoria_id: { tipo: 'entero' }, marca_id: { tipo: 'entero' },
+      tipo: { tipo: 'enum', lista: TIPOS_PRODUCTO }, estado_sourcing: { tipo: 'enum', lista: ESTADOS_SOURCING },
+    });
     res.json(await ProductoModel.listar({
       q: req.query.q,
       soloActivos: req.query.activos === 'true',
+      categoriaId: f.categoria_id, subcategoriaId: f.subcategoria_id, marcaId: f.marca_id,
+      tipo: f.tipo, estadoSourcing: f.estado_sourcing,
       limite: Math.min(Number(req.query.limite) || 1000, 5000),
     }));
   },
 
+  async obtener(req, res) {
+    const p = await ProductoModel.obtener(idParam(req.params.id));
+    if (!p) throw new HttpError(404, 'Producto no encontrado');
+    res.json(p);
+  },
+
+  /** SKU que se generaría para una subcategoría y tipo. ?subcategoria_id=&tipo= */
+  async proponerSku(req, res) {
+    const f = leerCampos(req.query, {
+      subcategoria_id: { tipo: 'entero', requerido: true }, tipo: { tipo: 'enum', lista: TIPOS_PRODUCTO },
+    }, { requeridos: true });
+    res.json(await ProductoModel.proponerSku(f.subcategoria_id, f.tipo ?? 'Ítem único'));
+  },
+
   async crear(req, res) {
-    const d = leerCampos(req.body, CAMPOS, { requeridos: true });
-    res.status(201).json(await ProductoModel.crear({ ...d, activo: req.body.activo !== false }));
+    const d = leerFicha(req.body, { creando: true });
+    res.status(201).json(await ProductoModel.crear({ tipo: 'Ítem único', ...d }));
   },
 
   async actualizar(req, res) {
-    const d = leerCampos(req.body, CAMPOS, { requeridos: true });
-    const producto = await ProductoModel.actualizar(idParam(req.params.id), { ...d, activo: req.body.activo !== false });
+    const d = leerFicha(req.body, { creando: false });
+    if ('sku' in d && !d.sku) throw new HttpError(400, 'El SKU no puede quedar vacío');
+    const producto = await ProductoModel.actualizar(idParam(req.params.id), d);
     if (!producto) throw new HttpError(404, 'Producto no encontrado');
     res.json(producto);
   },
@@ -36,7 +89,17 @@ export const ProductoController = {
     res.status(204).end();
   },
 
-  /** Carga masiva desde CSV (el frontend envía las filas ya leídas): { filas: [{ sku, descripcion, precio }] } */
+  /** Componentes del combo: { componentes: [{ componente_id, cantidad, precio }] } */
+  async guardarComponentes(req, res) {
+    const lista = req.body?.componentes;
+    if (!Array.isArray(lista)) throw new HttpError(400, 'componentes debe ser una lista');
+    const componentes = lista.map((c) => leerCampos(c, {
+      componente_id: { tipo: 'entero', requerido: true }, cantidad: { tipo: 'entero', requerido: true }, precio: { tipo: 'monto' },
+    }, { requeridos: true }));
+    res.json(await ProductoModel.guardarComponentes(idParam(req.params.id), componentes));
+  },
+
+  /** Carga masiva simple desde CSV: { filas: [{ sku, descripcion, precio }] } */
   async importar(req, res) {
     const filas = req.body?.filas;
     if (!Array.isArray(filas) || !filas.length) throw new HttpError(400, 'No hay filas para importar');
@@ -46,7 +109,7 @@ export const ProductoController = {
     const porSku = new Map(); // si un SKU se repite, gana la última fila
     filas.forEach((f, i) => {
       try {
-        const d = leerCampos({ ...f, precio: f.precio ?? 0 }, CAMPOS, { requeridos: true });
+        const d = leerCampos({ ...f, precio: f.precio ?? 0 }, CAMPOS_CSV, { requeridos: true });
         porSku.set(d.sku, { ...d, precio: d.precio ?? 0 });
       } catch (err) {
         errores.push({ fila: i + 2, error: err.message }); // +2: encabezado y base 1
@@ -56,5 +119,44 @@ export const ProductoController = {
       throw new HttpError(400, `El archivo tiene ${errores.length} fila(s) con errores; no se importó nada`, errores.slice(0, 50));
     }
     res.json(await ProductoModel.importar([...porSku.values()]));
+  },
+
+  // --- matriz de categorías y marcas ---
+
+  async matriz(_req, res) {
+    res.json(await CatalogoProductosModel.matriz());
+  },
+
+  async guardarCategoria(req, res) {
+    const id = req.params.id ? idParam(req.params.id) : null;
+    const d = leerCampos(req.body, {
+      codigo: { tipo: 'texto', max: 2, requerido: !id }, nombre: { tipo: 'texto', max: 120, requerido: !id },
+    }, { requeridos: !id });
+    if (d.codigo && !/^\d{2}$/.test(d.codigo)) throw new HttpError(400, 'El código de categoría son 2 dígitos (ej. 10)');
+    res.json(await CatalogoProductosModel.guardarCategoria({ id, ...d, activo: booleano(req.body.activo) }));
+  },
+
+  async guardarSubcategoria(req, res) {
+    const id = req.params.id ? idParam(req.params.id) : null;
+    const d = leerCampos(req.body, {
+      categoria_id: { tipo: 'entero', requerido: !id }, codigo: { tipo: 'texto', max: 2, requerido: !id },
+      nombre: { tipo: 'texto', max: 120, requerido: !id },
+    }, { requeridos: !id });
+    if (d.codigo && !/^\d{2}$/.test(d.codigo)) throw new HttpError(400, 'El código de subcategoría son 2 dígitos (ej. 03)');
+    res.json(await CatalogoProductosModel.guardarSubcategoria({ id, ...d, activo: booleano(req.body.activo) }));
+  },
+
+  async marcas(_req, res) {
+    res.json(await CatalogoProductosModel.marcas());
+  },
+
+  async guardarMarca(req, res) {
+    const id = req.params.id ? idParam(req.params.id) : null;
+    const d = leerCampos(req.body, {
+      nombre: { tipo: 'texto', max: 60, requerido: !id }, segmento: { tipo: 'enum', lista: SEGMENTOS_MARCA },
+    }, { requeridos: !id });
+    res.json(await CatalogoProductosModel.guardarMarca({
+      id, ...d, propia: booleano(req.body.propia), activo: booleano(req.body.activo),
+    }));
   },
 };

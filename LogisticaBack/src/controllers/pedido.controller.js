@@ -10,6 +10,7 @@ import { analizarFilas, COLUMNAS_PLANTILLA } from '../services/importacion.servi
 import { leerCampos } from '../utils/campos.js';
 import { hoy } from '../utils/fecha.js';
 import { HttpError, idParam, requerir } from '../utils/http.js';
+import { soloComercial, tiene } from '../utils/roles.js';
 
 /** Campos del pedido (formulario de ingreso). */
 const CAMPOS = {
@@ -131,7 +132,7 @@ function validarReglas(p) {
 async function prepararNuevo(body0, usuario) {
   const categoria = body0.categoria || 'venta';
   if (!CATEGORIAS.includes(categoria)) throw new HttpError(400, 'Categoría inválida');
-  if (!PUEDE_CREAR[categoria].includes(usuario.rol)) {
+  if (!tiene(usuario, ...PUEDE_CREAR[categoria])) {
     throw new HttpError(403, 'No puedes registrar este tipo de pedido');
   }
   const body = await aplicarCategoria(categoria, { fecha_entrega: hoy(), cobrar: 'No Cobrar', ...body0 });
@@ -140,7 +141,7 @@ async function prepararNuevo(body0, usuario) {
   validarUbicacion(datos);
   validarReglas(datos);
   // El vendedor registra a su nombre; logística puede indicar el vendedor
-  if (usuario.rol === 'vendedor' || !datos.vendedor_id) datos.vendedor_id = usuario.id;
+  if (soloComercial(usuario) || !datos.vendedor_id) datos.vendedor_id = usuario.id;
   return { datos, items: leerItems(body0.items) };
 }
 
@@ -186,14 +187,14 @@ export const PedidoController = {
       sinRuta: sin_ruta === 'true',
       categoria,
       // el vendedor solo ve sus ventas
-      vendedorId: req.user.rol === 'vendedor' ? req.user.id : vendedor_id && idParam(vendedor_id),
+      vendedorId: soloComercial(req.user) ? req.user.id : vendedor_id && idParam(vendedor_id),
     }));
   },
 
   async obtener(req, res) {
     const pedido = await PedidoModel.obtener(idParam(req.params.id));
     if (!pedido) throw new HttpError(404, 'Pedido no encontrado');
-    if (req.user.rol === 'vendedor' && pedido.vendedor_id !== req.user.id) {
+    if (soloComercial(req.user) && pedido.vendedor_id !== req.user.id) {
       throw new HttpError(403, 'Este pedido no es tuyo');
     }
     res.json(pedido);

@@ -3,11 +3,12 @@
 import Link from 'next/link';
 import { modulosDe } from '../components/modulos';
 import { useAuth } from '../context/AuthContext';
+import { tiene } from '../utils/roles';
 
 /** Menú principal: los módulos a los que el usuario tiene acceso. */
 export default function MenuPrincipal() {
   const { usuario } = useAuth();
-  const modulos = modulosDe(usuario.rol);
+  const modulos = modulosDe((roles) => tiene(usuario, ...roles));
   return (
     <>
       <div className="encabezado"><h2>Hola, {usuario.nombre.split(' ')[0]}</h2></div>
