@@ -297,6 +297,52 @@ export async function sincronizarProducto(productoId, usuario) {
   }
 }
 
+/** Listas activas de Bsale con su fuente de precio (para mostrarlas junto a las plataformas). */
+export async function listasActivas() {
+  const { rows } = await query(
+    `SELECT l.id, l.nombre, l.fuente, pl.nombre AS plataforma
+     FROM bsale_listas l LEFT JOIN plataformas_precio pl ON pl.id = l.plataforma_id WHERE l.activa ORDER BY l.id`
+  );
+  return rows;
+}
+
+/**
+ * Precios de un producto en cada lista de Bsale y el que le correspondería según el sistema.
+ * Con `actualizar` se consultan en Bsale en ese momento (si no, se usa la última lectura).
+ */
+export async function preciosBsaleDeProducto(productoId, { actualizar = false } = {}) {
+  const { rows: [p] } = await query('SELECT id, sku, descripcion FROM productos WHERE id = $1', [productoId]);
+  if (!p) throw new HttpError(404, 'Producto no encontrado');
+  const listas = await listasActivas();
+  const consultar = actualizar && bsaleActivo();
+  const variante = consultar
+    ? await asegurarVariante(p.sku)
+    : (await query('SELECT * FROM bsale_variantes WHERE codigo = $1 AND activa', [codigo(p.sku)])).rows[0];
+  if (variante && consultar) for (const l of listas) await detalleDe(l.id, variante.id);
+  const { rows: bp } = variante
+    ? await query('SELECT lista_id, valor_con_igv::float AS precio, leido_en FROM bsale_precios WHERE variante_id = $1', [variante.id])
+    : { rows: [] };
+  const pendientes = variante ? await preciosDistintos({ productoIds: [productoId] }) : [];
+  return {
+    activo: bsaleActivo(),
+    existe: Boolean(variante),
+    nombre_bsale: variante?.nombre ?? null,
+    stock: variante?.stock != null ? Number(variante.stock) : null,
+    stock_sucursales: variante?.stock_sucursales ?? null,
+    conflicto: Boolean(variante && enConflicto(p.descripcion, variante.nombre)),
+    listas: listas.map((l) => {
+      const actual = bp.find((x) => x.lista_id === l.id);
+      return {
+        ...l,
+        precio: actual?.precio ?? null,
+        leido_en: actual?.leido_en ?? null,
+        // precio del sistema que todavía no está en Bsale (null = coincide o no hay fuente)
+        pendiente: pendientes.find((x) => x.lista_id === l.id)?.precio ?? null,
+      };
+    }),
+  };
+}
+
 // ---------------- productos ----------------
 
 const normal = (t) => (t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();

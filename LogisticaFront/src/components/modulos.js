@@ -44,6 +44,7 @@ export const MODULOS = [
       { href: '/precios/dashboard', label: 'Dashboard', roles: ['admin', 'planificador', 'almacen', 'vendedor', 'catalogo'] },
       { href: '/precios', label: 'Consultar precio', roles: ['admin', 'planificador', 'vendedor', 'almacen', 'catalogo'] },
       { href: '/precios/lista', label: 'Lista de precios', roles: ['admin', 'planificador', 'vendedor', 'almacen', 'catalogo'] },
+      { href: '/precios/registrar', label: 'Registrar precios', roles: ['admin', 'catalogo'] },
       { href: '/precios/descuentos', label: 'Descuentos mayoristas', roles: ['admin', 'planificador', 'vendedor', 'almacen', 'catalogo'] },
       { href: '/precios/bsale', label: 'Bsale', roles: ['admin', 'catalogo'] },
       { href: '/precios/reportes', label: 'Reportes', roles: ['admin', 'catalogo'] },

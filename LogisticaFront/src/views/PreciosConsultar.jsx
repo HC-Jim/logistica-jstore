@@ -1,17 +1,22 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { mensajeError } from '../api/client';
 import { preciosApi } from '../api/services';
 import ProductoBuscador from '../components/ProductoBuscador';
 import { useAuth } from '../context/AuthContext';
-import { fechaCorta, hoyISO, soles } from '../utils/format';
+import { textoFuente } from '../utils/bsale';
+import { fechaCorta, fechaHora, hoyISO, soles } from '../utils/format';
 import { tiene } from '../utils/roles';
 
 const pct = (precio, normal) => (normal > 0 ? `${(100 * (1 - precio / normal)).toFixed(1)} %` : '—');
 
-/** Consultar precio: precio vigente por plataforma, historial y registro de un precio nuevo. */
-export default function PreciosConsultar() {
+/**
+ * Consultar precio: precio vigente por plataforma, precios en las listas de Bsale, historial y registro de un precio nuevo.
+ * Con `modoRegistro` (Registrar precios → Individual) el formulario se abre al elegir el SKU.
+ */
+export default function PreciosConsultar({ modoRegistro = false }) {
   const { usuario } = useAuth();
   const puedeEditar = tiene(usuario, 'admin', 'catalogo');
   const [plataformas, setPlataformas] = useState([]);
@@ -21,6 +26,8 @@ export default function PreciosConsultar() {
   const [nuevo, setNuevo] = useState(null); // { fecha, precio_normal, precios: { plataforma_id: precio } }
   const [error, setError] = useState('');
   const [aviso, setAviso] = useState('');
+  const [bsale, setBsale] = useState(null);
+  const [leyendoBsale, setLeyendoBsale] = useState(false);
 
   useEffect(() => { preciosApi.plataformas().then(setPlataformas).catch(() => {}); }, []);
 
@@ -29,18 +36,33 @@ export default function PreciosConsultar() {
     setAviso('');
     setProducto(p);
     setNuevo(null);
+    setBsale(null);
     try {
       const [[v], h] = await Promise.all([preciosApi.vigentes({ producto_id: p.id, todos: 1 }), preciosApi.historial(p.id)]);
       setVigente(v);
       setHistorial(h);
+      if (modoRegistro && puedeEditar) empezarRegistro(v);
+      preciosApi.bsaleDeProducto(p.id).then(setBsale).catch(() => setBsale(null));
     } catch (err) {
       setError(mensajeError(err));
     }
   }
 
-  function empezarRegistro() {
-    const precios = Object.fromEntries(plataformas.filter((pl) => pl.activo).map((pl) => [pl.id, vigente?.precios?.[pl.nombre]?.precio ?? '']));
-    setNuevo({ fecha: hoyISO(), precio_normal: vigente?.precio_normal ?? '', precios });
+  /** Lee en Bsale, en este momento, los precios del producto en cada lista. */
+  async function leerBsale() {
+    setLeyendoBsale(true);
+    try {
+      setBsale(await preciosApi.bsaleDeProducto(producto.id, true));
+    } catch (err) {
+      setError(mensajeError(err));
+    } finally {
+      setLeyendoBsale(false);
+    }
+  }
+
+  function empezarRegistro(v = vigente) {
+    const precios = Object.fromEntries(plataformas.filter((pl) => pl.activo).map((pl) => [pl.id, v?.precios?.[pl.nombre]?.precio ?? '']));
+    setNuevo({ fecha: hoyISO(), precio_normal: v?.precio_normal ?? '', precios });
   }
 
   async function guardar(e) {
@@ -62,7 +84,7 @@ export default function PreciosConsultar() {
   const activas = plataformas.filter((p) => p.activo);
   return (
     <>
-      <h2>Consultar precio</h2>
+      {!modoRegistro && <h2>Consultar precio</h2>}
       <section className="tarjeta">
         <ProductoBuscador onSeleccionar={cargar} />
         <small>Escribe el SKU o parte del nombre.</small>
@@ -75,7 +97,7 @@ export default function PreciosConsultar() {
           <section className="tarjeta">
             <div className="fila espacio">
               <h3>{vigente.sku} · {vigente.descripcion}</h3>
-              {puedeEditar && !nuevo && <button onClick={empezarRegistro}>Registrar precio nuevo</button>}
+              {puedeEditar && !nuevo && <button onClick={() => empezarRegistro()}>Registrar precio nuevo</button>}
             </div>
             <p>
               <small>{[vigente.categoria, vigente.marca && `${vigente.marca}${vigente.marca_propia ? ' (propia)' : ''}`, vigente.estado_sourcing, !vigente.activo && 'INACTIVO'].filter(Boolean).join(' · ')}</small>
@@ -94,6 +116,39 @@ export default function PreciosConsultar() {
               })}
             </div>
           </section>
+
+          {bsale?.activo && (
+            <section className="tarjeta">
+              <div className="fila espacio">
+                <h3>Listas de precio en Bsale</h3>
+                {bsale.existe && <button className="btn-sec" onClick={leerBsale} disabled={leyendoBsale}>{leyendoBsale ? 'Consultando…' : '⟳ Consultar en Bsale ahora'}</button>}
+              </div>
+              {!bsale.existe ? (
+                <p><small>Este SKU no está en Bsale (o aún no se leyó Bsale). {puedeEditar && <>Se puede crear desde <Link href="/precios/bsale">Precios → Bsale</Link>.</>}</small></p>
+              ) : (
+                <>
+                  {bsale.conflicto && <p className="error">⚠ En Bsale este SKU es otro producto: “{bsale.nombre_bsale}”. No se le envían precios hasta corregirlo.</p>}
+                  <p><small>Stock disponible en Bsale: <strong>{bsale.stock ?? 0}</strong>
+                    {bsale.stock_sucursales && Object.keys(bsale.stock_sucursales).length > 0 && ` (${Object.entries(bsale.stock_sucursales).map(([s, n]) => `${s}: ${n}`).join(' · ')})`}</small></p>
+                  <table>
+                    <thead><tr><th>Lista</th><th>Toma el precio de</th><th className="num">En Bsale</th><th>Estado</th></tr></thead>
+                    <tbody>
+                      {bsale.listas.map((l) => (
+                        <tr key={l.id}>
+                          <td><strong>{l.nombre}</strong></td>
+                          <td><small>{textoFuente(l)}</small></td>
+                          <td className="num" title={l.leido_en ? `Leído el ${fechaHora(l.leido_en)}` : ''}>{l.precio ? soles(l.precio) : '—'}</td>
+                          <td>{l.pendiente != null
+                            ? <span className="error">Pendiente: {soles(l.pendiente)}</span>
+                            : l.fuente === 'ninguna' ? <small>—</small> : <small>✔ al día</small>}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </>
+              )}
+            </section>
+          )}
 
           {nuevo && (
             <form className="tarjeta form-grid" onSubmit={guardar}>

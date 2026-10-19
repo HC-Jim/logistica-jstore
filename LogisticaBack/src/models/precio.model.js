@@ -39,7 +39,13 @@ export const PrecioModel = {
          ORDER BY x.producto_id, x.plataforma_id, x.fecha DESC
        )
        SELECT pr.*, COALESCE(json_object_agg(u.plataforma, json_build_object('precio', u.precio, 'precio_normal', u.precio_normal, 'fecha', u.fecha))
-                             FILTER (WHERE u.plataforma IS NOT NULL), '{}') AS precios
+                             FILTER (WHERE u.plataforma IS NOT NULL), '{}') AS precios,
+              -- precio con IGV en cada lista de Bsale (según la última lectura); null si el SKU no está en Bsale
+              (SELECT json_object_agg(l.nombre, bp.valor_con_igv)
+                 FROM bsale_variantes bv
+                 JOIN bsale_precios bp ON bp.variante_id = bv.id
+                 JOIN bsale_listas l ON l.id = bp.lista_id AND l.activa
+                WHERE bv.codigo = upper(btrim(pr.sku)) AND bv.activa) AS bsale
        FROM prods pr LEFT JOIN ult u ON u.producto_id = pr.id
        GROUP BY pr.id, pr.sku, pr.descripcion, pr.tipo, pr.precio_web_ficha, pr.precio_normal, pr.activo, pr.estado_sourcing,
                 pr.marca, pr.marca_propia, pr.categoria

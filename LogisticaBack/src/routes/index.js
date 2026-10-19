@@ -66,6 +66,9 @@ router.get('/precios/vigentes', rol(...P.verPrecios), PrecioController.vigentes)
 router.get('/precios/descuentos', rol(...P.verPrecios), PrecioController.descuentos);
 router.put('/precios/descuentos', rol(...P.gestionarPrecios), PrecioController.guardarDescuentos);
 router.get('/precios/producto/:id', rol(...P.verPrecios), PrecioController.historial);
+router.get('/precios/producto/:id/bsale', rol(...P.verPrecios), PrecioController.bsaleDeProducto);
+router.get('/precios/listas-bsale', rol(...P.verPrecios), PrecioController.listasBsale);
+router.post('/precios/importar', rol(...P.gestionarPrecios), PrecioController.importar);
 router.post('/precios', rol(...P.gestionarPrecios), PrecioController.registrar);
 router.delete('/precios/:id', rol(...P.gestionarPrecios), PrecioController.eliminar);
 

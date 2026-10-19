@@ -432,3 +432,9 @@ label.adjuntar { display: inline-flex; flex-direction: row; cursor: pointer; }
 /* ---- Sincronización con Bsale ---- */
 .kpis button.kpi { text-align: left; font: inherit; cursor: pointer; border: 1px solid var(--borde); }
 .kpis button.kpi:hover { border-color: #2b6cb0; }
+
+/* ---- Listas de Bsale en la lista de precios ---- */
+.col-bsale { background: rgba(43,108,176,.06); }
+.col-bsale-inicio { border-left: 2px solid #2b6cb0; }
+td.difiere { color: #c53030; font-weight: 600; }
+.separador { color: var(--suave); font-size: .85rem; }
