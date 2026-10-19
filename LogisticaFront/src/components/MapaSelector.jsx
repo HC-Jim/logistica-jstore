@@ -7,7 +7,7 @@ import { catalogosApi } from '../api/services';
 import { hayMapsKey, LIMA, Mapa, SinMapsKey } from './maps';
 
 // Lima Metropolitana y Callao: el mapa abre aquí y la búsqueda de direcciones da prioridad a esta zona
-const ZONA_LIMA = { south: -12.55, west: -77.25, north: -11.70, east: -76.70 };
+export const ZONA_LIMA = { south: -12.55, west: -77.25, north: -11.70, east: -76.70 };
 
 /** Rango aproximado de Perú, para detectar coordenadas invertidas o de otro país. */
 const enPeru = (lat, lng) => lat >= -18.5 && lat <= 0.1 && lng >= -81.5 && lng <= -68.5;

@@ -5,6 +5,9 @@ import { catalogosApi } from '../api/services';
 
 const CatalogosContext = createContext(null);
 const orden = new Intl.Collator('es').compare; // "Áncash" junto a "Amazonas", no al final
+/** Para comparar nombres: sin tildes, en minúsculas y sin prefijos como "Provincia de". */
+const normal = (t) => (t ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  .replace(/^(provincia constitucional del?|provincia de|departamento de|region|municipalidad (metropolitana )?de)\s+/, '').trim();
 
 /** Carga una sola vez las listas del formulario y los ubigeos del Perú. */
 export function CatalogosProvider({ children }) {
@@ -32,8 +35,25 @@ export function CatalogosProvider({ children }) {
       distritos.get(k).push({ codigo, distrito: dist });
     }
     for (const lista of distritos.values()) lista.sort((a, b) => orden(a.distrito, b.distrito));
+    const porDistrito = new Map(); // nombre normalizado → [ubigeos]
+    for (const u of porCodigo.values()) {
+      const k = normal(u.distrito);
+      if (!porDistrito.has(k)) porDistrito.set(k, []);
+      porDistrito.get(k).push(u);
+    }
+    /** Ubigeo según el distrito y la provincia que indica Google; con nombres repetidos se prefiere la misma provincia y luego Lima o Callao. */
+    const buscar = ({ distrito, provincia, departamento } = {}) => {
+      const lista = porDistrito.get(normal(distrito)) ?? [];
+      if (lista.length <= 1) return lista[0]?.codigo ?? null;
+      const prov = normal(provincia);
+      const dep = normal(departamento);
+      const puntaje = (u) => (normal(u.provincia) === prov ? 4 : 0) + (normal(u.departamento) === dep ? 2 : 0)
+        + (['lima', 'callao'].includes(normal(u.provincia)) ? 1 : 0);
+      return [...lista].sort((a, b) => puntaje(b) - puntaje(a))[0].codigo;
+    };
     return {
       porCodigo,
+      buscar,
       departamentos: [...departamentos].sort(orden),
       provinciasDe: (dep) => [...(provincias.get(dep) ?? [])].sort(orden),
       distritosDe: (dep, prov) => distritos.get(`${dep}|${prov}`) ?? [],

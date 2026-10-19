@@ -5,8 +5,10 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { mensajeError } from '../api/client';
 import { pedidosApi, ubicacionesApi, usuariosApi } from '../api/services';
+import BuscadorDireccion from '../components/BuscadorDireccion';
 import MapaSelector from '../components/MapaSelector';
 import ProductoBuscador from '../components/ProductoBuscador';
+import UbicacionModal from '../components/UbicacionModal';
 import UbigeoSelect from '../components/UbigeoSelect';
 import { useAuth } from '../context/AuthContext';
 import { useCatalogos } from '../context/CatalogosContext';
@@ -57,6 +59,7 @@ export default function PedidoForm({ categoria: categoriaNueva = 'venta' }) {
   const [cargando, setCargando] = useState(editando);
   const [error, setError] = useState('');
   const [enviando, setEnviando] = useState(false);
+  const [mapaAbierto, setMapaAbierto] = useState(false);
 
   const cat = CATEGORIAS[categoria];
   const esEncargo = categoria === 'encargo';
@@ -103,6 +106,21 @@ export default function PedidoForm({ categoria: categoriaNueva = 'venta' }) {
     const u = form.ubigeo && ubigeo.porCodigo.get(form.ubigeo);
     return [form.direccion, u?.distrito, u?.provincia, 'Perú'].filter(Boolean).join(', ');
   }, [form.direccion, form.ubigeo, ubigeo]);
+
+  /**
+   * Dirección elegida en el buscador (sugerencia de Google o punto del mapa): completa la dirección, el distrito y el punto.
+   * En envíos por agencia el punto es la sede, así que solo se completa la dirección del cliente.
+   */
+  function usarDireccion({ direccion, lat, lng, distrito, provincia, departamento, cod_postal: cp, soloPunto }) {
+    const codigo = distrito ? ubigeo.buscar({ distrito, provincia, departamento }) : null;
+    setForm((f) => ({
+      ...f,
+      ...(direccion && !soloPunto ? { direccion } : {}),
+      ...(codigo ? { ubigeo: codigo } : {}),
+      ...(cp && !f.cod_postal ? { cod_postal: cp } : {}),
+      ...(porAgencia ? {} : { lat, lng, link_ubicacion: '', ...(esEncargo ? { ubicacion_id: null } : {}) }),
+    }));
+  }
 
   /** Venta / inversa: una ubicación frecuente marca el punto (y completa la dirección si está vacía). */
   function usarFrecuente(uid) {
@@ -274,7 +292,16 @@ export default function PedidoForm({ categoria: categoriaNueva = 'venta' }) {
             </>
           )}
           <UbigeoSelect valor={form.ubigeo} onChange={(v) => set('ubigeo', v)} disabled={bloqueado('ubigeo')} />
-          <label className="ancho">Dirección<input maxLength={255} {...input('direccion')} /></label>
+          <label className="ancho">Dirección
+            <div className="fila direccion-con-mapa">
+              <BuscadorDireccion value={form.direccion} disabled={bloqueado('direccion')} onChange={(v) => set('direccion', v)}
+                onElegir={usarDireccion} />
+              {!porAgencia && (
+                <button type="button" className="btn-sec btn-icono" title="Ubicar en el mapa" disabled={bloqueado('lat')} onClick={() => setMapaAbierto(true)}>📍</button>
+              )}
+            </div>
+            <small>Escribe y elige una sugerencia: se completan el distrito y el punto en el mapa. Con 📍 puedes ubicarlo o ajustarlo en un mapa grande.</small>
+          </label>
           <label>Detalle del domicilio<input placeholder="Dpto, piso, interior…" maxLength={255} {...input('detalle_domicilio')} /></label>
           <label>Referencia<input maxLength={255} {...input('referencia')} /></label>
           {!esEncargo && <label>Cód. postal<input maxLength={10} {...input('cod_postal')} /></label>}
@@ -397,6 +424,13 @@ export default function PedidoForm({ categoria: categoriaNueva = 'venta' }) {
           <Link className="btn btn-sec" href={editando ? `/pedidos/${id}` : '/pedidos'}>Cancelar</Link>
         </div>
       </form>
+      {mapaAbierto && (
+        <UbicacionModal punto={{ lat: form.lat, lng: form.lng }} direccion={form.direccion} onCerrar={() => setMapaAbierto(false)}
+          onConfirmar={({ lat, lng, direccion, datos }) => {
+            usarDireccion({ ...(datos ?? {}), direccion: datos?.direccion ?? (form.direccion ? null : direccion), lat, lng });
+            setMapaAbierto(false);
+          }} />
+      )}
     </>
   );
 }

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { mensajeError } from '../api/client';
 import { ubicacionesApi } from '../api/services';
+import BuscadorDireccion from '../components/BuscadorDireccion';
 import MapaSelector from '../components/MapaSelector';
 import UbigeoSelect from '../components/UbigeoSelect';
 import { useAuth } from '../context/AuthContext';
@@ -72,7 +73,13 @@ export default function Ubicaciones() {
         <label>Contacto<input maxLength={120} placeholder="Persona o área que recibe" value={form.contacto} onChange={set('contacto')} /></label>
         <label>Teléfono<input maxLength={30} value={form.telefono} onChange={set('telefono')} /></label>
         <UbigeoSelect valor={form.ubigeo} onChange={(v) => setForm((f) => ({ ...f, ubigeo: v }))} />
-        <label className="ancho">Dirección<input maxLength={255} value={form.direccion} onChange={set('direccion')} /></label>
+        <label className="ancho">Dirección
+          <BuscadorDireccion value={form.direccion} onChange={(v) => setForm((f) => ({ ...f, direccion: v }))}
+            onElegir={({ direccion, lat, lng, distrito, provincia, departamento, soloPunto }) => {
+              const codigo = distrito ? ubigeo.buscar({ distrito, provincia, departamento }) : null;
+              setForm((f) => ({ ...f, lat, lng, link: '', ...(direccion && !soloPunto ? { direccion } : {}), ...(codigo ? { ubigeo: codigo } : {}) }));
+            }} />
+        </label>
         <label className="ancho">Referencia / indicaciones<input maxLength={255} placeholder="Ej. Puerta 3, horario de recepción 8am–1pm" value={form.referencia} onChange={set('referencia')} /></label>
         <div className="ancho">
           <strong>Ubicación en el mapa *</strong>
