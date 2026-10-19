@@ -507,6 +507,28 @@ INSERT INTO rrhh_feriados (fecha, nombre) VALUES
   ('2027-12-08', 'Inmaculada Concepción'), ('2027-12-09', 'Batalla de Ayacucho'), ('2027-12-25', 'Navidad')
 ON CONFLICT (fecha) DO NOTHING;
 
+-- La primera versión del módulo creó `colaboradores` con otra estructura (apellidos, hijos, essalud).
+-- Si quedó así y sin datos, se rehace junto con sus tablas hijas (también vacías) con la estructura actual.
+-- Si tuviera datos, la migración se detiene con un mensaje claro en vez de borrar nada.
+DO $$
+DECLARE
+  t text;
+  hay boolean;
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+             WHERE table_schema = current_schema() AND table_name = 'colaboradores' AND column_name = 'apellidos') THEN
+    FOREACH t IN ARRAY ARRAY['colaboradores', 'rrhh_marcaciones', 'rrhh_solicitudes', 'rrhh_documentos', 'rrhh_derechohabientes'] LOOP
+      IF to_regclass(t) IS NOT NULL THEN
+        EXECUTE format('SELECT EXISTS (SELECT 1 FROM %I)', t) INTO hay;
+        IF hay THEN
+          RAISE EXCEPTION 'La tabla % tiene datos y colaboradores aún tiene la estructura antigua: hay que migrarla a mano', t;
+        END IF;
+      END IF;
+    END LOOP;
+    DROP TABLE IF EXISTS rrhh_marcaciones, rrhh_solicitudes, rrhh_documentos, rrhh_derechohabientes, colaboradores;
+  END IF;
+END $$;
+
 -- Ficha del colaborador (datos del T-Registro de SUNAT y legajo). Se vincula (opcionalmente) con su usuario.
 -- Los valores de las listas (régimen laboral, situación educativa, motivo de cese…) están en catalogos.js.
 CREATE TABLE IF NOT EXISTS colaboradores (
