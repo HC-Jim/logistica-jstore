@@ -750,3 +750,51 @@ BEGIN
     INSERT INTO migraciones_datos (clave) VALUES ('rrhh_fichas_de_usuarios');
   END IF;
 END $$;
+
+-- ---------------- Integración con Bsale ----------------
+-- Listas de precio de Bsale y de dónde toma cada una su precio en el sistema
+CREATE TABLE IF NOT EXISTS bsale_listas (
+  id              INTEGER      PRIMARY KEY,            -- id de la lista en Bsale
+  nombre          VARCHAR(120) NOT NULL,
+  fuente          VARCHAR(20)  NOT NULL DEFAULT 'ninguna'
+                  CHECK (fuente IN ('ninguna', 'plataforma', 'normal', 'minimo_plataformas')),
+  plataforma_id   INTEGER      REFERENCES plataformas_precio(id) ON DELETE SET NULL,
+  activa          BOOLEAN      NOT NULL DEFAULT true,  -- sigue existiendo en Bsale
+  actualizado_en  TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  CHECK (fuente <> 'plataforma' OR plataforma_id IS NOT NULL)
+);
+-- Copia de las variantes de Bsale (el SKU es el código de la variante) con su stock disponible
+CREATE TABLE IF NOT EXISTS bsale_variantes (
+  id                 INTEGER      PRIMARY KEY,         -- id de la variante en Bsale
+  producto_bsale_id  INTEGER,
+  codigo             VARCHAR(60)  NOT NULL,            -- SKU en mayúsculas y sin espacios
+  nombre             VARCHAR(255),
+  activa             BOOLEAN      NOT NULL DEFAULT true,
+  stock              NUMERIC(12, 2),
+  stock_sucursales   JSONB,                            -- { "Tienda Jota": 3, ... }
+  leido_en           TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_bsale_variantes_codigo ON bsale_variantes(codigo);
+-- Copia del detalle de cada lista (para comparar y para saber qué registro actualizar)
+CREATE TABLE IF NOT EXISTS bsale_precios (
+  lista_id       INTEGER        NOT NULL REFERENCES bsale_listas(id) ON DELETE CASCADE,
+  variante_id    INTEGER        NOT NULL,
+  detalle_id     INTEGER        NOT NULL,
+  valor_neto     NUMERIC(16, 6),                      -- sin IGV, como lo guarda Bsale
+  valor_con_igv  NUMERIC(12, 2),
+  leido_en       TIMESTAMPTZ    NOT NULL DEFAULT now(),
+  PRIMARY KEY (lista_id, variante_id)
+);
+-- Registro de lo enviado a Bsale
+CREATE TABLE IF NOT EXISTS bsale_envios (
+  id           SERIAL       PRIMARY KEY,
+  tipo         VARCHAR(10)  NOT NULL CHECK (tipo IN ('precio', 'crear', 'nombre')),
+  producto_id  INTEGER      REFERENCES productos(id) ON DELETE SET NULL,
+  sku          VARCHAR(60),
+  detalle      JSONB,
+  ok           BOOLEAN      NOT NULL,
+  error        TEXT,
+  creado_por   INTEGER      REFERENCES usuarios(id) ON DELETE SET NULL,
+  creado_en    TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_bsale_envios_fecha ON bsale_envios(creado_en DESC);

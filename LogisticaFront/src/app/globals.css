@@ -428,3 +428,7 @@ label.adjuntar { display: inline-flex; flex-direction: row; cursor: pointer; }
 .direccion-con-mapa { gap: 6px; align-items: flex-start; flex-wrap: nowrap; }
 .btn-icono { padding: 6px 10px; font-size: 1.1rem; line-height: 1; }
 .modal.modal-mapa { width: min(900px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; }
+
+/* ---- Sincronización con Bsale ---- */
+.kpis button.kpi { text-align: left; font: inherit; cursor: pointer; border: 1px solid var(--borde); }
+.kpis button.kpi:hover { border-color: #2b6cb0; }

@@ -22,6 +22,11 @@ export const env = {
     .map((o) => o.trim())
     .filter(Boolean),
   googleMapsServerKey: process.env.GOOGLE_MAPS_SERVER_KEY || '',
+  // Bsale: sin token la integración queda apagada (el resto del sistema funciona igual)
+  bsale: {
+    token: process.env.BSALE_ACCESS_TOKEN || '',
+    url: (process.env.BSALE_API_URL || 'https://api.bsale.io/v1').replace(/\/$/, ''),
+  },
   deposito: {
     nombre: process.env.DEPOSITO_NOMBRE || 'Almacén',
     lat: Number(process.env.DEPOSITO_LAT ?? -12.046374),

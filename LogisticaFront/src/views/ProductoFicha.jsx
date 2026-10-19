@@ -87,7 +87,7 @@ export default function ProductoFicha() {
         return;
       }
       setOriginal(p);
-      setAviso('Cambios guardados ✔');
+      setAviso(`Cambios guardados ✔${p.bsale ? (p.bsale.ok ? ' · nombre actualizado en Bsale ✔' : ` · ⚠ Bsale: ${p.bsale.mensaje}`) : ''}`);
     } catch (err) {
       setError(mensajeError(err));
     } finally {
@@ -187,6 +187,16 @@ export default function ProductoFicha() {
           <select {...input('estado_verificacion')}><option value="">—</option>{(catalogos.estadosVerificacion ?? []).map((t) => <option key={t}>{t}</option>)}</select>
         </label>
 
+        {!nuevo && (
+          <p className="ancho">
+            <small>
+              {original?.bsale_variante_id
+                ? <>En Bsale ✔ · stock disponible: <strong>{original.bsale_stock ?? 0}</strong>
+                  {original.bsale_stock_sucursales && Object.keys(original.bsale_stock_sucursales).length > 0 && ` (${Object.entries(original.bsale_stock_sucursales).map(([s, n]) => `${s}: ${n}`).join(' · ')})`}</>
+                : <>Este SKU no está en Bsale (o aún no se leyó). Se puede crear desde <Link href="/productos/bsale">Productos → Bsale</Link>.</>}
+            </small>
+          </p>
+        )}
         <h3 className="ficha-seccion">Precios</h3>
         <label>Precio Normal (S/)<input type="number" min="0" step="0.01" {...input('precio_normal')} /></label>
         <label>Precio Web (S/)<input type="number" min="0" step="0.01" {...input('precio')} /></label>

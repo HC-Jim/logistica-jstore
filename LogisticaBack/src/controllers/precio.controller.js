@@ -1,5 +1,6 @@
 import { TIPOS_CLIENTE } from '../config/catalogos.js';
 import { PrecioModel } from '../models/precio.model.js';
+import { sincronizarProducto } from '../services/bsale.service.js';
 import { leerCampos } from '../utils/campos.js';
 import { hoy } from '../utils/fecha.js';
 import { HttpError, idParam } from '../utils/http.js';
@@ -40,7 +41,9 @@ export const PrecioController = {
     }
     await PrecioModel.registrar({ productoId: d.producto_id, fecha, precioNormal: d.precio_normal, precios, usuario: req.user });
     const [vigente] = await PrecioModel.vigentes({ productoId: d.producto_id, soloActivos: false });
-    res.status(201).json(vigente);
+    // Bsale se actualiza en el momento; si falla, el precio queda guardado igual y se puede reenviar
+    const bsale = await sincronizarProducto(d.producto_id, req.user);
+    res.status(201).json({ ...vigente, bsale });
   },
 
   async eliminar(req, res) {

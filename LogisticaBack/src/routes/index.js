@@ -1,6 +1,7 @@
 import express, { Router } from 'express';
 import { PERMISOS as P } from '../config/permisos.js';
 import { AuthController } from '../controllers/auth.controller.js';
+import { BsaleController } from '../controllers/bsale.controller.js';
 import { CatalogoController } from '../controllers/catalogo.controller.js';
 import { NotificacionController } from '../controllers/notificacion.controller.js';
 import { ReporteController } from '../controllers/reporte.controller.js';
@@ -48,6 +49,16 @@ router.delete('/usuarios/:id', rol(...P.usuarios), AuthController.rechazarUsuari
 // --- Dashboards de Productos y Precios ---
 router.get('/productos/dashboard', rol(...P.verProductos), PanelController.productos);
 router.get('/precios/dashboard', rol(...P.verPrecios), PanelController.precios);
+
+// Bsale: lectura, diferencias y envío de productos y precios
+router.get('/bsale/estado', rol(...P.gestionarPrecios), BsaleController.estado);
+router.put('/bsale/listas', rol(...P.gestionarPrecios), BsaleController.guardarListas);
+router.post('/bsale/leer/:paso', rol(...P.gestionarPrecios), BsaleController.leer);
+router.get('/bsale/diferencias', rol(...P.gestionarPrecios), BsaleController.diferencias);
+router.post('/bsale/precios', rol(...P.gestionarPrecios), BsaleController.enviarPrecios);
+router.post('/bsale/productos', rol(...P.gestionarProductos), BsaleController.crear);
+router.post('/bsale/nombres', rol(...P.gestionarProductos), BsaleController.nombres);
+router.get('/bsale/envios', rol(...P.gestionarPrecios), BsaleController.envios);
 
 // --- Precios ---
 router.get('/precios/plataformas', rol(...P.verPrecios), PrecioController.plataformas);

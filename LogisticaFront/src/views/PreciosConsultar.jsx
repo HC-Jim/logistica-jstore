@@ -51,8 +51,8 @@ export default function PreciosConsultar() {
         .filter(([id, v]) => v !== '' && Number(v) !== Number(vigente?.precios?.[plataformas.find((p) => p.id === Number(id))?.nombre]?.precio))
         .map(([id, v]) => ({ plataforma_id: Number(id), precio: Number(v) }));
       if (!precios.length) throw new Error('No cambiaste ningún precio');
-      await preciosApi.registrar({ producto_id: producto.id, fecha: nuevo.fecha, precio_normal: nuevo.precio_normal === '' ? null : Number(nuevo.precio_normal), precios });
-      setAviso(`Se registraron ${precios.length} precio(s) ✔`);
+      const r = await preciosApi.registrar({ producto_id: producto.id, fecha: nuevo.fecha, precio_normal: nuevo.precio_normal === '' ? null : Number(nuevo.precio_normal), precios });
+      setAviso(`Se registraron ${precios.length} precio(s) ✔${textoBsale(r.bsale)}`);
       await cargar(producto);
     } catch (err) {
       setError(err.response ? mensajeError(err) : err.message);
@@ -139,4 +139,12 @@ export default function PreciosConsultar() {
       )}
     </>
   );
+}
+
+/** Resultado del envío a Bsale después de registrar el precio. */
+function textoBsale(b) {
+  if (!b?.activo) return '';
+  if (b.existe === false) return ' · Este SKU no existe en Bsale (créalo desde Precios → Bsale).';
+  if (!b.ok) return ` · ⚠ Bsale no se actualizó: ${b.mensaje ?? 'revisa el Registro de envíos en Precios → Bsale'}`;
+  return b.enviados ? ` · Bsale actualizado (${b.enviados} lista(s)) ✔` : ' · Bsale ya tenía estos precios ✔';
 }

@@ -1,5 +1,6 @@
 import { ESTADOS_SOURCING, ESTADOS_VERIFICACION, SEGMENTOS_MARCA, TIPOS_PRODUCTO } from '../config/catalogos.js';
 import { CatalogoProductosModel, ProductoModel } from '../models/producto.model.js';
+import { actualizarNombres, bsaleActivo, crearProductos } from '../services/bsale.service.js';
 import { leerCampos } from '../utils/campos.js';
 import { HttpError, idParam } from '../utils/http.js';
 
@@ -73,15 +74,30 @@ export const ProductoController = {
 
   async crear(req, res) {
     const d = leerFicha(req.body, { creando: true });
-    res.status(201).json(await ProductoModel.crear({ tipo: 'Ítem único', ...d }));
+    const producto = await ProductoModel.crear({ tipo: 'Ítem único', ...d });
+    // el SKU nuevo también se crea en Bsale (los combos se arman allá como pack)
+    let bsale = { activo: bsaleActivo() };
+    if (bsale.activo && producto.tipo !== 'Combo') {
+      const [r] = await crearProductos([producto.id], req.user).catch((err) => [{ ok: false, mensaje: err.message }]);
+      bsale = { ...bsale, ...r };
+    }
+    res.status(201).json({ ...producto, bsale });
   },
 
   async actualizar(req, res) {
     const d = leerFicha(req.body, { creando: false });
     if ('sku' in d && !d.sku) throw new HttpError(400, 'El SKU no puede quedar vacío');
-    const producto = await ProductoModel.actualizar(idParam(req.params.id), d);
+    const id = idParam(req.params.id);
+    const antes = 'descripcion' in d && bsaleActivo() ? await ProductoModel.obtener(id) : null;
+    const producto = await ProductoModel.actualizar(id, d);
     if (!producto) throw new HttpError(404, 'Producto no encontrado');
-    res.json(producto);
+    // si cambió el nombre y el SKU existe en Bsale, se actualiza allá también
+    let bsale = null;
+    if (antes && antes.descripcion !== producto.descripcion && producto.bsale_variante_id) {
+      const [r] = await actualizarNombres([id], req.user).catch((err) => [{ ok: false, mensaje: err.message }]);
+      bsale = r ?? null;
+    }
+    res.json(bsale ? { ...producto, bsale } : producto);
   },
 
   async eliminar(req, res) {

@@ -191,7 +191,7 @@ export default function Productos() {
         <div className="tabla-scroll">
           <table>
             <thead>
-              <tr><th>SKU</th><th>Nombre Almacén</th><th>Categoría / Subcategoría</th><th>Tipo</th><th>Marca</th><th>Sourcing</th><th>P. Normal</th><th>Web</th><th>Estado</th></tr>
+              <tr><th>SKU</th><th>Nombre Almacén</th><th>Categoría / Subcategoría</th><th>Tipo</th><th>Marca</th><th>Sourcing</th><th>P. Normal</th><th>Web</th><th className="num">Stock Bsale</th><th>Estado</th></tr>
             </thead>
             <tbody>
               {productos.map((p) => (
@@ -204,10 +204,13 @@ export default function Productos() {
                   <td>{p.estado_sourcing}</td>
                   <td>{p.precio_normal != null ? soles(p.precio_normal) : '—'}</td>
                   <td>{soles(p.precio)}</td>
+                  <td className="num" title={p.bsale_stock_sucursales ? Object.entries(p.bsale_stock_sucursales).map(([s, n]) => `${s}: ${n}`).join('\n') : ''}>
+                    {p.bsale_variante_id ? (p.bsale_stock ?? 0) : <small>no está en Bsale</small>}
+                  </td>
                   <td>{p.activo ? 'Activo' : 'Inactivo'}</td>
                 </tr>
               ))}
-              {!productos.length && <tr><td colSpan={9}>No hay productos con estos filtros.</td></tr>}
+              {!productos.length && <tr><td colSpan={10}>No hay productos con estos filtros.</td></tr>}
             </tbody>
           </table>
         </div>

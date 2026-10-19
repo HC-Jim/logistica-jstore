@@ -119,6 +119,17 @@ export const rrhhApi = {
   })),
 };
 
+export const bsaleApi = {
+  estado: () => data(api.get('/bsale/estado')),
+  guardarListas: (listas) => data(api.put('/bsale/listas', { listas })),
+  leer: (paso) => data(api.post(`/bsale/leer/${encodeURIComponent(paso)}`)),
+  diferencias: () => data(api.get('/bsale/diferencias')),
+  enviarPrecios: (productoIds) => data(api.post('/bsale/precios', productoIds ? { producto_ids: productoIds } : {})),
+  crear: (productoIds) => data(api.post('/bsale/productos', { producto_ids: productoIds })),
+  nombres: (productoIds) => data(api.post('/bsale/nombres', { producto_ids: productoIds })),
+  envios: (soloErrores) => data(api.get('/bsale/envios', { params: { errores: soloErrores ? 1 : undefined } })),
+};
+
 export const reportesApi = {
   listar: (modulo) => data(api.get('/reportes', { params: { modulo } })),
   ejecutar: (clave, params) => data(api.get(`/reportes/${clave}`, { params })),
