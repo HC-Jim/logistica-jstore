@@ -1,6 +1,6 @@
 import { ESTADOS_SOURCING, ESTADOS_VERIFICACION, SEGMENTOS_MARCA, TIPOS_PRODUCTO } from '../config/catalogos.js';
 import { CatalogoProductosModel, ProductoModel } from '../models/producto.model.js';
-import { actualizarNombres, bsaleActivo, crearProductos } from '../services/bsale.service.js';
+import { actualizarNombres, bsaleActivo, categoriaNueva, crearProductos } from '../services/bsale.service.js';
 import { leerCampos } from '../utils/campos.js';
 import { HttpError, idParam } from '../utils/http.js';
 
@@ -112,7 +112,14 @@ export const ProductoController = {
     const componentes = lista.map((c) => leerCampos(c, {
       componente_id: { tipo: 'entero', requerido: true }, cantidad: { tipo: 'entero', requerido: true }, precio: { tipo: 'monto' },
     }, { requeridos: true }));
-    res.json(await ProductoModel.guardarComponentes(idParam(req.params.id), componentes));
+    const id = idParam(req.params.id);
+    const resultado = await ProductoModel.guardarComponentes(id, componentes);
+    // el combo con sus componentes se crea en Bsale como pack (si aún no existe allá)
+    if (bsaleActivo() && componentes.length) {
+      const [r] = await crearProductos([id], req.user).catch((err) => [{ ok: false, mensaje: err.message }]);
+      return res.json(Array.isArray(resultado) ? { componentes: resultado, bsale: r } : { ...resultado, bsale: r });
+    }
+    return res.json(resultado);
   },
 
   /** Carga masiva simple desde CSV: { filas: [{ sku, descripcion, precio }] } */
@@ -165,7 +172,10 @@ export const ProductoController = {
       codigo: { tipo: 'texto', max: 2, requerido: !id }, nombre: { tipo: 'texto', max: 120, requerido: !id },
     }, { requeridos: !id });
     if (d.codigo && !/^\d{2}$/.test(d.codigo)) throw new HttpError(400, 'El código de categoría son 2 dígitos (ej. 10)');
-    res.json(await CatalogoProductosModel.guardarCategoria({ id, ...d, activo: booleano(req.body.activo) }));
+    const categoria = await CatalogoProductosModel.guardarCategoria({ id, ...d, activo: booleano(req.body.activo) });
+    // una categoría nueva también se crea en Bsale como tipo de producto
+    if (!id && categoria?.id) return res.json({ ...categoria, bsale: await categoriaNueva(categoria.id, req.user) });
+    return res.json(categoria);
   },
 
   async guardarSubcategoria(req, res) {
@@ -187,8 +197,11 @@ export const ProductoController = {
     const d = leerCampos(req.body, {
       nombre: { tipo: 'texto', max: 60, requerido: !id }, segmento: { tipo: 'enum', lista: SEGMENTOS_MARCA },
     }, { requeridos: !id });
-    res.json(await CatalogoProductosModel.guardarMarca({
+    const marca = await CatalogoProductosModel.guardarMarca({
       id, ...d, propia: booleano(req.body.propia), activo: booleano(req.body.activo),
-    }));
+    });
+    // la API de Bsale no permite crear marcas: se avisa para crearla allá a mano
+    if (!id && bsaleActivo()) return res.json({ ...marca, bsale: { activo: true, ok: false, mensaje: 'Crea esta marca también en Bsale (la API de Bsale no permite crear marcas)' } });
+    return res.json(marca);
   },
 };

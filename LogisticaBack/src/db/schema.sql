@@ -820,3 +820,16 @@ CREATE TABLE IF NOT EXISTS bsale_envios (
   creado_en    TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_bsale_envios_fecha ON bsale_envios(creado_en DESC);
+
+-- Bsale: tipo de producto, marca y clase (0 producto, 1 servicio, 3 pack) de cada variante, y los tipos de Bsale
+ALTER TABLE bsale_variantes ADD COLUMN IF NOT EXISTS tipo_bsale_id INTEGER;
+ALTER TABLE bsale_variantes ADD COLUMN IF NOT EXISTS marca_bsale_id INTEGER;
+ALTER TABLE bsale_variantes ADD COLUMN IF NOT EXISTS clasificacion SMALLINT;
+CREATE TABLE IF NOT EXISTS bsale_tipos (
+  id        INTEGER      PRIMARY KEY,   -- tipo de producto en Bsale (equivale a la categoría)
+  nombre    VARCHAR(120) NOT NULL,
+  activo    BOOLEAN      NOT NULL DEFAULT true,
+  leido_en  TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+ALTER TABLE bsale_envios DROP CONSTRAINT IF EXISTS bsale_envios_tipo_check;
+ALTER TABLE bsale_envios ADD CONSTRAINT bsale_envios_tipo_check CHECK (tipo IN ('precio', 'crear', 'nombre', 'ficha', 'categoria'));

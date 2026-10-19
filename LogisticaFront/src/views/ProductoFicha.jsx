@@ -101,8 +101,9 @@ export default function ProductoFicha() {
       const r = await productosApi.guardarComponentes(id, componentes.map((c) => ({
         componente_id: c.componente_id, cantidad: Number(c.cantidad), precio: c.precio === '' || c.precio == null ? null : Number(c.precio),
       })));
-      setComponentes(r);
-      setAviso('Componentes del combo guardados ✔');
+      setComponentes(r.componentes ?? r);
+      const b = r.bsale;
+      setAviso(`Componentes del combo guardados ✔${b ? (b.ok ? ` · Bsale: ${b.mensaje ?? 'pack creado'} ✔` : ` · ⚠ Bsale: ${b.mensaje}`) : ''}`);
     } catch (err) {
       setError(mensajeError(err));
     }

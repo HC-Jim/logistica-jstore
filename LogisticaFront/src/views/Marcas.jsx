@@ -17,6 +17,7 @@ export default function Marcas() {
   const [marcas, setMarcas] = useState([]);
   const [form, setForm] = useState(VACIO);
   const [error, setError] = useState('');
+  const [aviso, setAviso] = useState('');
 
   const cargar = () => productosApi.marcas().then(setMarcas).catch((e) => setError(mensajeError(e)));
   useEffect(() => { cargar(); }, []);
@@ -26,8 +27,9 @@ export default function Marcas() {
     setError('');
     try {
       const { id, ...body } = form;
-      await productosApi.guardarMarca(id, { ...body, segmento: body.segmento || null });
+      const r = await productosApi.guardarMarca(id, { ...body, segmento: body.segmento || null });
       setForm(VACIO);
+      setAviso(r.bsale ? `Marca guardada ✔ · ${r.bsale.mensaje}` : 'Marca guardada ✔');
       cargar();
     } catch (err) {
       setError(mensajeError(err));
@@ -42,6 +44,7 @@ export default function Marcas() {
     <>
       <h2>Marcas</h2>
       <p><small>Las <strong>marcas propias</strong> (las que importamos) usan la tabla de descuentos mayoristas propia; el resto, la de otras marcas.</small></p>
+      {aviso && <p className="aviso">{aviso}</p>}
       {error && <p className="error">{error}</p>}
       {puedeEditar && (
         <form className="tarjeta fila" onSubmit={guardar}>

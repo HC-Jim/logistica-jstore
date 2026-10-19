@@ -24,7 +24,10 @@ const codigo = (sku) => String(sku ?? '').trim().toUpperCase();
 
 async function llamar(metodo, ruta, { params, cuerpo } = {}) {
   if (!bsaleActivo()) throw new HttpError(503, 'Bsale no está configurado: falta BSALE_ACCESS_TOKEN en el servidor');
-  const url = new URL(BASE + ruta);
+  // en desarrollo y pruebas Bsale queda en solo lectura: nada se crea ni se cambia en la cuenta real
+  if (metodo !== 'GET' && env.bsale.soloLectura) throw new HttpError(503, 'Bsale está en modo solo lectura en este entorno (BSALE_SOLO_LECTURA)');
+  // las rutas /v2/... van sobre la raíz de la API, no sobre /v1
+  const url = new URL(ruta.startsWith('/v2/') ? BASE.replace(/\/v1$/, '') + ruta : BASE + ruta);
   for (const [k, v] of Object.entries(params ?? {})) if (v != null) url.searchParams.set(k, v);
   for (let intento = 1; ; intento++) {
     let r;
@@ -106,26 +109,37 @@ async function leerListas() {
 }
 
 async function leerVariantes() {
-  const [variantes, productos] = await Promise.all([
+  const [variantes, productos, tipos] = await Promise.all([
     todos('/variants.json', { fields: '[id,code,description,state,product]' }),
-    todos('/products.json', { fields: '[id,name,state]' }),
+    todos('/products.json', { fields: '[id,name,state,product_type,brand,classification]' }),
+    todos('/product_types.json'),
   ]);
-  const nombres = new Map(productos.map((p) => [p.id, p.name]));
+  const prod = new Map(productos.map((p) => [p.id, p]));
   const filas = variantes.filter((v) => codigo(v.code));
+  const de = (v) => prod.get(idDe(v.product));
   await withTransaction(async (client) => {
     await client.query('DELETE FROM bsale_variantes WHERE NOT (id = ANY($1::int[]))', [filas.map((v) => v.id)]);
     await client.query(
-      `INSERT INTO bsale_variantes (id, producto_bsale_id, codigo, nombre, activa, leido_en)
-       SELECT *, now() FROM unnest($1::int[], $2::int[], $3::text[], $4::text[], $5::boolean[])
+      `INSERT INTO bsale_variantes (id, producto_bsale_id, codigo, nombre, activa, tipo_bsale_id, marca_bsale_id, clasificacion, leido_en)
+       SELECT *, now() FROM unnest($1::int[], $2::int[], $3::text[], $4::text[], $5::boolean[], $6::int[], $7::int[], $8::int[])
        ON CONFLICT (id) DO UPDATE SET producto_bsale_id = EXCLUDED.producto_bsale_id, codigo = EXCLUDED.codigo,
-         nombre = EXCLUDED.nombre, activa = EXCLUDED.activa, leido_en = now()`,
+         nombre = EXCLUDED.nombre, activa = EXCLUDED.activa, tipo_bsale_id = EXCLUDED.tipo_bsale_id,
+         marca_bsale_id = EXCLUDED.marca_bsale_id, clasificacion = EXCLUDED.clasificacion, leido_en = now()`,
       [filas.map((v) => v.id), filas.map((v) => idDe(v.product)), filas.map((v) => codigo(v.code)),
         // el nombre es el del producto; la descripción de la variante es un detalle aparte (p. ej. la categoría)
-        filas.map((v) => nombres.get(idDe(v.product)) || v.description || null),
-        filas.map((v) => v.state === 0)]
+        filas.map((v) => de(v)?.name || v.description || null),
+        // la variante cuenta como activa solo si ella y su producto lo están
+        filas.map((v) => v.state === 0 && (de(v)?.state ?? 0) === 0),
+        filas.map((v) => idDe(de(v)?.product_type)), filas.map((v) => idDe(de(v)?.brand)), filas.map((v) => de(v)?.classification ?? null)]
+    );
+    await client.query('DELETE FROM bsale_tipos WHERE NOT (id = ANY($1::int[]))', [tipos.map((t) => t.id)]);
+    await client.query(
+      `INSERT INTO bsale_tipos (id, nombre, activo, leido_en) SELECT *, now() FROM unnest($1::int[], $2::text[], $3::boolean[])
+       ON CONFLICT (id) DO UPDATE SET nombre = EXCLUDED.nombre, activo = EXCLUDED.activo, leido_en = now()`,
+      [tipos.map((t) => t.id), tipos.map((t) => t.name ?? ''), tipos.map((t) => t.state === 0)]
     );
   });
-  return { variantes: filas.length };
+  return { variantes: filas.length, tipos: tipos.length };
 }
 
 async function leerStock() {
@@ -356,22 +370,86 @@ async function tiposBsale() {
 }
 
 /** Crea en Bsale (producto + variante con el SKU) los productos indicados que aún no existen allá, y les envía los precios. */
+/**
+ * Marca de Bsale de cada marca del sistema. La API de Bsale no permite leer ni crear marcas (solo informa el número
+ * de marca de cada producto), así que el nombre se deduce de los SKU que están en ambos lados: la marca del sistema
+ * más frecuente entre los productos con ese número de marca.
+ */
+export async function marcasBsale() {
+  const { rows } = await query(
+    `WITH m AS (
+       SELECT bv.marca_bsale_id AS bsale_id, mk.id AS marca_id, mk.nombre, COUNT(*)::int AS n
+       FROM bsale_variantes bv
+       JOIN productos p ON upper(btrim(p.sku)) = bv.codigo
+       JOIN marcas mk ON mk.id = p.marca_id
+       WHERE bv.activa AND bv.marca_bsale_id IS NOT NULL
+       GROUP BY 1, 2, 3
+     ),
+     total AS (SELECT marca_bsale_id AS bsale_id, COUNT(*)::int AS productos FROM bsale_variantes WHERE activa AND marca_bsale_id IS NOT NULL GROUP BY 1)
+     SELECT t.bsale_id, t.productos, x.marca_id, x.nombre, x.n AS coincidencias
+     FROM total t LEFT JOIN LATERAL (SELECT * FROM m WHERE m.bsale_id = t.bsale_id ORDER BY m.n DESC LIMIT 1) x ON true
+     ORDER BY t.bsale_id`
+  );
+  return rows;
+}
+
+/** Componentes del combo con su variante en Bsale (todos deben existir allá para armar el pack). */
+async function crearPack(p, tipoId, marcaBsaleId) {
+  const { rows: comps } = await query(
+    `SELECT c.sku, cc.cantidad, bv.id AS variante_id, bv.producto_bsale_id
+     FROM combo_componentes cc JOIN productos c ON c.id = cc.componente_id
+     LEFT JOIN bsale_variantes bv ON bv.codigo = upper(btrim(c.sku)) AND bv.activa
+     WHERE cc.combo_id = $1 ORDER BY c.sku`,
+    [p.id]
+  );
+  if (!comps.length) throw new Error('el combo no tiene componentes; agrégalos en su ficha');
+  for (const c of comps) {
+    if (!c.variante_id) {
+      const v = await asegurarVariante(c.sku);
+      if (!v) throw new Error(`el componente ${c.sku} no está en Bsale; créalo primero`);
+      Object.assign(c, { variante_id: v.id, producto_bsale_id: v.producto_bsale_id });
+    }
+  }
+  await llamar('POST', '/v2/products/pack.json', {
+    cuerpo: {
+      name: p.descripcion, code: p.sku, barCode: '', productTypeId: tipoId, basePrice: Number(p.precio) || 0, priceWithTax: 1, printDetailPack: 0,
+      ...(marcaBsaleId ? { brandId: marcaBsaleId } : {}),
+      packDetails: comps.map((c) => ({ multipleVariant: 0, productPromoId: c.producto_bsale_id, variantPromoId: c.variante_id, quantity: c.cantidad })),
+    },
+  });
+  // Bsale crea la variante del pack con el SKU: se busca para guardarla en la copia local
+  const v = await asegurarVariante(p.sku);
+  if (!v) throw new Error('Bsale aceptó el pack pero no se encontró su variante con el SKU');
+  return { producto_bsale: v.producto_bsale_id, variante: v.id, componentes: comps.length };
+}
+
 export async function crearProductos(productoIds, usuario) {
   const { rows } = await query(
-    `SELECT p.id, p.sku, p.descripcion, p.tipo, c.nombre AS categoria, p.categoria_anterior
+    `SELECT p.id, p.sku, p.descripcion, p.tipo, p.precio, p.marca_id, c.nombre AS categoria, p.categoria_anterior
      FROM productos p LEFT JOIN subcategorias s ON s.id = p.subcategoria_id LEFT JOIN categorias c ON c.id = s.categoria_id
      WHERE p.id = ANY($1::int[]) ORDER BY p.sku`,
     [productoIds]
   );
   const tipoDe = await tiposBsale();
+  const marcaDe = new Map((await marcasBsale()).filter((m) => m.marca_id).map((m) => [m.marca_id, m.bsale_id]));
   const resultado = [];
   for (const p of rows) {
     try {
-      if (p.tipo === 'Combo') throw new Error('los combos se crean en Bsale como pack (con sus componentes) desde Bsale');
       if (await asegurarVariante(p.sku)) { resultado.push({ sku: p.sku, ok: true, mensaje: 'ya existía en Bsale' }); continue; }
+      const marcaBsale = marcaDe.get(p.marca_id) ?? null;
+      if (p.tipo === 'Combo') {
+        const pack = await crearPack(p, tipoDe(p.categoria, p.categoria_anterior), marcaBsale);
+        const precios = await enviarPrecios({ productoIds: [p.id], usuario, maxCambios: 20 });
+        await registrarEnvio({ tipo: 'crear', productoId: p.id, sku: p.sku, detalle: { ...pack, pack: true, precios: precios.enviados }, ok: true, usuario });
+        resultado.push({ sku: p.sku, ok: true, mensaje: `combo creado como pack (${pack.componentes} componentes) con ${precios.enviados} precio(s)` });
+        continue;
+      }
       const servicio = p.tipo === 'Servicio';
       const prod = await llamar('POST', '/products.json', {
-        cuerpo: { name: p.descripcion, classification: servicio ? 1 : 0, stockControl: servicio ? 0 : 1, allowDecimal: 0, productTypeId: tipoDe(p.categoria, p.categoria_anterior) },
+        cuerpo: {
+          name: p.descripcion, classification: servicio ? 1 : 0, stockControl: servicio ? 0 : 1, allowDecimal: 0,
+          productTypeId: tipoDe(p.categoria, p.categoria_anterior), ...(marcaBsale ? { brandId: marcaBsale } : {}),
+        },
       });
       const v = await llamar('POST', '/variants.json', {
         cuerpo: { productId: prod.id, description: '', code: p.sku, unit: 'NIU', tributaryCode: '01010101', unlimitedStock: servicio ? 1 : 0, allowNegativeStock: 0 },
@@ -386,6 +464,84 @@ export async function crearProductos(productoIds, usuario) {
       resultado.push({ sku: p.sku, ok: true, mensaje: `creado con ${precios.enviados} precio(s)` });
     } catch (err) {
       await registrarEnvio({ tipo: 'crear', productoId: p.id, sku: p.sku, ok: false, error: err.message, usuario });
+      resultado.push({ sku: p.sku, ok: false, mensaje: err.message });
+    }
+  }
+  return resultado;
+}
+
+/** Crea en Bsale, como tipos de producto, las categorías del sistema que no existan allá (por nombre). */
+export async function crearCategorias(categoriaIds, usuario) {
+  const { rows } = await query('SELECT id, codigo, nombre FROM categorias WHERE id = ANY($1::int[]) ORDER BY codigo', [categoriaIds]);
+  const { rows: tipos } = await query('SELECT id, nombre FROM bsale_tipos WHERE activo');
+  const existe = new Map(tipos.map((t) => [normal(t.nombre), t.id]));
+  const resultado = [];
+  for (const c of rows) {
+    if (existe.has(normal(c.nombre))) { resultado.push({ categoria: c.nombre, ok: true, mensaje: 'ya existía en Bsale' }); continue; }
+    try {
+      const t = await llamar('POST', '/product_types.json', { cuerpo: { name: c.nombre } });
+      await query(
+        `INSERT INTO bsale_tipos (id, nombre, activo) VALUES ($1, $2, true)
+         ON CONFLICT (id) DO UPDATE SET nombre = EXCLUDED.nombre, activo = true, leido_en = now()`,
+        [t.id, t.name ?? c.nombre]
+      );
+      existe.set(normal(c.nombre), t.id);
+      await registrarEnvio({ tipo: 'categoria', sku: c.codigo, detalle: { categoria: c.nombre, tipo_bsale: t.id }, ok: true, usuario });
+      resultado.push({ categoria: c.nombre, ok: true, mensaje: 'creada en Bsale' });
+    } catch (err) {
+      await registrarEnvio({ tipo: 'categoria', sku: c.codigo, detalle: { categoria: c.nombre }, ok: false, error: err.message, usuario });
+      resultado.push({ categoria: c.nombre, ok: false, mensaje: err.message });
+    }
+  }
+  return resultado;
+}
+
+/** Categoría nueva en el sistema: se crea también en Bsale (sin hacer fallar el guardado). */
+export async function categoriaNueva(categoriaId, usuario) {
+  if (!bsaleActivo()) return { activo: false };
+  try {
+    const [r] = await crearCategorias([categoriaId], usuario);
+    return { activo: true, ...r };
+  } catch (err) {
+    return { activo: true, ok: false, mensaje: err.message };
+  }
+}
+
+/**
+ * Corrige en Bsale la ficha de los SKU indicados con los datos del sistema: nombre y tipo de producto
+ * (según su categoría) y, si se conoce, la marca. No toca los SKU en conflicto.
+ */
+export async function actualizarFichas(productoIds, usuario) {
+  const { rows } = await query(
+    `SELECT p.id, p.sku, p.descripcion, p.marca_id, c.nombre AS categoria, p.categoria_anterior,
+            bv.producto_bsale_id, bv.nombre AS nombre_bsale, bv.tipo_bsale_id, bv.marca_bsale_id
+     FROM productos p
+     JOIN bsale_variantes bv ON bv.codigo = upper(btrim(p.sku)) AND bv.activa
+     LEFT JOIN subcategorias s ON s.id = p.subcategoria_id LEFT JOIN categorias c ON c.id = s.categoria_id
+     WHERE p.id = ANY($1::int[])`,
+    [productoIds]
+  );
+  // solo se cambia el tipo si la categoría del SKU existe en Bsale con el mismo nombre
+  const { rows: tipos } = await query('SELECT id, nombre FROM bsale_tipos WHERE activo');
+  const tipoPorNombre = new Map(tipos.map((t) => [normal(t.nombre), t.id]));
+  const marcaDe = new Map((await marcasBsale()).filter((m) => m.marca_id).map((m) => [m.marca_id, m.bsale_id]));
+  const resultado = [];
+  for (const p of rows) {
+    try {
+      if (enConflicto(p.descripcion, p.nombre_bsale)) throw new Error(`en Bsale este SKU es otro producto ("${p.nombre_bsale}"); revísalo allá`);
+      const tipo = (p.categoria && tipoPorNombre.get(normal(p.categoria))) || null;
+      const marca = marcaDe.get(p.marca_id) ?? null;
+      const cuerpo = { id: p.producto_bsale_id, name: p.descripcion, ...(tipo ? { productTypeId: tipo } : {}), ...(marca ? { brandId: marca } : {}) };
+      await llamar('PUT', `/products/${p.producto_bsale_id}.json`, { cuerpo });
+      await query('UPDATE bsale_variantes SET nombre = $2, tipo_bsale_id = COALESCE($3, tipo_bsale_id), marca_bsale_id = COALESCE($4, marca_bsale_id) WHERE producto_bsale_id = $1',
+        [p.producto_bsale_id, p.descripcion, tipo ?? null, marca]);
+      await registrarEnvio({
+        tipo: 'ficha', productoId: p.id, sku: p.sku, ok: true, usuario,
+        detalle: { nombre: p.descripcion, tipo_antes: p.tipo_bsale_id, tipo_ahora: tipo, marca_antes: p.marca_bsale_id, marca_ahora: marca },
+      });
+      resultado.push({ sku: p.sku, ok: true });
+    } catch (err) {
+      await registrarEnvio({ tipo: 'ficha', productoId: p.id, sku: p.sku, ok: false, error: err.message, usuario });
       resultado.push({ sku: p.sku, ok: false, mensaje: err.message });
     }
   }

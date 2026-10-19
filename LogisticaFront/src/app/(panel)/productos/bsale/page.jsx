@@ -1,1 +1,1 @@
-export { default } from '@/views/BsaleSync';
+export { default } from '@/views/BsaleProductos';

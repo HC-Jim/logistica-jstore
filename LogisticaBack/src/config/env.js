@@ -26,6 +26,8 @@ export const env = {
   bsale: {
     token: process.env.BSALE_ACCESS_TOKEN || '',
     url: (process.env.BSALE_API_URL || 'https://api.bsale.io/v1').replace(/\/$/, ''),
+    // 1 = solo consultas (desarrollo y pruebas): no se crea ni se cambia nada en Bsale
+    soloLectura: process.env.BSALE_SOLO_LECTURA === '1',
   },
   deposito: {
     nombre: process.env.DEPOSITO_NOMBRE || 'Almacén',

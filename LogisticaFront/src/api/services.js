@@ -130,6 +130,9 @@ export const bsaleApi = {
   enviarPrecios: (productoIds) => data(api.post('/bsale/precios', productoIds ? { producto_ids: productoIds } : {})),
   crear: (productoIds) => data(api.post('/bsale/productos', { producto_ids: productoIds })),
   nombres: (productoIds) => data(api.post('/bsale/nombres', { producto_ids: productoIds })),
+  catalogo: () => data(api.get('/bsale/catalogo')),
+  categorias: (categoriaIds) => data(api.post('/bsale/categorias', { categoria_ids: categoriaIds })),
+  fichas: (productoIds) => data(api.post('/bsale/fichas', { producto_ids: productoIds })),
   envios: (soloErrores) => data(api.get('/bsale/envios', { params: { errores: soloErrores ? 1 : undefined } })),
 };
 

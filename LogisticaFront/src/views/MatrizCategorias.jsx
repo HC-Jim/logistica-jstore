@@ -13,6 +13,7 @@ export default function MatrizCategorias() {
   const puedeEditar = tiene(usuario, 'admin', 'catalogo');
   const [matriz, setMatriz] = useState([]);
   const [error, setError] = useState('');
+  const [aviso, setAviso] = useState('');
   const [nueva, setNueva] = useState({ codigo: '', nombre: '' });
   const [nuevaSub, setNuevaSub] = useState({}); // por categoría
 
@@ -49,10 +50,11 @@ export default function MatrizCategorias() {
         <button className="btn-sec" onClick={exportar}>⬇ Excel (CSV)</button>
       </div>
       <p><small>El SKU se arma con <strong>código de categoría (2) + código de subcategoría (2) + asignación (3)</strong>; los combos llevan un <strong>2</strong> antes de la asignación. Ejemplo: 15 + 07 + 001 = 1507001.</small></p>
+      {aviso && <p className="aviso">{aviso}</p>}
       {error && <p className="error">{error}</p>}
 
       {puedeEditar && (
-        <form className="tarjeta fila" onSubmit={(e) => { e.preventDefault(); accion(async () => { await productosApi.guardarCategoria(null, nueva); setNueva({ codigo: '', nombre: '' }); }); }}>
+        <form className="tarjeta fila" onSubmit={(e) => { e.preventDefault(); accion(async () => { const r = await productosApi.guardarCategoria(null, nueva); setNueva({ codigo: '', nombre: '' }); setAviso(r.bsale?.activo ? (r.bsale.ok ? `Categoría creada ✔ · Bsale: ${r.bsale.mensaje}` : `Categoría creada ✔ · ⚠ Bsale: ${r.bsale.mensaje}`) : 'Categoría creada ✔'); }); }}>
           <strong>Nueva categoría</strong>
           <input required pattern="\d{2}" maxLength={2} placeholder="Código (2 dígitos)" value={nueva.codigo} onChange={(e) => setNueva({ ...nueva, codigo: e.target.value })} />
           <input required className="crece" placeholder="Nombre" value={nueva.nombre} onChange={(e) => setNueva({ ...nueva, nombre: e.target.value })} />
