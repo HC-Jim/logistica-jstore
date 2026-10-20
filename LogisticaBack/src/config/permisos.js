@@ -33,6 +33,7 @@ export const CAMPOS_VENDEDOR = new Set([
   'link_ubicacion', 'lat', 'lng',
   'ubicacion_id', // sede de la agencia cuando el envío es por agencia
   'precio_envio', 'total_pedido', 'cobrar', 'medio_pago', 'nota',
+  'franja_desde', 'franja_hasta', // horario en que el cliente puede recibir
 ]);
 
 /** Estados en los que el pedido todavía se puede modificar. */

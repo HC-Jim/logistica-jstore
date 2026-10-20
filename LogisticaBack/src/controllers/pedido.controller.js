@@ -33,6 +33,8 @@ const CAMPOS = {
   lat: { tipo: 'coord', max: 90 },
   lng: { tipo: 'coord', max: 180 },
   fecha_entrega: { tipo: 'fecha', requerido: true },
+  franja_desde: { tipo: 'hora' },   // franja horaria de entrega (opcional)
+  franja_hasta: { tipo: 'hora' },
   precio_envio: { tipo: 'monto' },
   total_pedido: { tipo: 'monto' },
   cobrar: { tipo: 'enum', lista: COBRAR, requerido: true },
@@ -126,6 +128,8 @@ function validarReglas(p) {
     throw new HttpError(400, '"Enviar a" y "Pago de agencia" solo aplican cuando hay agencia');
   }
   if (p.categoria !== 'inversa' && p.motivo) throw new HttpError(400, 'El motivo solo aplica a logística inversa');
+  const [desde, hasta] = [p.franja_desde, p.franja_hasta].map((h) => (h ? String(h).slice(0, 5) : null));
+  if (desde && hasta && hasta <= desde) throw new HttpError(400, `La franja de entrega termina (${hasta}) antes de empezar (${desde})`);
 }
 
 /** Valida un pedido nuevo (formulario o carga masiva) y devuelve lo que se guardará. */

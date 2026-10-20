@@ -11,6 +11,7 @@ export const MODULOS = [
     descripcion: 'Pedidos, rutas, despacho, monitoreo en vivo de conductores y reportes.',
     links: [
       { href: '/logistica', label: 'Dashboard', roles: ['admin', 'planificador'] },
+      { href: '/tablero', label: 'Tablero de despacho', roles: ['admin', 'planificador'] },
       { href: '/monitoreo', label: 'Monitoreo', roles: ['admin', 'planificador', 'almacen', 'vendedor'] },
       { href: '/pedidos', label: 'Pedidos', roles: ['admin', 'planificador', 'almacen', 'vendedor'] },
       { href: '/rutas', label: 'Rutas', roles: ['admin', 'planificador'] },

@@ -7,7 +7,7 @@ import { mensajeError } from '../api/client';
 import { rutasApi } from '../api/services';
 import EstadoBadge from '../components/EstadoBadge';
 import { useAuth } from '../context/AuthContext';
-import { CATEGORIAS, ESTADOS, ESTADOS_RUTA, fechaCorta, fechaHora, soles, VEHICULOS } from '../utils/format';
+import { CATEGORIAS, ESTADOS, ESTADOS_RUTA, fechaCorta, fechaHora, hora, soles, VEHICULOS } from '../utils/format';
 import { tiene } from '../utils/roles';
 
 const cobra = (p) => p.cobrar && p.cobrar !== 'No Cobrar';
@@ -44,6 +44,7 @@ function textoWhatsApp(ruta) {
     lineas.push(`*${i + 1}) #${p.pedido_id} · ${p.tipo_pedido}*${marca(p) ? ` ${marca(p)}` : ''}${p.estado !== 'pendiente' ? ` (${ESTADOS[estadoEnRuta(p)]?.label})` : ''}`);
     if (p.motivo) lineas.push(`❓ ${p.motivo}${p.pedido_relacionado ? ` · pedido original ${p.pedido_relacionado}` : ''}`);
     lineas.push(`👤 ${p.cliente_nombre}${p.cliente_telefono ? ` · 📞 ${p.cliente_telefono}` : ''}`);
+    if (p.eta || p.franja_desde) lineas.push(`🕘 ${[p.eta && `llega ~${hora(p.eta)}`, p.franja_desde && `franja ${p.franja_desde}–${p.franja_hasta ?? '…'}`].filter(Boolean).join(' · ')}`);
     lineas.push(`📍 ${[direccionCompleta(p), p.distrito].filter(Boolean).join(', ')}`);
     if (p.referencia) lineas.push(`↪ Ref: ${p.referencia}`);
     if (p.agencia) lineas.push(`🏢 Agencia: ${p.agencia}${p.enviar_a ? ` (${p.enviar_a})` : ''}`);

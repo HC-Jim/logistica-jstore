@@ -9,7 +9,7 @@ import ChatRuta from '../components/ChatRuta';
 import EstadoBadge from '../components/EstadoBadge';
 import { AjustarVista, Mapa, MarcadorNumero, Polilinea } from '../components/maps';
 import { useCatalogos } from '../context/CatalogosContext';
-import { CATEGORIAS, duracion, ESTADOS_PARADA, ESTADOS_RUTA, fechaCorta, fechaHora, km, soles, VEHICULOS } from '../utils/format';
+import { CATEGORIAS, ESTADOS_PARADA, ESTADOS_RUTA, VEHICULOS, duracion, fechaCorta, fechaHora, hora, km, soles } from '../utils/format';
 
 /** Convierte una parada guardada en un elemento editable de la lista. */
 const desdeParada = (p) => ({
@@ -25,6 +25,9 @@ const desdeParada = (p) => ({
   cobrar: p.cobrar,
   categoria: p.categoria,
   tipo: p.tipo_pedido,
+  eta: p.eta,
+  fueraFranja: p.eta_fuera_franja,
+  franja: p.franja_desde || p.franja_hasta ? `${p.franja_desde ?? '…'}–${p.franja_hasta ?? '…'}` : null,
 });
 
 const desdePedido = (p) => ({
@@ -297,6 +300,11 @@ export default function RutaEditor() {
                       <small>
                         {p.categoria && p.categoria !== 'venta' && <span className="etiqueta" style={{ color: CATEGORIAS[p.categoria].color }}>{CATEGORIAS[p.categoria].icono} {p.tipo}</span>}
                         #{p.pedido_id} · {p.cobrar} {p.cobrar !== 'No Cobrar' && soles(p.total)}
+                      </small>
+                    )}
+                    {p.estado === 'pendiente' && (p.eta || p.franja) && (
+                      <small className={p.fueraFranja ? 'error' : ''}>
+                        {p.eta && <>Llega ~<strong>{hora(p.eta)}</strong></>}{p.franja && ` · franja ${p.franja}`}{p.fueraFranja && ' · fuera de su franja'}
                       </small>
                     )}
                   </span>

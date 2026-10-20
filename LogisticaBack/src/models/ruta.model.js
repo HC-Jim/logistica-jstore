@@ -51,6 +51,8 @@ export async function paradasDe(rutaIds) {
             p.nota AS nota_pedido, p.estado AS estado_pedido, p.documento_bsale,
             p.plataforma, p.numero_pedido, p.enviar_a, p.pago_agencia,
             p.categoria, p.motivo, p.pedido_relacionado,
+            to_char(p.franja_desde, 'HH24:MI') AS franja_desde, to_char(p.franja_hasta, 'HH24:MI') AS franja_hasta,
+            rp.eta, rp.eta_fuera_franja,
             ven.nombre AS vendedor_nombre,
             rp.despachado_en, des.nombre AS despachado_por_nombre,
             ub.distrito, ub.provincia, ub.departamento,
@@ -70,6 +72,17 @@ export async function paradasDe(rutaIds) {
     [rutaIds]
   );
   return rows;
+}
+
+/** Guarda la hora estimada de llegada de cada parada ([{ id, eta (ms), fuera_de_franja }]). */
+export async function guardarEtas(db, rutaId, llegadas) {
+  if (!llegadas?.length) return;
+  await db.query(
+    `UPDATE ruta_paradas rp SET eta = to_timestamp(x.eta / 1000.0), eta_fuera_franja = x.fuera
+     FROM unnest($2::int[], $3::float8[], $4::boolean[]) AS x(id, eta, fuera)
+     WHERE rp.id = x.id AND rp.ruta_id = $1`,
+    [rutaId, llegadas.map((l) => l.id), llegadas.map((l) => l.eta), llegadas.map((l) => l.fuera_de_franja)]
+  );
 }
 
 async function bloquearRuta(client, id) {
@@ -165,7 +178,7 @@ export const RutaModel = {
   },
 
   /** Cambia nombre, vehículo, conductor o auxiliar (undefined = no cambiar, null = quitar). */
-  async actualizar(id, { nombre, vehiculoId, repartidorId, asistenteId, estado }, usuario) {
+  async actualizar(id, { nombre, vehiculoId, repartidorId, asistenteId, estado, horaSalida }, usuario) {
     return withTransaction(async (client) => {
       const ruta = await bloquearRuta(client, id);
       const valor = (nuevo, actual) => (nuevo === undefined ? actual : nuevo);
@@ -179,9 +192,9 @@ export const RutaModel = {
       }
       await client.query(
         `UPDATE rutas SET nombre = $1, repartidor_id = $2, asistente_id = $3, vehiculo_id = $4, estado = $5,
-                          actualizado_en = now()
+                          hora_salida = $7, actualizado_en = now()
          WHERE id = $6`,
-        [valor(nombre, ruta.nombre), repartidor, asistente, vehiculo, estado ?? ruta.estado, id]
+        [valor(nombre, ruta.nombre), repartidor, asistente, vehiculo, estado ?? ruta.estado, id, valor(horaSalida, ruta.hora_salida)]
       );
       const antes = await nombresEquipo(client, { vehiculoId: ruta.vehiculo_id, repartidorId: ruta.repartidor_id, asistenteId: ruta.asistente_id });
       const ahora = await nombresEquipo(client, { vehiculoId: vehiculo, repartidorId: repartidor, asistenteId: asistente });
@@ -329,15 +342,17 @@ export const RutaModel = {
       }
 
       await client.query(
-        `UPDATE rutas SET polyline = NULL, distancia_metros = NULL, duracion_segundos = NULL, actualizado_en = now()
+        `UPDATE rutas SET polyline = NULL, distancia_metros = NULL, duracion_segundos = NULL, regreso_estimado = NULL, actualizado_en = now()
          WHERE id = $1`,
         [id]
       );
+      // las horas estimadas se recalculan al trazar la ruta otra vez
+      await client.query('UPDATE ruta_paradas SET eta = NULL, eta_fuera_franja = false WHERE ruta_id = $1', [id]);
       return id;
     });
   },
 
-  async guardarTrazado(id, { orden, distanciaMetros, duracionSegundos, polyline }, usuario) {
+  async guardarTrazado(id, { orden, distanciaMetros, duracionSegundos, polyline, etas }, usuario) {
     return withTransaction(async (client) => {
       await registrarRuta(client, id, usuario?.id, orden ? 'optimizada' : 'trazada', {
         km: Math.round((distanciaMetros ?? 0) / 100) / 10, minutos: Math.round((duracionSegundos ?? 0) / 60),
@@ -348,10 +363,11 @@ export const RutaModel = {
         }
       }
       await client.query(
-        `UPDATE rutas SET distancia_metros = $1, duracion_segundos = $2, polyline = $3, actualizado_en = now()
+        `UPDATE rutas SET distancia_metros = $1, duracion_segundos = $2, polyline = $3, regreso_estimado = $5, actualizado_en = now()
          WHERE id = $4`,
-        [distanciaMetros, duracionSegundos, polyline, id]
+        [distanciaMetros, duracionSegundos, polyline, id, etas?.regreso ? new Date(etas.regreso) : null]
       );
+      if (etas) await guardarEtas(client, id, etas.llegadas);
     });
   },
 

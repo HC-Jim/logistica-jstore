@@ -22,6 +22,11 @@ export const env = {
     .map((o) => o.trim())
     .filter(Boolean),
   googleMapsServerKey: process.env.GOOGLE_MAPS_SERVER_KEY || '',
+  // Planificación de rutas: hora de salida por defecto y minutos de atención en cada parada (para las ETA)
+  planificacion: {
+    horaSalida: process.env.RUTA_HORA_SALIDA || '09:00',
+    minutosParada: Number(process.env.MINUTOS_POR_PARADA) || 8,
+  },
   // Bsale: sin token la integración queda apagada (el resto del sistema funciona igual)
   bsale: {
     token: process.env.BSALE_ACCESS_TOKEN || '',

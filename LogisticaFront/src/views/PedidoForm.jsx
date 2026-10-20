@@ -19,7 +19,7 @@ import { soloComercial } from '../utils/roles';
 const CAMPOS_VENDEDOR = new Set([
   'cliente_nombre', 'cliente_telefono', 'agencia', 'enviar_a', 'pago_agencia', 'ubigeo',
   'direccion', 'detalle_domicilio', 'referencia', 'cod_postal', 'link_ubicacion', 'lat', 'lng', 'ubicacion_id',
-  'precio_envio', 'total_pedido', 'cobrar', 'medio_pago', 'nota',
+  'precio_envio', 'total_pedido', 'cobrar', 'medio_pago', 'nota', 'franja_desde', 'franja_hasta',
 ]);
 
 const VACIO = {
@@ -28,7 +28,7 @@ const VACIO = {
   agencia: '', enviar_a: '', pago_agencia: '',
   ubigeo: null, direccion: '', detalle_domicilio: '', referencia: '', cod_postal: '',
   link_ubicacion: '', lat: null, lng: null,
-  fecha_entrega: hoyISO(), precio_envio: 0, total_pedido: '', cobrar: 'No Cobrar', medio_pago: '', nota: '',
+  fecha_entrega: hoyISO(), franja_desde: '', franja_hasta: '', precio_envio: 0, total_pedido: '', cobrar: 'No Cobrar', medio_pago: '', nota: '',
   motivo: '', pedido_relacionado: '', ubicacion_id: null, origen_ubicacion_id: null,
 };
 
@@ -74,7 +74,7 @@ export default function PedidoForm({ categoria: categoriaNueva = 'venta' }) {
     if (!editando) return;
     pedidosApi.obtener(id).then((p) => {
       setCategoria(p.categoria);
-      setForm(Object.fromEntries(Object.keys(VACIO).map((k) => [k, p[k] ?? VACIO[k]])));
+      setForm(Object.fromEntries(Object.keys(VACIO).map((k) => [k, k.startsWith('franja_') && p[k] ? String(p[k]).slice(0, 5) : p[k] ?? VACIO[k]])));
       setItems(p.items.map((it) => ({
         producto: it.producto_id ? { id: it.producto_id, sku: it.sku, descripcion: it.descripcion } : null,
         descripcion: it.producto_id ? '' : it.descripcion,
@@ -348,6 +348,13 @@ export default function PedidoForm({ categoria: categoriaNueva = 'venta' }) {
             Fecha {esEncargo ? '' : 'de entrega'} *
             <input type="date" required {...input('fecha_entrega')} disabled={editando} />
             {editando && <small>Para cambiarla usa "Reprogramar" en el detalle.</small>}
+          </label>
+          <label>
+            Franja de entrega (opcional)
+            <div className="fila franja">
+              <input type="time" {...input('franja_desde')} /> <span>a</span> <input type="time" min={form.franja_desde || undefined} {...input('franja_hasta')} />
+            </div>
+            <small>Si el cliente solo recibe en cierto horario (ej. 10:00 a 13:00). El optimizador de rutas lo respeta.</small>
           </label>
 
           <div className="ancho">

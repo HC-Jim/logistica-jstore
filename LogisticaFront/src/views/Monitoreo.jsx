@@ -254,6 +254,9 @@ export default function Monitoreo() {
                       <EstadoBadge estado={p.estado} mapa={ESTADOS_PARADA} />
                     </div>
                     <small>{[p.direccion, p.distrito].filter(Boolean).join(', ')}</small>
+                    {p.estado === 'pendiente' && p.eta && (
+                      <small className={p.eta_fuera_franja ? 'error' : ''}>Llega ~<strong>{hora(p.eta)}</strong>{p.franja_desde && ` · franja ${p.franja_desde}–${p.franja_hasta ?? '…'}`}</small>
+                    )}
                     {p.pedido_id && <small>#{p.pedido_id} · {p.cobrar}{p.cobrar !== 'No Cobrar' && ` ${soles(p.total_pedido)}`}{p.cliente_telefono && ` · ${p.cliente_telefono}`}</small>}
                     {p.completada_en && <small>{ESTADOS_PARADA[p.estado].label} a las <strong>{hora(p.completada_en)}</strong>{p.nota && ` — ${p.nota}`}</small>}
                     {p.foto_url && <small><a href={p.foto_url} target="_blank" rel="noreferrer">📷 Ver foto de la entrega</a></small>}

@@ -3,6 +3,8 @@ import { env } from '../config/env.js';
 import { registrarRuta } from '../models/historial.js';
 import { HttpError } from '../utils/http.js';
 import { soloEquipoRuta } from '../utils/roles.js';
+import { guardarEtas } from '../models/ruta.model.js';
+import { horario } from './planificador.service.js';
 import { modoViaje, trazarRestante } from './rutas.service.js';
 
 /** Si el conductor se aleja más que esto del camino calculado, se recalcula (p. ej. desvío por tráfico o cierre). */
@@ -59,6 +61,7 @@ function distanciaAlCamino(p, camino) {
 async function pendientesConUbicacion(rutaId, db = { query }) {
   const { rows } = await db.query(
     `SELECT rp.id, rp.orden, COALESCE(rp.descripcion, p.cliente_nombre) AS titulo,
+            to_char(p.franja_desde, 'HH24:MI') AS franja_desde, to_char(p.franja_hasta, 'HH24:MI') AS franja_hasta,
             COALESCE(p.lat, rp.lat)::float AS lat, COALESCE(p.lng, rp.lng)::float AS lng
      FROM ruta_paradas rp LEFT JOIN pedidos p ON p.id = rp.pedido_id
      WHERE rp.ruta_id = $1 AND rp.estado = 'pendiente'
@@ -97,6 +100,10 @@ async function guardar(db, rutaId, clave, paradas, t) {
      WHERE id = $1 RETURNING *`,
     [rutaId, t.polyline, primera.polyline, t.distanciaMetros, t.duracionSegundos, JSON.stringify(destino), clave]
   );
+  // horas estimadas de llegada en vivo: desde ahora, por el camino que le queda al conductor
+  const h = horario(paradas, t.legs.map((l) => l.duracionSegundos), { inicio: Date.now(), fecha: r.fecha });
+  await guardarEtas(db, rutaId, h.llegadas);
+  await db.query('UPDATE rutas SET regreso_estimado = $2 WHERE id = $1', [rutaId, new Date(h.regreso)]);
   return respuesta(r);
 }
 

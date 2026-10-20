@@ -833,3 +833,14 @@ CREATE TABLE IF NOT EXISTS bsale_tipos (
 );
 ALTER TABLE bsale_envios DROP CONSTRAINT IF EXISTS bsale_envios_tipo_check;
 ALTER TABLE bsale_envios ADD CONSTRAINT bsale_envios_tipo_check CHECK (tipo IN ('precio', 'crear', 'nombre', 'ficha', 'categoria'));
+
+-- Planificación: franja horaria de entrega por pedido, hora de salida de la ruta y hora estimada de llegada (ETA)
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS franja_desde TIME;
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS franja_hasta TIME;
+ALTER TABLE pedidos DROP CONSTRAINT IF EXISTS pedidos_franja_check;
+ALTER TABLE pedidos ADD CONSTRAINT pedidos_franja_check
+  CHECK (franja_desde IS NULL OR franja_hasta IS NULL OR franja_hasta > franja_desde);
+ALTER TABLE rutas ADD COLUMN IF NOT EXISTS hora_salida TIME;               -- vacío = la de configuración
+ALTER TABLE rutas ADD COLUMN IF NOT EXISTS regreso_estimado TIMESTAMPTZ;   -- llegada estimada al almacén
+ALTER TABLE ruta_paradas ADD COLUMN IF NOT EXISTS eta TIMESTAMPTZ;         -- hora estimada de llegada a la parada
+ALTER TABLE ruta_paradas ADD COLUMN IF NOT EXISTS eta_fuera_franja BOOLEAN NOT NULL DEFAULT false;

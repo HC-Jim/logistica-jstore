@@ -16,10 +16,10 @@ export function SinMapsKey() {
 }
 
 /** Mapa base con estilos y valores por defecto del proyecto. */
-export function Mapa({ children, alto = 420, ...props }) {
+export function Mapa({ children, alto = 420, className = '', ...props }) {
   if (!hayMapsKey) return <SinMapsKey />;
   return (
-    <div className="mapa" style={{ height: alto }}>
+    <div className={`mapa ${className}`} style={{ height: alto }}>
       <Map mapId={MAP_ID} defaultCenter={LIMA} defaultZoom={12} gestureHandling="greedy" {...props}>
         {children}
       </Map>
