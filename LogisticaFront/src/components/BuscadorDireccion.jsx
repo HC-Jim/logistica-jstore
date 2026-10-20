@@ -5,15 +5,26 @@ import { useEffect, useRef, useState } from 'react';
 import { leerCoordenadas, ZONA_LIMA } from './MapaSelector';
 import { hayMapsKey } from './maps';
 
+// Si Places API (New) no está habilitada en la clave, se deja de intentar (hasta recargar) y se usa Geocoding
+let placesNoDisponible = false;
+
+const limpiar = (dir) => (dir ?? '').replace(/,?\s*Per[uú]\s*$/i, '').replace(/\s\d{5}(?=,|$)/, '').trim();
+const separar = (texto) => {
+  const i = texto.indexOf(',');
+  return i < 0 ? [texto, ''] : [texto.slice(0, i), texto.slice(i + 1).trim()];
+};
+
 /**
- * Campo de dirección con sugerencias de Google mientras se escribe (Places API New).
- * Al elegir una sugerencia devuelve la dirección, el punto exacto y el distrito/provincia que indica Google.
+ * Campo de dirección con sugerencias de Google mientras se escribe, como en Shipday.
+ * - Usa Places API (New) (autocompletado con token de sesión: Google cobra la sesión, no cada tecla).
+ * - Si esa API no está habilitada en la clave, sugiere con Geocoding (menos preciso para textos incompletos).
+ * Al elegir devuelve la dirección, el punto exacto y el distrito/provincia que indica Google.
  * Si se escriben coordenadas, ofrece usarlas directamente.
- * Las búsquedas usan un token de sesión: Google cobra la sesión (escritura + elección), no cada tecla.
  */
 export default function BuscadorDireccion({ value, onChange, onElegir, disabled, placeholder, autoFocus, maxLength = 255 }) {
   const places = useMapsLibrary('places');
-  const [sugerencias, setSugerencias] = useState([]);
+  const geocoding = useMapsLibrary('geocoding');
+  const [sugerencias, setSugerencias] = useState([]); // { id, principal, secundario, prediccion?, resultado? }
   const [abierto, setAbierto] = useState(false);
   const [activa, setActiva] = useState(-1);
   const [aviso, setAviso] = useState('');
@@ -23,31 +34,66 @@ export default function BuscadorDireccion({ value, onChange, onElegir, disabled,
 
   const coords = leerCoordenadas(value);
 
+  async function conPlaces(texto) {
+    token.current ??= new places.AutocompleteSessionToken();
+    const { suggestions } = await places.AutocompleteSuggestion.fetchAutocompleteSuggestions({
+      input: texto, sessionToken: token.current, includedRegionCodes: ['pe'], locationBias: ZONA_LIMA, language: 'es', region: 'pe',
+    });
+    return suggestions.filter((s) => s.placePrediction).slice(0, 6).map((s) => ({
+      id: s.placePrediction.placeId,
+      principal: s.placePrediction.mainText?.text ?? s.placePrediction.text.text,
+      secundario: s.placePrediction.secondaryText?.text ?? '',
+      prediccion: s.placePrediction,
+    }));
+  }
+
+  async function conGeocoding(texto) {
+    const { results } = await new geocoding.Geocoder().geocode({
+      address: texto, region: 'pe', bounds: ZONA_LIMA, componentRestrictions: { country: 'PE' }, language: 'es',
+    });
+    return results.slice(0, 6).map((r) => {
+      const [principal, secundario] = separar(limpiar(r.formatted_address));
+      return { id: r.place_id, principal, secundario, resultado: r };
+    });
+  }
+
   useEffect(() => {
-    if (!hayMapsKey || !places || !escrito.current || coords) { setSugerencias([]); return undefined; }
+    if (!hayMapsKey || !escrito.current || coords) { setSugerencias([]); return undefined; }
     const texto = (value ?? '').trim();
-    if (texto.length < 3) { setSugerencias([]); return undefined; }
+    const usarPlaces = places && !placesNoDisponible;
+    if (texto.length < (usarPlaces ? 3 : 4) || (!usarPlaces && !geocoding)) { setSugerencias([]); return undefined; }
     let vigente = true;
     const t = setTimeout(async () => {
       try {
-        token.current ??= new places.AutocompleteSessionToken();
-        const { suggestions } = await places.AutocompleteSuggestion.fetchAutocompleteSuggestions({
-          input: texto, sessionToken: token.current, includedRegionCodes: ['pe'], locationBias: ZONA_LIMA, language: 'es', region: 'pe',
-        });
+        let lista;
+        if (usarPlaces) {
+          try {
+            lista = await conPlaces(texto);
+          } catch (err) {
+            const m = String(err?.message ?? err);
+            if (!/has not been used|disabled|not (been )?(enabled|activated)|PERMISSION|REQUEST_DENIED|ApiNotActivated|not authorized/i.test(m) || !geocoding) throw err;
+            placesNoDisponible = true; // la API no está habilitada: se sigue con Geocoding
+            lista = await conGeocoding(texto);
+          }
+        } else {
+          lista = await conGeocoding(texto);
+        }
         if (!vigente) return;
-        setSugerencias(suggestions.filter((s) => s.placePrediction).slice(0, 6));
+        setSugerencias(lista);
         setActiva(-1);
-        setAviso('');
+        setAviso(placesNoDisponible
+          ? 'Sugerencias básicas (Geocoding). Para sugerencias como en Shipday, habilita “Places API (New)” en Google Cloud.'
+          : '');
       } catch (err) {
         if (!vigente) return;
         setSugerencias([]);
-        setAviso(/not (been )?(enabled|activated)|PERMISSION|REQUEST_DENIED|ApiNotActivated/i.test(String(err?.message ?? err))
-          ? 'Las sugerencias de Google no están activas: habilita "Places API (New)" en la clave de Maps.'
+        setAviso(err?.code === 'ZERO_RESULTS' || /ZERO_RESULTS/.test(String(err?.message))
+          ? 'Sin coincidencias: escribe más de la dirección (calle, número, distrito) o marca el punto en el mapa.'
           : 'No se pudieron traer sugerencias; escribe la dirección y marca el punto en el mapa.');
       }
-    }, 250);
+    }, placesNoDisponible ? 450 : 250);
     return () => { vigente = false; clearTimeout(t); };
-  }, [places, value]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [places, geocoding, value]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // cerrar la lista al hacer clic fuera
   useEffect(() => {
@@ -61,17 +107,26 @@ export default function BuscadorDireccion({ value, onChange, onElegir, disabled,
     setSugerencias([]);
     escrito.current = false;
     try {
-      const place = s.placePrediction.toPlace();
-      await place.fetchFields({ fields: ['formattedAddress', 'location', 'addressComponents'] });
-      token.current = null; // la sesión termina al pedir el detalle del lugar
-      const comp = (tipo) => place.addressComponents?.find((c) => c.types.includes(tipo))?.longText ?? null;
-      // dirección sin el país ni el código postal, como se escribe en Perú
-      const direccion = (place.formattedAddress ?? s.placePrediction.text.text)
-        .replace(/,?\s*Per[uú]\s*$/i, '').replace(/\s\d{5}(?=,|$)/, '').trim();
+      let direccion;
+      let loc;
+      let comp;
+      if (s.prediccion) {
+        const place = s.prediccion.toPlace();
+        await place.fetchFields({ fields: ['formattedAddress', 'location', 'addressComponents'] });
+        token.current = null; // la sesión termina al pedir el detalle del lugar
+        direccion = limpiar(place.formattedAddress ?? s.prediccion.text.text);
+        loc = place.location;
+        comp = (tipo) => place.addressComponents?.find((c) => c.types.includes(tipo))?.longText ?? null;
+      } else {
+        const r = s.resultado;
+        direccion = limpiar(r.formatted_address);
+        loc = r.geometry.location;
+        comp = (tipo) => r.address_components?.find((c) => c.types.includes(tipo))?.long_name ?? null;
+      }
       onElegir?.({
         direccion,
-        lat: +place.location.lat().toFixed(7),
-        lng: +place.location.lng().toFixed(7),
+        lat: +loc.lat().toFixed(7),
+        lng: +loc.lng().toFixed(7),
         distrito: comp('locality') ?? comp('administrative_area_level_3') ?? comp('sublocality'),
         provincia: comp('administrative_area_level_2'),
         departamento: comp('administrative_area_level_1'),
@@ -118,10 +173,10 @@ export default function BuscadorDireccion({ value, onChange, onElegir, disabled,
               📍 Usar las coordenadas <strong>{coords.lat.toFixed(6)}, {coords.lng.toFixed(6)}</strong>
             </li>
           ) : sugerencias.map((s, i) => (
-            <li key={s.placePrediction.placeId} className={i === activa ? 'activa' : ''} role="option" aria-selected={i === activa}
+            <li key={s.id} className={i === activa ? 'activa' : ''} role="option" aria-selected={i === activa}
               onMouseEnter={() => setActiva(i)} onMouseDown={(e) => { e.preventDefault(); elegir(s); }}>
               <span className="pin">📍</span>
-              <span><strong>{s.placePrediction.mainText?.text ?? s.placePrediction.text.text}</strong> <small>{s.placePrediction.secondaryText?.text ?? ''}</small></span>
+              <span><strong>{s.principal}</strong> <small>{s.secundario}</small></span>
             </li>
           ))}
           {!coords && <li className="pie">con tecnología de Google</li>}
