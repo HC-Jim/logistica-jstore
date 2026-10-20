@@ -82,3 +82,9 @@ List<LatLng> decodificarPolyline(String codificada) {
 
 /// URL completa de un archivo de la API (las fotos en desarrollo vienen como "/api/uploads/...").
 String urlArchivo(String url) => url.startsWith('http') ? url : Uri.parse(apiUrl).resolve(url).toString();
+
+/// "🕘 Llega ~10:35 · franja 10:00–13:00" (null si no hay nada que mostrar).
+String? textoLlegada({DateTime? eta, String? franja}) {
+  final partes = [if (eta != null) 'Llega ~${hora(eta)}', if (franja != null) 'franja $franja'];
+  return partes.isEmpty ? null : '🕘 ${partes.join(' · ')}';
+}

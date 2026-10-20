@@ -5,6 +5,8 @@ import '../utils/formato.dart';
 double? _decimal(Object? v) => v == null ? null : double.tryParse('$v');
 int _entero(Object? v) => v == null ? 0 : int.tryParse('$v') ?? 0;
 String? _texto(Object? v) => v == null || '$v'.isEmpty ? null : '$v';
+DateTime? _fecha(Object? v) => v == null ? null : DateTime.tryParse('$v')?.toLocal();
+String? _horaCorta(Object? v) => v == null || '$v'.length < 5 ? null : '$v'.substring(0, 5);
 
 /// Tipos en los que el conductor RECOGE en lugar de entregar.
 const tiposRecojo = ['Recojo S.T', 'Recojo de suministros'];
@@ -52,6 +54,10 @@ class Parada {
         despachado = j['despachado_en'] != null,
         fotoUrl = _texto(j['foto_url']),
         atendidaEn = j['completada_en'] == null ? null : DateTime.tryParse('${j['completada_en']}')?.toLocal(),
+        eta = _fecha(j['eta']),
+        etaFueraFranja = j['eta_fuera_franja'] == true,
+        franjaDesde = _horaCorta(j['franja_desde']),
+        franjaHasta = _horaCorta(j['franja_hasta']),
         items = ((j['items'] as List?) ?? []).map((i) => Item.desdeJson(i as Map<String, dynamic>)).toList();
 
   final int id;
@@ -82,12 +88,17 @@ class Parada {
   final bool despachado;
   final String? fotoUrl; // foto de la entrega
   final DateTime? atendidaEn;
+  final DateTime? eta; // hora estimada de llegada (la calcula el sistema y se actualiza con el GPS)
+  final bool etaFueraFranja;
+  final String? franjaDesde; // horario en que el cliente puede recibir
+  final String? franjaHasta;
   final List<Item> items;
 
   bool get esAccion => pedidoId == null;
   bool get esRecojo => tiposRecojo.contains(tipoPedido);
   bool get cobra => cobrar != null && cobrar != 'No Cobrar';
   bool get pendiente => estado == 'pendiente';
+  String? get franja => franjaDesde == null && franjaHasta == null ? null : '${franjaDesde ?? '…'}–${franjaHasta ?? '…'}';
   LatLng? get punto => lat == null || lng == null ? null : LatLng(lat!, lng!);
 
   /// "Entregado" o "Recogido" según el tipo.
@@ -109,6 +120,8 @@ class Ruta {
         polyline = _texto(j['polyline']),
         distanciaMetros = j['distancia_metros'] == null ? null : _entero(j['distancia_metros']),
         duracionSegundos = j['duracion_segundos'] == null ? null : _entero(j['duracion_segundos']),
+        horaSalida = _horaCorta(j['hora_salida']),
+        regresoEstimado = _fecha(j['regreso_estimado']),
         paradas = ((j['paradas'] as List?) ?? []).map((p) => Parada.desdeJson(p as Map<String, dynamic>)).toList()
           ..sort((a, b) => a.orden.compareTo(b.orden));
 
@@ -125,6 +138,8 @@ class Ruta {
   final String? polyline;
   final int? distanciaMetros;
   final int? duracionSegundos;
+  final String? horaSalida;
+  final DateTime? regresoEstimado;
   final List<Parada> paradas;
 
   int get atendidas => paradas.where((p) => !p.pendiente).length;

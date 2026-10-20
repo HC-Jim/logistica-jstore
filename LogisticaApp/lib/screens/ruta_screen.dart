@@ -175,6 +175,14 @@ class _Encabezado extends StatelessWidget {
               Expanded(child: Text(ruta.vehiculoNombre ?? 'Sin vehículo', style: const TextStyle(fontWeight: FontWeight.w600))),
               Text('${ruta.atendidas}/$total · ${etiquetasEstadoRuta[ruta.estado]}'),
             ]),
+            if (!ruta.finalizada && (ruta.regresoEstimado != null || (ruta.estado == 'planificada' && ruta.horaSalida != null)))
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text([
+                  if (ruta.estado == 'planificada' && ruta.horaSalida != null) 'Salida programada ${ruta.horaSalida}',
+                  if (ruta.regresoEstimado != null) 'regreso al almacén ~${hora(ruta.regresoEstimado!)}',
+                ].join(' · ')),
+              ),
             if (ruta.aCobrar > 0)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
@@ -259,6 +267,11 @@ class _ListaParadas extends StatelessWidget {
               if (p.esRecojo) const Text('⬆ RECOGER', style: TextStyle(color: Colors.deepPurple, fontWeight: FontWeight.bold)),
               if (p.categoria == 'encargo' && !p.esRecojo) const Text('🏢 ENCARGO', style: TextStyle(color: Colors.deepOrange, fontWeight: FontWeight.bold)),
               Text([p.direccion, p.distrito].whereType<String>().join(', ')),
+              if (p.pendiente && textoLlegada(eta: p.eta, franja: p.franja) != null)
+                Text(
+                  '${textoLlegada(eta: p.eta, franja: p.franja)}${p.etaFueraFranja ? ' · fuera de su franja' : ''}',
+                  style: TextStyle(color: p.etaFueraFranja ? Colors.red : Colors.blue.shade800, fontWeight: FontWeight.w600),
+                ),
               if (p.cobra && p.pendiente)
                 Text('💵 Cobrar ${soles(p.totalPedido)}${p.medioPago != null ? ' · ${p.medioPago}' : ''}',
                     style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w600)),

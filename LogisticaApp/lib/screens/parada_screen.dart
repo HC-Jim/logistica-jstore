@@ -260,6 +260,14 @@ class _ParadaScreenState extends State<ParadaScreen> {
                       style: const TextStyle(fontSize: 16))),
                 ]),
                 if (p.referencia != null) Padding(padding: const EdgeInsets.only(left: 32, top: 4), child: Text('Ref: ${p.referencia}')),
+                if (p.pendiente && textoLlegada(eta: p.eta, franja: p.franja) != null)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 32, top: 6),
+                    child: Text(
+                      '${textoLlegada(eta: p.eta, franja: p.franja)}${p.etaFueraFranja ? ' · llegarías fuera de su franja' : ''}',
+                      style: TextStyle(color: p.etaFueraFranja ? Colors.red : Colors.blue.shade800, fontWeight: FontWeight.w600),
+                    ),
+                  ),
                 if (p.agencia != null) Padding(padding: const EdgeInsets.only(left: 32, top: 4), child: Text('Agencia: ${p.agencia}')),
                 const SizedBox(height: 12),
                 Wrap(spacing: 8, runSpacing: 8, children: [
