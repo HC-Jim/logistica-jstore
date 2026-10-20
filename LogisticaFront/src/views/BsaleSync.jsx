@@ -70,7 +70,7 @@ export default function BsaleSync() {
     const { pasos } = await bsaleApi.leer('listas');
     const nombres = Object.fromEntries((estado?.listas ?? []).map((l) => [`lista:${l.id}`, l.nombre]));
     for (const [i, paso] of pasos.slice(1).entries()) {
-      setProgreso(`Paso ${i + 2} de ${pasos.length}: ${{ productos: 'productos', stock: 'stock por sucursal' }[paso] ?? nombres[paso] ?? paso}…`);
+      setProgreso(`Paso ${i + 2} de ${pasos.length}: ${{ productos: 'productos y tipos' }[paso] ?? nombres[paso] ?? paso}…`);
       await bsaleApi.leer(paso);
     }
     return 'Bsale leído ✔';
@@ -176,7 +176,7 @@ export default function BsaleSync() {
 
       {r && !sinLeer && (
         <div className="kpis">
-          <div className="tarjeta kpi"><small>SKU en ambos</small><strong>{r.en_ambos}</strong><small>{r.con_stock} con stock en Bsale</small></div>
+          <div className="tarjeta kpi"><small>SKU en ambos</small><strong>{r.en_ambos}</strong><small>{r.en_bsale} productos en Bsale</small></div>
           <button className={`tarjeta kpi ${r.productos_con_precio_distinto ? 'kpi-alerta' : ''}`} onClick={() => setPestana('precios')}><small>Productos con precio distinto</small><strong>{r.productos_con_precio_distinto}</strong><small>{r.precios_distintos} precio(s)</small></button>
           <button className={`tarjeta kpi ${r.solo_sistema ? 'kpi-alerta' : ''}`} onClick={() => setPestana('crear')}><small>SKU que faltan en Bsale</small><strong>{r.solo_sistema}</strong></button>
           <button className="tarjeta kpi" onClick={() => setPestana('nombres')}><small>Nombres distintos</small><strong>{r.nombres_distintos}</strong></button>
@@ -254,10 +254,10 @@ export default function BsaleSync() {
           )}
           {pestana === 'soloBsale' && (
             <table>
-              <thead><tr><th>Código</th><th>Nombre en Bsale</th><th className="num">Stock</th></tr></thead>
+              <thead><tr><th>Código</th><th>Nombre en Bsale</th></tr></thead>
               <tbody>
-                {dif.soloBsale.map((p) => <tr key={p.id}><td>{p.codigo}</td><td>{p.nombre}</td><td className="num">{p.stock ?? 0}</td></tr>)}
-                {!dif.soloBsale.length && <tr><td colSpan={3}>Todo lo de Bsale está en el sistema ✔</td></tr>}
+                {dif.soloBsale.map((p) => <tr key={p.id}><td>{p.codigo}</td><td>{p.nombre}</td></tr>)}
+                {!dif.soloBsale.length && <tr><td colSpan={2}>Todo lo de Bsale está en el sistema ✔</td></tr>}
               </tbody>
             </table>
           )}

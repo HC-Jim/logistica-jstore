@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { mensajeError } from '../api/client';
-import { productosApi } from '../api/services';
+import { bsaleApi, productosApi } from '../api/services';
 import { useAuth } from '../context/AuthContext';
 import { descargarCsv } from '../utils/csv';
 import { tiene } from '../utils/roles';
@@ -14,11 +14,12 @@ export default function MatrizCategorias() {
   const [matriz, setMatriz] = useState([]);
   const [error, setError] = useState('');
   const [aviso, setAviso] = useState('');
+  const [bsale, setBsale] = useState(null);
   const [nueva, setNueva] = useState({ codigo: '', nombre: '' });
   const [nuevaSub, setNuevaSub] = useState({}); // por categoría
 
   const cargar = () => productosApi.matriz().then(setMatriz).catch((e) => setError(mensajeError(e)));
-  useEffect(() => { cargar(); }, []);
+  useEffect(() => { cargar(); bsaleApi.estadoCatalogo().then(setBsale).catch(() => {}); }, []);
 
   async function accion(fn) {
     setError('');
@@ -33,7 +34,7 @@ export default function MatrizCategorias() {
   const renombrar = (tipo, item) => {
     const nombre = prompt(`Nuevo nombre para "${item.nombre}"`, item.nombre);
     if (!nombre || nombre === item.nombre) return;
-    accion(() => (tipo === 'cat' ? productosApi.guardarCategoria(item.id, { nombre }) : productosApi.guardarSubcategoria(item.id, { nombre })));
+    accion(async () => { const r = await (tipo === 'cat' ? productosApi.guardarCategoria(item.id, { nombre }) : productosApi.guardarSubcategoria(item.id, { nombre })); if (r?.bsale) setAviso(r.bsale.ok ? `Renombrada ✔ · ${r.bsale.mensaje}` : `Renombrada ✔ · ⚠ Bsale: ${r.bsale.mensaje}`); });
   };
 
   function exportar() {
@@ -67,6 +68,9 @@ export default function MatrizCategorias() {
           <summary>
             <code>{c.codigo}</code> <strong>{c.nombre}</strong> <small>{c.subcategorias.length} subcategorías</small>
             {!c.activo && <small className="error">inactiva</small>}
+            {bsale?.activo && bsale.leido && (bsale.categorias[c.id]
+              ? <small className="chip-franja">Bsale ✔</small>
+              : <small className="error">no está en Bsale{puedeEditar && <> · <button type="button" className="btn-link-oscuro" onClick={(e) => { e.preventDefault(); accion(async () => { const [r] = await bsaleApi.categorias([c.id]); setAviso(r.ok ? `${c.nombre}: creada en Bsale ✔` : `⚠ Bsale: ${r.mensaje}`); setBsale(await bsaleApi.estadoCatalogo()); }); }}>crear en Bsale</button></>}</small>)}
           </summary>
           <table>
             <thead><tr><th>Código</th><th>Subcategoría</th><th>SKU desde</th><th>Productos</th><th>Estado</th>{puedeEditar && <th />}</tr></thead>

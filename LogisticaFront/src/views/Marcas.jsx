@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { mensajeError } from '../api/client';
-import { productosApi } from '../api/services';
+import { bsaleApi, productosApi } from '../api/services';
 import { useAuth } from '../context/AuthContext';
 import { useCatalogos } from '../context/CatalogosContext';
 import { tiene } from '../utils/roles';
@@ -18,9 +18,10 @@ export default function Marcas() {
   const [form, setForm] = useState(VACIO);
   const [error, setError] = useState('');
   const [aviso, setAviso] = useState('');
+  const [bsale, setBsale] = useState(null);
 
   const cargar = () => productosApi.marcas().then(setMarcas).catch((e) => setError(mensajeError(e)));
-  useEffect(() => { cargar(); }, []);
+  useEffect(() => { cargar(); bsaleApi.estadoCatalogo().then(setBsale).catch(() => {}); }, []);
 
   async function guardar(e) {
     e.preventDefault();
@@ -61,7 +62,7 @@ export default function Marcas() {
       )}
       <section className="tarjeta">
         <table>
-          <thead><tr><th>Marca</th><th>Tipo</th><th>Segmento</th><th>Productos</th><th>Estado</th>{puedeEditar && <th />}</tr></thead>
+          <thead><tr><th>Marca</th><th>Tipo</th><th>Segmento</th><th>Productos</th>{bsale?.activo && bsale.leido && <th title="Bsale no permite crear marcas por API: las pendientes se crean a mano en Bsale">Bsale</th>}<th>Estado</th>{puedeEditar && <th />}</tr></thead>
           <tbody>
             {marcas.map((m) => (
               <tr key={m.id} className={m.activo ? '' : 'inactivo'}>
@@ -69,6 +70,7 @@ export default function Marcas() {
                 <td>{m.propia ? 'Propia' : 'Otra marca'}</td>
                 <td>{m.segmento ?? '—'}</td>
                 <td>{m.productos}</td>
+                {bsale?.activo && bsale.leido && <td>{bsale.marcas[m.id] ? '✔' : m.productos > 0 ? <small className="error">Créala en Bsale</small> : <small>—</small>}</td>}
                 <td>{m.activo ? 'Activa' : 'Inactiva'}</td>
                 {puedeEditar && (
                   <td className="acciones">

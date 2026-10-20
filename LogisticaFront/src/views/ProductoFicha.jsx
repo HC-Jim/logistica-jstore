@@ -87,7 +87,7 @@ export default function ProductoFicha() {
         return;
       }
       setOriginal(p);
-      setAviso(`Cambios guardados ✔${p.bsale ? (p.bsale.ok ? ' · nombre actualizado en Bsale ✔' : ` · ⚠ Bsale: ${p.bsale.mensaje}`) : ''}`);
+      setAviso(`Cambios guardados ✔${p.bsale ? (p.bsale.ok ? ` · ${p.bsale.mensaje} ✔` : ` · ⚠ Bsale: ${p.bsale.mensaje}`) : ''}`);
     } catch (err) {
       setError(mensajeError(err));
     } finally {
@@ -192,8 +192,7 @@ export default function ProductoFicha() {
           <p className="ancho">
             <small>
               {original?.bsale_variante_id
-                ? <>En Bsale ✔ · stock disponible: <strong>{original.bsale_stock ?? 0}</strong>
-                  {original.bsale_stock_sucursales && Object.keys(original.bsale_stock_sucursales).length > 0 && ` (${Object.entries(original.bsale_stock_sucursales).map(([s, n]) => `${s}: ${n}`).join(' · ')})`}</>
+                ? <>En Bsale ✔{original.bsale_clasificacion === 3 ? ' como pack' : ''}{original.bsale_tipo && <> · tipo: <strong>{original.bsale_tipo}</strong></>}{original.bsale_tipo && original.categoria && original.bsale_tipo.toLowerCase() !== original.categoria.toLowerCase() && <span className="error"> (en el sistema: {original.categoria}; al guardar se corrige en Bsale)</span>}</>
                 : <>Este SKU no está en Bsale (o aún no se leyó). Se puede crear desde <Link href="/productos/bsale">Productos → Bsale</Link>.</>}
             </small>
           </p>

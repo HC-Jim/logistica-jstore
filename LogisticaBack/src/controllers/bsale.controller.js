@@ -1,6 +1,6 @@
 import { query } from '../config/db.js';
 import {
-  actualizarFichas, actualizarNombres, bsaleActivo, crearCategorias, crearProductos, enConflicto, enviarPrecios, marcasBsale, leerPaso, pasosLectura, preciosDistintos, SQL_NOMBRE_COMPARABLE,
+  actualizarFichas, actualizarNombres, bsaleActivo, crearCategorias, crearProductos, enConflicto, enviarPrecios, estadoCatalogo, marcasBsale, leerPaso, pasosLectura, preciosDistintos, SQL_NOMBRE_COMPARABLE,
 } from '../services/bsale.service.js';
 import { leerCampos } from '../utils/campos.js';
 import { HttpError } from '../utils/http.js';
@@ -195,6 +195,11 @@ export const BsaleController = {
   /** { producto_ids } corrige en Bsale nombre, tipo (categoría) y marca con los datos del sistema */
   async fichas(req, res) {
     res.json(await actualizarFichas(idsDe(req.body, 40), req.user));
+  },
+
+  /** Marcas y categorías del sistema que ya existen en Bsale (para las pantallas de Marcas y Categorías). */
+  async estadoCatalogo(_req, res) {
+    res.json({ activo: bsaleActivo(), ...(await estadoCatalogo()) });
   },
 
   async envios(req, res) {

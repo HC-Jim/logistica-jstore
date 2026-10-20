@@ -203,10 +203,10 @@ export default function BsaleProductos() {
 
           {pestana === 'soloBsale' && (
             <table>
-              <thead><tr><th>Código</th><th>Nombre en Bsale</th><th>Clase</th><th>Tipo (categoría)</th><th className="num">Stock</th></tr></thead>
+              <thead><tr><th>Código</th><th>Nombre en Bsale</th><th>Clase</th><th>Tipo (categoría)</th></tr></thead>
               <tbody>
-                {d.soloBsale.map((p) => <tr key={p.id}><td>{p.codigo}</td><td>{p.nombre}</td><td>{CLASES[p.clasificacion] ?? '—'}</td><td>{p.tipo ?? '—'}</td><td className="num">{p.stock ?? 0}</td></tr>)}
-                {!d.soloBsale.length && <tr><td colSpan={5}>Todo lo de Bsale está en el sistema ✔</td></tr>}
+                {d.soloBsale.map((p) => <tr key={p.id}><td>{p.codigo}</td><td>{p.nombre}</td><td>{CLASES[p.clasificacion] ?? '—'}</td><td>{p.tipo ?? '—'}</td></tr>)}
+                {!d.soloBsale.length && <tr><td colSpan={4}>Todo lo de Bsale está en el sistema ✔</td></tr>}
               </tbody>
             </table>
           )}

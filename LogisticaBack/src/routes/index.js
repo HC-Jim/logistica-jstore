@@ -59,6 +59,7 @@ router.post('/bsale/precios', rol(...P.gestionarPrecios), BsaleController.enviar
 router.post('/bsale/productos', rol(...P.gestionarProductos), BsaleController.crear);
 router.post('/bsale/nombres', rol(...P.gestionarProductos), BsaleController.nombres);
 router.get('/bsale/catalogo', rol(...P.gestionarProductos), BsaleController.productos);
+router.get('/bsale/estado-catalogo', rol(...P.verProductos), BsaleController.estadoCatalogo);
 router.post('/bsale/categorias', rol(...P.gestionarProductos), BsaleController.crearCategorias);
 router.post('/bsale/fichas', rol(...P.gestionarProductos), BsaleController.fichas);
 router.get('/bsale/envios', rol(...P.gestionarPrecios), BsaleController.envios);

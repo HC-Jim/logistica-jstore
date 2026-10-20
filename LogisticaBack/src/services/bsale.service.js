@@ -81,7 +81,7 @@ async function fuenteSugerida(nombre) {
 /** Pasos de la lectura completa, en orden. */
 export async function pasosLectura() {
   const { rows } = await query('SELECT id, nombre FROM bsale_listas WHERE activa ORDER BY id');
-  return ['listas', 'productos', 'stock', ...rows.map((l) => `lista:${l.id}`)];
+  return ['listas', 'productos', ...rows.map((l) => `lista:${l.id}`)];
 }
 
 export async function leerPaso(paso) {
@@ -586,4 +586,35 @@ export async function actualizarNombres(productoIds, usuario) {
     }
   }
   return resultado;
+}
+
+/** Estado en Bsale de marcas y categorías del sistema (para mostrarlo en sus pantallas). */
+export async function estadoCatalogo() {
+  const [marcas, { rows: tipos }, { rows: cats }] = await Promise.all([
+    marcasBsale(),
+    query('SELECT id, nombre FROM bsale_tipos WHERE activo'),
+    query('SELECT id, nombre FROM categorias'),
+  ]);
+  const tipoPorNombre = new Map(tipos.map((t) => [normal(t.nombre), t.id]));
+  return {
+    leido: tipos.length > 0,
+    marcas: Object.fromEntries(marcas.filter((m) => m.marca_id).map((m) => [m.marca_id, m.bsale_id])),
+    categorias: Object.fromEntries(cats.map((c) => [c.id, tipoPorNombre.get(normal(c.nombre)) ?? null])),
+  };
+}
+
+/** Al renombrar una categoría en el sistema se renombra también su tipo de producto en Bsale. */
+export async function renombrarCategoria(nombreAntes, nombreNuevo, usuario) {
+  if (!bsaleActivo() || normal(nombreAntes) === normal(nombreNuevo)) return null;
+  try {
+    const { rows: tipos } = await query('SELECT id, nombre FROM bsale_tipos WHERE activo');
+    const tipo = tipos.find((t) => normal(t.nombre) === normal(nombreAntes));
+    if (!tipo) return { activo: true, ok: false, mensaje: 'esa categoría no existía en Bsale; créala desde Productos → Bsale' };
+    await llamar('PUT', `/product_types/${tipo.id}.json`, { cuerpo: { id: tipo.id, name: nombreNuevo } });
+    await query('UPDATE bsale_tipos SET nombre = $2, leido_en = now() WHERE id = $1', [tipo.id, nombreNuevo]);
+    await registrarEnvio({ tipo: 'categoria', sku: null, detalle: { antes: nombreAntes, ahora: nombreNuevo, tipo_bsale: tipo.id }, ok: true, usuario });
+    return { activo: true, ok: true, mensaje: 'renombrada también en Bsale' };
+  } catch (err) {
+    return { activo: true, ok: false, mensaje: err.message };
+  }
 }

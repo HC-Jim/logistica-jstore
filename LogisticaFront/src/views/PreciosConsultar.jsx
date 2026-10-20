@@ -128,8 +128,6 @@ export default function PreciosConsultar({ modoRegistro = false }) {
               ) : (
                 <>
                   {bsale.conflicto && <p className="error">⚠ En Bsale este SKU es otro producto: “{bsale.nombre_bsale}”. No se le envían precios hasta corregirlo.</p>}
-                  <p><small>Stock disponible en Bsale: <strong>{bsale.stock ?? 0}</strong>
-                    {bsale.stock_sucursales && Object.keys(bsale.stock_sucursales).length > 0 && ` (${Object.entries(bsale.stock_sucursales).map(([s, n]) => `${s}: ${n}`).join(' · ')})`}</small></p>
                   <table>
                     <thead><tr><th>Lista</th><th>Toma el precio de</th><th className="num">En Bsale</th><th>Estado</th></tr></thead>
                     <tbody>

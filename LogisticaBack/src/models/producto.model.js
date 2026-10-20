@@ -7,9 +7,10 @@ const SELECT_PRODUCTO = `
          c.nombre AS categoria, m.nombre AS marca, m.propia AS marca_propia, m.segmento AS marca_segmento,
          CASE WHEN p.largo_cm > 0 AND p.ancho_cm > 0 AND p.alto_cm > 0
               THEN ROUND(p.largo_cm * p.ancho_cm * p.alto_cm / 1000000, 4) END AS volumen_m3,
-         bv.id AS bsale_variante_id, bv.stock::float AS bsale_stock, bv.stock_sucursales AS bsale_stock_sucursales
+         bv.id AS bsale_variante_id, bv.nombre AS bsale_nombre, bt.nombre AS bsale_tipo, bv.clasificacion AS bsale_clasificacion
   FROM productos p
   LEFT JOIN bsale_variantes bv ON bv.codigo = upper(btrim(p.sku)) AND bv.activa
+  LEFT JOIN bsale_tipos bt ON bt.id = bv.tipo_bsale_id
   LEFT JOIN subcategorias s ON s.id = p.subcategoria_id
   LEFT JOIN categorias c    ON c.id = s.categoria_id
   LEFT JOIN marcas m        ON m.id = p.marca_id`;

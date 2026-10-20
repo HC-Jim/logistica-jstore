@@ -1,6 +1,7 @@
+import { query } from '../config/db.js';
 import { ESTADOS_SOURCING, ESTADOS_VERIFICACION, SEGMENTOS_MARCA, TIPOS_PRODUCTO } from '../config/catalogos.js';
 import { CatalogoProductosModel, ProductoModel } from '../models/producto.model.js';
-import { actualizarNombres, bsaleActivo, categoriaNueva, crearProductos } from '../services/bsale.service.js';
+import { actualizarFichas, bsaleActivo, categoriaNueva, crearProductos, renombrarCategoria } from '../services/bsale.service.js';
 import { leerCampos } from '../utils/campos.js';
 import { HttpError, idParam } from '../utils/http.js';
 
@@ -88,14 +89,15 @@ export const ProductoController = {
     const d = leerFicha(req.body, { creando: false });
     if ('sku' in d && !d.sku) throw new HttpError(400, 'El SKU no puede quedar vacío');
     const id = idParam(req.params.id);
-    const antes = 'descripcion' in d && bsaleActivo() ? await ProductoModel.obtener(id) : null;
+    const antes = bsaleActivo() ? await ProductoModel.obtener(id) : null;
     const producto = await ProductoModel.actualizar(id, d);
     if (!producto) throw new HttpError(404, 'Producto no encontrado');
-    // si cambió el nombre y el SKU existe en Bsale, se actualiza allá también
+    // si cambió el nombre, la categoría o la marca y el SKU existe en Bsale, se actualiza allá también
     let bsale = null;
-    if (antes && antes.descripcion !== producto.descripcion && producto.bsale_variante_id) {
-      const [r] = await actualizarNombres([id], req.user).catch((err) => [{ ok: false, mensaje: err.message }]);
-      bsale = r ?? null;
+    const cambio = antes && ['descripcion', 'subcategoria_id', 'marca_id'].some((k) => String(antes[k] ?? '') !== String(producto[k] ?? ''));
+    if (cambio && producto.bsale_variante_id) {
+      const [r] = await actualizarFichas([id], req.user).catch((err) => [{ ok: false, mensaje: err.message }]);
+      bsale = r ? { ...r, mensaje: r.ok ? 'nombre, categoría y marca actualizados en Bsale' : r.mensaje } : null;
     }
     res.json(bsale ? { ...producto, bsale } : producto);
   },
@@ -172,9 +174,11 @@ export const ProductoController = {
       codigo: { tipo: 'texto', max: 2, requerido: !id }, nombre: { tipo: 'texto', max: 120, requerido: !id },
     }, { requeridos: !id });
     if (d.codigo && !/^\d{2}$/.test(d.codigo)) throw new HttpError(400, 'El código de categoría son 2 dígitos (ej. 10)');
+    const antes = id && d.nombre ? (await query('SELECT nombre FROM categorias WHERE id = $1', [id])).rows[0] : null;
     const categoria = await CatalogoProductosModel.guardarCategoria({ id, ...d, activo: booleano(req.body.activo) });
-    // una categoría nueva también se crea en Bsale como tipo de producto
+    // una categoría nueva también se crea en Bsale como tipo de producto; si se renombra, se renombra allá
     if (!id && categoria?.id) return res.json({ ...categoria, bsale: await categoriaNueva(categoria.id, req.user) });
+    if (antes) return res.json({ ...categoria, bsale: await renombrarCategoria(antes.nombre, d.nombre, req.user) });
     return res.json(categoria);
   },
 
