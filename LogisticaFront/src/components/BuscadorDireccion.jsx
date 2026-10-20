@@ -71,7 +71,7 @@ export default function BuscadorDireccion({ value, onChange, onElegir, disabled,
             lista = await conPlaces(texto);
           } catch (err) {
             const m = String(err?.message ?? err);
-            if (!/has not been used|disabled|not (been )?(enabled|activated)|PERMISSION|REQUEST_DENIED|ApiNotActivated|not authorized/i.test(m) || !geocoding) throw err;
+            if (!/has not been used|disabled|blocked|not (been )?(enabled|activated)|PERMISSION|REQUEST_DENIED|ApiNotActivated|not authorized/i.test(m) || !geocoding) throw err;
             placesNoDisponible = true; // la API no está habilitada: se sigue con Geocoding
             lista = await conGeocoding(texto);
           }
@@ -82,7 +82,7 @@ export default function BuscadorDireccion({ value, onChange, onElegir, disabled,
         setSugerencias(lista);
         setActiva(-1);
         setAviso(placesNoDisponible
-          ? 'Sugerencias básicas (Geocoding). Para sugerencias como en Shipday, habilita “Places API (New)” en Google Cloud.'
+          ? 'Sugerencias básicas (Geocoding). Para sugerencias como en Shipday, habilita “Places API (New)” y permítela en las restricciones de la clave de Maps.'
           : '');
       } catch (err) {
         if (!vigente) return;
