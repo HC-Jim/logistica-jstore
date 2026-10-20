@@ -60,6 +60,7 @@ export default function PedidoForm({ categoria: categoriaNueva = 'venta' }) {
   const [error, setError] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [mapaAbierto, setMapaAbierto] = useState(false);
+  const [bsaleDoc, setBsaleDoc] = useState({ cargando: false, aviso: '', alerta: '' });
 
   const cat = CATEGORIAS[categoria];
   const esEncargo = categoria === 'encargo';
@@ -120,6 +121,51 @@ export default function PedidoForm({ categoria: categoriaNueva = 'venta' }) {
       ...(cp && !f.cod_postal ? { cod_postal: cp } : {}),
       ...(porAgencia ? {} : { lat, lng, link_ubicacion: '', ...(esEncargo ? { ubicacion_id: null } : {}) }),
     }));
+  }
+
+  /** Precarga cliente, dirección, productos y envío desde el documento de Bsale (boleta, factura, etc.). */
+  async function cargarDesdeBsale() {
+    const numero = (form.documento_bsale ?? '').trim();
+    if (!numero) return;
+    const yaHayDatos = form.cliente_nombre || form.direccion || items.length;
+    if (yaHayDatos && !window.confirm('Se reemplazarán el cliente, la dirección y los productos con los del documento de Bsale. ¿Continuar?')) return;
+    setBsaleDoc({ cargando: true, aviso: '', alerta: '' });
+    try {
+      const d = await pedidosApi.documentoBsale(numero);
+      const c = d.cliente;
+      const codigo = c.distrito ? ubigeo.buscar({ distrito: c.distrito, provincia: c.ciudad, departamento: c.ciudad }) : null;
+      setForm((f) => ({
+        ...f,
+        documento_bsale: d.documento,
+        cliente_nombre: c.nombre ?? f.cliente_nombre,
+        cliente_telefono: c.telefono ? c.telefono.replace(/^\+51\s*/, '') : f.cliente_telefono,
+        direccion: c.direccion ?? f.direccion,
+        ...(codigo ? { ubigeo: codigo } : {}),
+        precio_envio: d.precio_envio ?? f.precio_envio,
+      }));
+      const delCatalogo = d.items.filter((it) => it.producto);
+      const faltan = d.items.filter((it) => !it.producto);
+      if (categoria === 'venta') {
+        setItems(delCatalogo.map((it) => ({ producto: it.producto, descripcion: '', cantidad: it.cantidad, precio_unitario: it.precio_unitario })));
+      } else {
+        setItems(d.items.map((it) => ({ producto: it.producto, descripcion: it.producto ? '' : it.descripcion, cantidad: it.cantidad, precio_unitario: it.precio_unitario })));
+      }
+      setItemsTocados(true);
+      setTotalManual(false);
+      const alertas = [
+        d.pedidos_con_este_documento.length && `Este documento ya está en el pedido ${d.pedidos_con_este_documento.map((p) => `#${p.id}`).join(', ')}.`,
+        categoria === 'venta' && faltan.length && `No están en el catálogo y no se agregaron: ${faltan.map((it) => `${it.sku ?? ''} ${it.descripcion}`.trim()).join(', ')}.`,
+        c.direccion && !codigo && 'Revisa el distrito: no se pudo identificar el del documento.',
+        'Ubica el punto en el mapa con el buscador de dirección.',
+      ].filter(Boolean);
+      setBsaleDoc({
+        cargando: false,
+        aviso: `${d.tipo ?? 'Documento'} ${d.documento}${d.emitido ? ` del ${d.emitido.split('-').reverse().join('/')}` : ''} · ${soles(d.total)} cargado ✔`,
+        alerta: alertas.join(' '),
+      });
+    } catch (err) {
+      setBsaleDoc({ cargando: false, aviso: '', alerta: mensajeError(err) });
+    }
   }
 
   /** Venta / inversa: una ubicación frecuente marca el punto (y completa la dirección si está vacía). */
@@ -239,7 +285,18 @@ export default function PedidoForm({ categoria: categoriaNueva = 'venta' }) {
           {!esEncargo && (
             <>
               <label># Pedido<input maxLength={60} {...input('numero_pedido')} /></label>
-              <label>N° Documento Bsale<input placeholder="BA01-…" maxLength={40} {...input('documento_bsale')} /></label>
+              <label>N° Documento Bsale
+                <div className="fila direccion-con-mapa">
+                  <input placeholder="BA01-…" maxLength={40} {...input('documento_bsale')}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); cargarDesdeBsale(); } }} />
+                  <button type="button" className="btn-sec" title="Precargar cliente, dirección y productos desde el documento de Bsale"
+                    disabled={!form.documento_bsale || bsaleDoc.cargando || bloqueado('documento_bsale')} onClick={cargarDesdeBsale}>
+                    {bsaleDoc.cargando ? 'Buscando…' : '⬇ Cargar'}
+                  </button>
+                </div>
+                {bsaleDoc.aviso && <small className="ok">{bsaleDoc.aviso}</small>}
+                {bsaleDoc.alerta && <small className="error">{bsaleDoc.alerta}</small>}
+              </label>
               {esVendedor ? (
                 <label>Vendedor<input disabled value={usuario.nombre} /></label>
               ) : (

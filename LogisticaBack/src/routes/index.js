@@ -100,6 +100,7 @@ router.get('/pedidos', rol(...P.verPedidos), PedidoController.listar);
 router.post('/pedidos', rol(...P.crearPedido), PedidoController.crear);
 router.post('/pedidos/importar', rol(...P.crearPedido), PedidoController.importar);
 router.get('/pedidos/plantilla', rol(...P.crearPedido), PedidoController.plantilla);
+router.get('/pedidos/bsale/:documento', rol(...P.crearPedido), PedidoController.documentoBsale);
 router.get('/pedidos/:id', rol(...P.verPedidos), PedidoController.obtener);
 router.put('/pedidos/:id', rol(...P.editarPedido), PedidoController.actualizar);
 router.patch('/pedidos/:id/estado', rol(...P.gestionarEstado), PedidoController.cambiarEstado);

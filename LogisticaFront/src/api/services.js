@@ -42,6 +42,7 @@ export const productosApi = {
 };
 
 export const pedidosApi = {
+  documentoBsale: (documento) => data(api.get(`/pedidos/bsale/${encodeURIComponent(documento)}`)),
   listar: (params) => data(api.get('/pedidos', { params })),
   obtener: (id) => data(api.get(`/pedidos/${id}`)),
   crear: (body) => data(api.post('/pedidos', body)),

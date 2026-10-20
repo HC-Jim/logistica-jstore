@@ -3,6 +3,7 @@ import {
   PLATAFORMA_ENCARGO, PLATAFORMA_INVERSA, PLATAFORMAS, PLATAFORMAS_VENTA, TIPOS_PEDIDO, TIPOS_POR_CATEGORIA,
 } from '../config/catalogos.js';
 import { PedidoModel } from '../models/pedido.model.js';
+import { documentoParaPedido } from '../services/bsale.service.js';
 import { RutaModel } from '../models/ruta.model.js';
 import { notificar } from '../services/notificaciones.service.js';
 import { UbicacionModel } from '../models/ubicacion.model.js';
@@ -240,6 +241,11 @@ export const PedidoController = {
       creados.push(await PedidoModel.crear({ datos, items, usuario: req.user }));
     }
     res.status(201).json({ confirmado: true, creados, pedidos: resumen, errores: [], advertencias });
+  },
+
+  /** Datos de un documento de Bsale (serie-número) para precargar el pedido. */
+  async documentoBsale(req, res) {
+    res.json(await documentoParaPedido(req.params.documento));
   },
 
   /** Columnas de la plantilla CSV. */

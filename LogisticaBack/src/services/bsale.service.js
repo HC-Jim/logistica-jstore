@@ -618,3 +618,64 @@ export async function renombrarCategoria(nombreAntes, nombreNuevo, usuario) {
     return { activo: true, ok: false, mensaje: err.message };
   }
 }
+
+// ---------------- documentos (para precargar pedidos) ----------------
+
+/**
+ * Documento de Bsale por su serie-número (ej. "BA01-123") con el cliente y los productos, listo para
+ * precargar un pedido. Los productos se buscan en el catálogo del sistema por SKU.
+ */
+const SKU_ENVIO = new Set(['DESPACHO', '1000000']); // líneas de Bsale que son el cobro del envío
+const esEnvio = (x) => SKU_ENVIO.has(codigo(x.variant?.code)) || /^(despacho|delivery|env[ií]o)/i.test(x.product?.name ?? '');
+
+export async function documentoParaPedido(serieNumero) {
+  const texto = String(serieNumero ?? '').trim().toUpperCase().replace(/\s+/g, '');
+  const m = /^([A-Z0-9]{1,6})-0*(\d{1,9})$/.exec(texto);
+  if (!m) throw new HttpError(400, 'Escribe el documento como SERIE-NÚMERO (ej. BA01-123)');
+  const [, serie, numero] = m;
+  const d = await llamar('GET', '/documents.json', { params: { number: numero, limit: 50, expand: '[document_type,client,details]' } });
+  const doc = (d?.items ?? []).find((x) => String(x.serialNumber ?? '').toUpperCase().replace(/-0*(\d+)$/, '-$1') === `${serie}-${numero}`);
+  if (!doc) throw new HttpError(404, `No se encontró el documento ${serie}-${numero} en Bsale`);
+  if (doc.state === 1) throw new HttpError(409, `El documento ${doc.serialNumber} está anulado en Bsale`);
+
+  const c = doc.client ?? {};
+  const nombre = [c.firstName, c.lastName].filter(Boolean).join(' ').trim();
+  const detalles = (doc.details?.items ?? []).filter((x) => Number(x.quantity) > 0);
+  const skus = [...new Set(detalles.map((x) => codigo(x.variant?.code)).filter(Boolean))];
+  const { rows: prods } = skus.length
+    ? await query('SELECT id, sku, descripcion, precio::float AS precio, tipo, activo FROM productos WHERE upper(btrim(sku)) = ANY($1::text[])', [skus])
+    : { rows: [] };
+  const porSku = new Map(prods.map((p) => [codigo(p.sku), p]));
+  const { rows: usados } = await query(
+    `SELECT id, estado, fecha_entrega FROM pedidos WHERE upper(btrim(documento_bsale)) = $1 AND estado <> 'cancelado' ORDER BY id`,
+    [doc.serialNumber.toUpperCase()]
+  );
+  return {
+    documento: doc.serialNumber,
+    tipo: doc.document_type?.name?.trim() ?? null,
+    emitido: doc.emissionDate ? new Date(doc.emissionDate * 1000).toISOString().slice(0, 10) : null,
+    total: Number(doc.totalAmount ?? 0),
+    cliente: {
+      nombre: (c.companyOrPerson === 1 ? c.company : null) || nombre || c.company || null,
+      documento: c.code || null,
+      telefono: c.phone || null,
+      email: c.email || null,
+      direccion: doc.address || c.address || null,
+      distrito: doc.district || c.municipality || null,
+      ciudad: doc.city || c.city || null,
+    },
+    // el despacho o delivery cobrado en el documento va como costo de envío, no como producto
+    precio_envio: Math.round(detalles.filter(esEnvio).reduce((t, x) => t + Number(x.totalAmount ?? Number(x.totalUnitValue) * Number(x.quantity)), 0) * 100) / 100,
+    items: detalles.filter((x) => !esEnvio(x)).map((x) => {
+      const p = porSku.get(codigo(x.variant?.code));
+      return {
+        sku: x.variant?.code ?? null,
+        descripcion: x.product?.name ?? x.variant?.description ?? '',
+        cantidad: Number(x.quantity),
+        precio_unitario: Number(x.totalUnitValue ?? 0), // con IGV y descuento ya aplicado por línea si lo hubo
+        producto: p ?? null,
+      };
+    }),
+    pedidos_con_este_documento: usados,
+  };
+}

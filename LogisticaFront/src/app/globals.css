@@ -478,3 +478,5 @@ td.difiere { color: #c53030; font-weight: 600; }
 
 .fila.franja { gap: 6px; align-items: center; flex-wrap: nowrap; }
 .fila.franja input { width: auto; }
+
+small.ok { color: #2f855a; }
