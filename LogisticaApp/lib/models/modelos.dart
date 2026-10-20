@@ -56,6 +56,7 @@ class Parada {
         atendidaEn = j['completada_en'] == null ? null : DateTime.tryParse('${j['completada_en']}')?.toLocal(),
         eta = _fecha(j['eta']),
         etaFueraFranja = j['eta_fuera_franja'] == true,
+        porEnviar = j['por_enviar'] == true,
         franjaDesde = _horaCorta(j['franja_desde']),
         franjaHasta = _horaCorta(j['franja_hasta']),
         items = ((j['items'] as List?) ?? []).map((i) => Item.desdeJson(i as Map<String, dynamic>)).toList();
@@ -90,6 +91,7 @@ class Parada {
   final DateTime? atendidaEn;
   final DateTime? eta; // hora estimada de llegada (la calcula el sistema y se actualiza con el GPS)
   final bool etaFueraFranja;
+  final bool porEnviar; // atendida sin señal: se enviará al volver el internet
   final String? franjaDesde; // horario en que el cliente puede recibir
   final String? franjaHasta;
   final List<Item> items;

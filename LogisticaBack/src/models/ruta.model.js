@@ -397,7 +397,7 @@ export const RutaModel = {
   // --- App del repartidor ---
 
   /** El repartidor (o su asistente) marca una parada. Sincroniza el pedido y la ruta. */
-  async atenderParada(paradaId, { estado, nota, usuario }) {
+  async atenderParada(paradaId, { estado, nota, usuario, atendidaEn = null }) {
     return withTransaction(async (client) => {
       const { rows: [parada] } = await client.query(
         `SELECT rp.*, r.repartidor_id, r.asistente_id, r.estado AS estado_ruta
@@ -409,6 +409,10 @@ export const RutaModel = {
       if (![parada.repartidor_id, parada.asistente_id].includes(usuario.id)) {
         throw new HttpError(403, 'Esta parada no es de tu ruta');
       }
+      // la app reintenta lo que guardó sin señal: si ya quedó registrado igual, no se repite
+      if (parada.estado === estado) return parada.ruta_id;
+      if (parada.estado === 'cancelada') throw new HttpError(409, 'Logística retiró este pedido de la ruta: avísales qué pasó con él');
+      if (parada.estado !== 'pendiente') throw new HttpError(409, `Esta parada ya figura como ${parada.estado === 'completada' ? 'entregada' : parada.estado}`);
       if (parada.estado_ruta === 'finalizada') throw new HttpError(409, 'La ruta ya está finalizada');
       if (estado === 'incidencia' && !nota) throw new HttpError(400, 'Describe la incidencia');
       if (estado === 'completada' && parada.pedido_id && !parada.foto_url) {
@@ -416,11 +420,11 @@ export const RutaModel = {
       }
 
       await client.query(
-        'UPDATE ruta_paradas SET estado = $1, nota = $2, completada_en = now() WHERE id = $3',
-        [estado, nota ?? null, paradaId]
+        'UPDATE ruta_paradas SET estado = $1, nota = $2, completada_en = COALESCE($4, now()) WHERE id = $3',
+        [estado, nota ?? null, paradaId, atendidaEn]
       );
       await registrarRuta(client, parada.ruta_id, usuario.id, 'parada_atendida', {
-        pedido_id: parada.pedido_id, descripcion: parada.descripcion, estado, nota, origen: 'app',
+        pedido_id: parada.pedido_id, descripcion: parada.descripcion, estado, nota, origen: atendidaEn ? 'app (sin señal)' : 'app',
       });
       if (parada.pedido_id) {
         const estadoPedido = estado === 'completada' ? 'entregado' : 'incidencia';

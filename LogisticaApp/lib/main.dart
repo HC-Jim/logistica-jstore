@@ -5,10 +5,13 @@ import 'api/api_client.dart';
 import 'screens/login_screen.dart';
 import 'screens/notificaciones_screen.dart';
 import 'screens/rutas_screen.dart';
+import 'services/cola_service.dart';
 import 'services/gps_service.dart';
 import 'services/push_service.dart';
 
 final navegador = GlobalKey<NavigatorState>();
+// ignore: unused_element
+AppLifecycleListener? _alVolver;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,6 +26,9 @@ Future<void> main() async {
     );
   };
   await push.iniciar();
+  // entregas guardadas sin señal: se envían al abrir la app, cada 30 s y al volver a la app
+  await cola.cargar();
+  _alVolver = AppLifecycleListener(onResume: () => cola.enviar());
   push.onAbrir = (datos) {
     final ctx = navegador.currentContext;
     if (ctx != null && api.tieneSesion) abrirRutaDeAviso(ctx, datos);

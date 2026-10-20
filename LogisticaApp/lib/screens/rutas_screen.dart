@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../api/api_client.dart';
 import '../models/modelos.dart';
+import '../services/cola_service.dart';
 import '../services/gps_service.dart';
 import '../services/rutas_service.dart';
 import '../utils/formato.dart';
@@ -35,6 +36,7 @@ class _RutasScreenState extends State<RutasScreen> {
     // en turno: logística ve dónde está el conductor aunque no tenga ruta en curso
     if (!gps.activo) gps.iniciar(null);
     push.llegadas.addListener(_contarAvisos);
+    cola.addListener(_alCambiarCola);
     final aviso = push.pendiente;
     if (aviso != null) {
       push.pendiente = null;
@@ -63,7 +65,53 @@ class _RutasScreenState extends State<RutasScreen> {
   @override
   void dispose() {
     push.llegadas.removeListener(_contarAvisos);
+    cola.removeListener(_alCambiarCola);
     super.dispose();
+  }
+
+  int _rechazadasVistas = 0;
+
+  /// Si el servidor rechazó algo guardado sin señal (p. ej. logística retiró el pedido), se avisa al conductor.
+  void _alCambiarCola() {
+    if (!mounted) return;
+    setState(() {});
+    final rechazadas = cola.rechazadas;
+    if (rechazadas.length > _rechazadasVistas) {
+      _rechazadasVistas = rechazadas.length;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _mostrarRechazadas());
+    }
+  }
+
+  Future<void> _mostrarRechazadas() async {
+    final rechazadas = cola.rechazadas;
+    if (rechazadas.isEmpty || !mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('No se pudo registrar'),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('Esto lo guardaste sin señal, pero el sistema no lo aceptó. Avisa a logística por el chat:'),
+          const SizedBox(height: 8),
+          ...rechazadas.map((r) => Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Text('• ${r.titulo} (${r.estado == 'completada' ? 'entregado' : 'incidencia'} a las ${hora(r.atendidaEn)}): ${r.error}'),
+              )),
+        ]),
+        actions: [
+          FilledButton(
+            onPressed: () async {
+              for (final r in rechazadas) {
+                await cola.descartar(r);
+              }
+              _rechazadasVistas = 0;
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
+            child: const Text('Entendido'),
+          ),
+        ],
+      ),
+    );
+    _cargar();
   }
 
   Future<void> _contarAvisos() async {
@@ -139,6 +187,24 @@ class _RutasScreenState extends State<RutasScreen> {
               ],
             ),
           ),
+          if (_datos?.sinConexion == true || cola.pendientes.isNotEmpty)
+            Material(
+              color: Colors.amber.shade100,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 6, 8, 6),
+                child: Row(children: [
+                  const Icon(Icons.signal_cellular_connected_no_internet_4_bar, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text([
+                      if (_datos?.sinConexion == true) 'Sin señal · datos guardados a las ${hora(_datos!.guardadoEn!)}',
+                      if (cola.pendientes.isNotEmpty) '${cola.pendientes.length} entrega(s) por enviar',
+                    ].join(' · '), style: const TextStyle(fontSize: 13)),
+                  ),
+                  if (cola.pendientes.isNotEmpty) TextButton(onPressed: cola.enviando ? null : cola.enviar, child: const Text('Enviar ahora')),
+                ]),
+              ),
+            ),
           Expanded(
             child: RefreshIndicator(
               onRefresh: _cargar,

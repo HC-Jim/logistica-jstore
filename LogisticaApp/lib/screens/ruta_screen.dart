@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../api/api_client.dart';
 import '../models/modelos.dart';
+import '../services/cola_service.dart';
 import '../services/gps_service.dart';
 import '../services/push_service.dart';
 import '../services/rutas_service.dart';
@@ -26,19 +27,34 @@ class _RutaScreenState extends State<RutaScreen> {
   Ruta? _ruta;
   String? _error;
   bool _iniciando = false;
+  DateTime? _copiaDe; // sin señal: hora de la copia guardada que se muestra
+  int _porEnviar = 0;
 
   @override
   void initState() {
     super.initState();
     gps.addListener(_alCambiarGps);
     push.llegadas.addListener(_cargar); // p. ej. logística canceló o agregó un pedido
+    cola.addListener(_alCambiarCola);
+    _porEnviar = cola.pendientes.length;
     _cargar();
+  }
+
+  /// Cuando la cola termina de enviar algo, se recarga la ruta desde el servidor.
+  void _alCambiarCola() {
+    final n = cola.pendientes.length;
+    final envio = n < _porEnviar;
+    _porEnviar = n;
+    if (!mounted) return;
+    setState(() {});
+    if (envio) _cargar();
   }
 
   @override
   void dispose() {
     gps.removeListener(_alCambiarGps);
     push.llegadas.removeListener(_cargar);
+    cola.removeListener(_alCambiarCola);
     super.dispose();
   }
 
@@ -51,6 +67,7 @@ class _RutaScreenState extends State<RutaScreen> {
       if (!mounted) return;
       setState(() {
         _ruta = ruta;
+        _copiaDe = d.guardadoEn;
         _error = ruta == null ? 'Esta ruta ya no está asignada a ti.' : null;
       });
       // La ruta en curso comparte la ubicación automáticamente; al finalizar se deja de compartir
@@ -133,6 +150,7 @@ class _RutaScreenState extends State<RutaScreen> {
             ? Center(child: _error != null ? Text(_error!, style: const TextStyle(color: Colors.red)) : const CircularProgressIndicator())
             : Column(
                 children: [
+                  if (_copiaDe != null || cola.pendientes.isNotEmpty) _AvisoSinSenal(copiaDe: _copiaDe),
                   _Encabezado(ruta: ruta, iniciando: _iniciando, onIniciar: _iniciar, onActivarGps: () => _activarGps(ruta.id), onFinalizar: _finalizar),
                   Expanded(
                     child: TabBarView(
@@ -275,6 +293,8 @@ class _ListaParadas extends StatelessWidget {
               if (p.cobra && p.pendiente)
                 Text('💵 Cobrar ${soles(p.totalPedido)}${p.medioPago != null ? ' · ${p.medioPago}' : ''}',
                     style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w600)),
+              if (p.porEnviar)
+                const Text('⏳ Guardado sin señal · por enviar', style: TextStyle(color: Color(0xFFB7791F), fontWeight: FontWeight.w600)),
               if (p.estado == 'completada' && p.atendidaEn != null)
                 Text('✔ ${p.verboCompletar} a las ${hora(p.atendidaEn!)}', style: const TextStyle(color: Color(0xFF2F855A))),
               if (p.estado == 'incidencia')
@@ -289,6 +309,34 @@ class _ListaParadas extends StatelessWidget {
           onTap: () => onTap(p),
         );
       },
+    );
+  }
+}
+
+/// Franja amarilla: sin señal (mostrando la copia guardada) y/o entregas por enviar.
+class _AvisoSinSenal extends StatelessWidget {
+  const _AvisoSinSenal({this.copiaDe});
+  final DateTime? copiaDe;
+
+  @override
+  Widget build(BuildContext context) {
+    final n = cola.pendientes.length;
+    return Material(
+      color: Colors.amber.shade100,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 6, 8, 6),
+        child: Row(children: [
+          const Icon(Icons.signal_cellular_connected_no_internet_4_bar, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text([
+              if (copiaDe != null) 'Sin señal · datos guardados a las ${hora(copiaDe!)}',
+              if (n > 0) '$n por enviar${cola.enviando ? ' (enviando…)' : ''}',
+            ].join(' · '), style: const TextStyle(fontSize: 13)),
+          ),
+          if (n > 0) TextButton(onPressed: cola.enviando ? null : cola.enviar, child: const Text('Enviar ahora')),
+        ]),
+      ),
     );
   }
 }

@@ -444,7 +444,15 @@ export const RutaController = {
       { requeridos: true }
     );
     const paradaId = idParam(req.params.id);
-    const rutaId = await RutaModel.atenderParada(paradaId, { estado, nota, usuario: req.user });
+    // hora real de la entrega cuando la app la guardó sin señal y la envía después
+    let atendidaEn = null;
+    if (req.body?.atendida_en) {
+      const t = new Date(req.body.atendida_en);
+      if (Number.isNaN(t.getTime())) throw new HttpError(400, 'atendida_en inválida');
+      if (t.getTime() > Date.now() + 5 * 60_000 || t.getTime() < Date.now() - 7 * 86400_000) throw new HttpError(400, 'atendida_en fuera de rango');
+      atendidaEn = t;
+    }
+    const rutaId = await RutaModel.atenderParada(paradaId, { estado, nota, usuario: req.user, atendidaEn });
     const ruta = await RutaModel.obtener(rutaId);
     if (estado === 'incidencia') {
       const p = ruta.paradas.find((x) => x.id === paradaId);

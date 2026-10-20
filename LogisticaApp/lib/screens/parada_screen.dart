@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../api/api_client.dart';
 import '../models/modelos.dart';
+import '../services/cola_service.dart';
 import '../services/rutas_service.dart';
 import '../utils/formato.dart';
 
@@ -52,6 +53,7 @@ class _ParadaScreenState extends State<ParadaScreen> {
   Uint8List? _foto;
   bool _subiendo = false;
   bool _fotoSubida = false;
+  bool _fotoSinSenal = false; // no se pudo subir por falta de señal: se guarda en el celular
   String? _errorFoto;
 
   /// Abre la cámara y sube la foto. Devuelve true si quedó subida.
@@ -69,6 +71,7 @@ class _ParadaScreenState extends State<ParadaScreen> {
     setState(() {
       _foto = bytes;
       _fotoSubida = false;
+      _fotoSinSenal = false;
     });
     return _subirFoto();
   }
@@ -83,10 +86,11 @@ class _ParadaScreenState extends State<ParadaScreen> {
     });
     try {
       await RutasService.subirFoto(p.id, foto);
-      if (mounted) setState(() => _fotoSubida = true);
+      if (mounted) setState(() { _fotoSubida = true; _fotoSinSenal = false; });
       return true;
     } on ApiException catch (e) {
-      if (mounted) setState(() => _errorFoto = e.mensaje);
+      // sin señal: la foto queda en el celular y se envía junto con la entrega cuando vuelva el internet
+      if (mounted) setState(() { _errorFoto = e.status == 0 ? null : e.mensaje; _fotoSinSenal = e.status == 0; });
       return false;
     } finally {
       if (mounted) setState(() => _subiendo = false);
@@ -101,7 +105,7 @@ class _ParadaScreenState extends State<ParadaScreen> {
     // Los pedidos necesitan la foto del cliente con el producto; las acciones (Falabella, almacén...) no
     if (!p.esAccion && !_fotoSubida) {
       final ok = _foto == null ? await _tomarFoto() : await _subirFoto();
-      if (!ok) {
+      if (!ok && !_fotoSinSenal) {
         if (_errorFoto != null) _mensaje('No se pudo subir la foto: $_errorFoto');
         return;
       }
@@ -158,6 +162,9 @@ class _ParadaScreenState extends State<ParadaScreen> {
             const SizedBox(height: 8),
             if (_subiendo) const Row(children: [SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)), SizedBox(width: 8), Text('Subiendo foto…')]),
             if (_fotoSubida) const Text('✔ Foto guardada. Ya puedes marcar la entrega.', style: TextStyle(color: Color(0xFF2F855A), fontWeight: FontWeight.w600)),
+            if (_fotoSinSenal)
+              const Text('📶 Sin señal: la foto queda guardada en el celular y se enviará sola. Ya puedes marcar la entrega.',
+                  style: TextStyle(color: Color(0xFFB7791F), fontWeight: FontWeight.w600)),
             if (_errorFoto != null) Text('✖ No se pudo subir: $_errorFoto', style: const TextStyle(color: Colors.red)),
           ],
           const SizedBox(height: 6),
@@ -184,9 +191,28 @@ class _ParadaScreenState extends State<ParadaScreen> {
     if (nota != null && nota.isNotEmpty) await _enviar('incidencia', nota: nota);
   }
 
+  /// Sin señal: la entrega (y la foto si no se subió) se guarda en el celular y se envía sola después.
+  Future<void> _guardarSinSenal(String estado, String? nota) async {
+    await cola.agregar(
+      paradaId: p.id, titulo: p.titulo, estado: estado, nota: nota,
+      foto: estado == 'completada' && !_fotoSubida ? _foto : null,
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      content: Text('📶 Sin señal: quedó guardado en el celular y se enviará solo cuando vuelva el internet.'),
+      duration: Duration(seconds: 5),
+    ));
+    Navigator.pop(context, true);
+  }
+
   Future<void> _enviar(String estado, {String? nota}) async {
     setState(() => _enviando = true);
     try {
+      // la foto no pudo subirse por falta de señal: todo va a la cola (el servidor exige la foto primero)
+      if (estado == 'completada' && !p.esAccion && !_fotoSubida && _fotoSinSenal) {
+        await _guardarSinSenal(estado, nota);
+        return;
+      }
       await RutasService.atender(p.id, estado, nota: nota);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -194,7 +220,11 @@ class _ParadaScreenState extends State<ParadaScreen> {
       ));
       Navigator.pop(context, true);
     } on ApiException catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.mensaje)));
+      if (e.status == 0) {
+        await _guardarSinSenal(estado, nota);
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.mensaje)));
+      }
     } finally {
       if (mounted) setState(() => _enviando = false);
     }
@@ -223,7 +253,9 @@ class _ParadaScreenState extends State<ParadaScreen> {
                     '${switch (p.estado) { 'completada' => p.verboCompletar, 'cancelada' => 'Cancelado por logística: no lo entregues', _ => 'Incidencia' }}'
                     '${p.atendidaEn != null ? ' · ${hora(p.atendidaEn!)}' : ''}',
                   ),
-                  subtitle: p.nota != null ? Text(p.nota!) : null,
+                  subtitle: p.porEnviar
+                      ? Text('⏳ Guardado sin señal: se enviará cuando vuelva el internet${p.nota != null ? '\n${p.nota}' : ''}')
+                      : (p.nota != null ? Text(p.nota!) : null),
                 ),
                 if (p.fotoUrl != null)
                   Padding(
